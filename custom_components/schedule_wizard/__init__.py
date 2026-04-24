@@ -34,13 +34,18 @@ from .const import (
     DEFAULT_DURATION,
     DEFAULT_RAIN_SKIP_STATES,
     DOMAIN,
+    SERVICE_ADD_CYCLE,
     SERVICE_ADD_SCHEDULE,
     SERVICE_ADD_VALVE,
     SERVICE_LIST,
+    SERVICE_REMOVE_CYCLE,
     SERVICE_REMOVE_SCHEDULE,
     SERVICE_REMOVE_VALVE,
+    SERVICE_RUN_CYCLE,
     SERVICE_RUN_VALVE,
+    SERVICE_STOP_CYCLE,
     SERVICE_STOP_VALVE,
+    SERVICE_UPDATE_CYCLE,
     SERVICE_UPDATE_SCHEDULE,
     SUPPORTED_DOMAINS,
 )
@@ -101,12 +106,52 @@ SCHEMA_REMOVE_VALVE = vol.Schema({
 })
 
 SCHEMA_ADD_SCHEDULE = vol.Schema({
-    vol.Required("valve_entity_id"): _entity_in_supported_domain,
+    vol.Optional("valve_entity_id"): _entity_in_supported_domain,
+    vol.Optional("cycle_id"): cv.string,
     vol.Required("time"): _hhmm,
-    vol.Required("duration_minutes"): vol.All(int, vol.Range(min=1, max=1440)),
+    vol.Optional("duration_minutes", default=1): vol.All(int, vol.Range(min=1, max=1440)),
     vol.Required("days"): vol.All(cv.ensure_list, [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])]),
     vol.Optional("name", default=""): cv.string,
     vol.Optional("enabled", default=True): cv.boolean,
+})
+
+SCHEMA_ADD_CYCLE = vol.Schema({
+    vol.Required("name"): cv.string,
+    vol.Required("steps"): vol.All(
+        cv.ensure_list,
+        [vol.Schema({
+            vol.Required("entity_id"): _entity_in_supported_domain,
+            vol.Required("duration_minutes"): vol.All(int, vol.Range(min=1, max=1440)),
+        })],
+        vol.Length(min=1, max=64),
+    ),
+    vol.Optional("enabled", default=True): cv.boolean,
+})
+
+SCHEMA_UPDATE_CYCLE = vol.Schema({
+    vol.Required("cycle_id"): cv.string,
+    vol.Optional("name"): cv.string,
+    vol.Optional("steps"): vol.All(
+        cv.ensure_list,
+        [vol.Schema({
+            vol.Required("entity_id"): _entity_in_supported_domain,
+            vol.Required("duration_minutes"): vol.All(int, vol.Range(min=1, max=1440)),
+        })],
+        vol.Length(min=1, max=64),
+    ),
+    vol.Optional("enabled"): cv.boolean,
+})
+
+SCHEMA_REMOVE_CYCLE = vol.Schema({
+    vol.Required("cycle_id"): cv.string,
+})
+
+SCHEMA_RUN_CYCLE = vol.Schema({
+    vol.Required("cycle_id"): cv.string,
+})
+
+SCHEMA_STOP_CYCLE = vol.Schema({
+    vol.Required("cycle_id"): cv.string,
 })
 
 SCHEMA_REMOVE_SCHEDULE = vol.Schema({
@@ -226,11 +271,17 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             {k: v for k, v in r.items() if k != "unsub_close"}
             for r in scheduler.active.values()
         ]
+        active_cycles = [
+            {k: v for k, v in r.items() if k != "task"}
+            for r in scheduler.active_cycles.values()
+        ]
 
         connection.send_result(msg["id"], {
             "valves": store.valves,
             "schedules": store.schedules,
+            "cycles": store.cycles,
             "active": active,
+            "active_cycles": active_cycles,
             "history": store.history[:30],
             "options": options,
             "controllable": controllable,
@@ -373,16 +424,67 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await scheduler.async_stop_valve(call.data["entity_id"])
 
     async def _svc_add_schedule(call: ServiceCall) -> ServiceResponse:
+        valve_entity_id = call.data.get("valve_entity_id")
+        cycle_id = call.data.get("cycle_id")
+        if not valve_entity_id and not cycle_id:
+            raise HomeAssistantError("either valve_entity_id or cycle_id is required")
+        if valve_entity_id and cycle_id:
+            raise HomeAssistantError("provide exactly one of valve_entity_id or cycle_id")
+        if cycle_id and not store.get_cycle(cycle_id):
+            raise HomeAssistantError("cycle not found")
         mask = _days_to_mask(call.data["days"])
         sched = await store.async_add_schedule(
-            valve_entity_id=call.data["valve_entity_id"],
+            valve_entity_id=valve_entity_id or None,
+            cycle_id=cycle_id or None,
             days_mask=mask,
             time_hhmm=call.data["time"],
-            duration_min=int(call.data["duration_minutes"]),
+            duration_min=int(call.data.get("duration_minutes", 1)),
             name=call.data.get("name", ""),
             enabled=bool(call.data.get("enabled", True)),
         )
         return {"schedule": sched}
+
+    async def _svc_add_cycle(call: ServiceCall) -> ServiceResponse:
+        steps = [
+            {"entity_id": s["entity_id"], "duration_min": int(s["duration_minutes"])}
+            for s in call.data["steps"]
+        ]
+        cycle = await store.async_add_cycle(
+            name=call.data["name"],
+            steps=steps,
+            enabled=bool(call.data.get("enabled", True)),
+        )
+        return {"cycle": cycle}
+
+    async def _svc_update_cycle(call: ServiceCall) -> ServiceResponse:
+        fields: dict[str, Any] = {}
+        if "name" in call.data:
+            fields["name"] = call.data["name"]
+        if "enabled" in call.data:
+            fields["enabled"] = bool(call.data["enabled"])
+        if "steps" in call.data:
+            fields["steps"] = [
+                {"entity_id": s["entity_id"], "duration_min": int(s["duration_minutes"])}
+                for s in call.data["steps"]
+            ]
+        cycle = await store.async_update_cycle(call.data["cycle_id"], **fields)
+        if cycle is None:
+            raise HomeAssistantError("cycle not found")
+        return {"cycle": cycle}
+
+    async def _svc_remove_cycle(call: ServiceCall) -> None:
+        cycle_id = call.data["cycle_id"]
+        await scheduler.async_stop_cycle(cycle_id, note="removed")
+        await store.async_remove_cycle(cycle_id)
+
+    async def _svc_run_cycle(call: ServiceCall) -> None:
+        try:
+            await scheduler.async_run_cycle(call.data["cycle_id"], source="service")
+        except Exception as e:
+            raise HomeAssistantError(str(e)) from e
+
+    async def _svc_stop_cycle(call: ServiceCall) -> None:
+        await scheduler.async_stop_cycle(call.data["cycle_id"])
 
     async def _svc_remove_schedule(call: ServiceCall) -> None:
         await store.async_remove_schedule(call.data["schedule_id"])
@@ -431,6 +533,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         supports_response=SupportsResponse.OPTIONAL,
     )
     hass.services.async_register(
+        DOMAIN, SERVICE_ADD_CYCLE, _svc_add_cycle,
+        schema=SCHEMA_ADD_CYCLE,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_UPDATE_CYCLE, _svc_update_cycle,
+        schema=SCHEMA_UPDATE_CYCLE,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(DOMAIN, SERVICE_REMOVE_CYCLE, _svc_remove_cycle, schema=SCHEMA_REMOVE_CYCLE)
+    hass.services.async_register(DOMAIN, SERVICE_RUN_CYCLE, _svc_run_cycle, schema=SCHEMA_RUN_CYCLE)
+    hass.services.async_register(DOMAIN, SERVICE_STOP_CYCLE, _svc_stop_cycle, schema=SCHEMA_STOP_CYCLE)
+    hass.services.async_register(
         DOMAIN, SERVICE_LIST, _svc_list, supports_response=SupportsResponse.ONLY
     )
 
@@ -471,6 +586,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             SERVICE_ADD_SCHEDULE,
             SERVICE_UPDATE_SCHEDULE,
             SERVICE_REMOVE_SCHEDULE,
+            SERVICE_ADD_CYCLE,
+            SERVICE_UPDATE_CYCLE,
+            SERVICE_REMOVE_CYCLE,
+            SERVICE_RUN_CYCLE,
+            SERVICE_STOP_CYCLE,
             SERVICE_LIST,
         ):
             if hass.services.has_service(DOMAIN, svc):

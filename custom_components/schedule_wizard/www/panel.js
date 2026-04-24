@@ -303,7 +303,7 @@ class ScheduleWizardPanel extends HTMLElement {
     app.appendChild(top);
 
     const tabs = el("div", { class: "tabs" });
-    [["dashboard", "Dashboard"], ["valves", "Valves"], ["schedules", "Schedules"], ["settings", "Settings"]]
+    [["dashboard", "Dashboard"], ["valves", "Valves"], ["cycles", "Cycles"], ["schedules", "Schedules"], ["settings", "Settings"]]
       .forEach(([key, label]) => {
         const btn = el("button", {
           class: "tab" + (this._tab === key ? " active" : ""),
@@ -319,12 +319,22 @@ class ScheduleWizardPanel extends HTMLElement {
     switch (this._tab) {
       case "dashboard": this._renderDashboard(content); break;
       case "valves": this._renderValves(content); break;
+      case "cycles": this._renderCycles(content); break;
       case "schedules": this._renderSchedules(content); break;
       case "settings": this._renderSettings(content); break;
     }
   }
 
   _renderDashboard(root) {
+    const activeCycles = this._state.active_cycles || [];
+    if (activeCycles.length) {
+      const cyclesCard = el("div", { class: "card" }, [el("h2", {}, "Active cycles")]);
+      const cyclesList = el("div", { class: "list" });
+      activeCycles.forEach((c) => cyclesList.appendChild(this._activeCycleRow(c)));
+      cyclesCard.appendChild(cyclesList);
+      root.appendChild(cyclesCard);
+    }
+
     const active = el("div", { class: "card" }, [el("h2", {}, "Active runs")]);
     const list = el("div", { class: "list" });
     if (!this._state.active.length) {
@@ -529,6 +539,181 @@ class ScheduleWizardPanel extends HTMLElement {
     });
   }
 
+  _activeCycleRow(c) {
+    const valve = this._state.valves.find(v => v.entity_id === c.current_entity);
+    const currentLabel = valve ? valve.label : (c.current_entity || "—");
+    return el("div", { class: "item" }, [
+      el("div", {}, [
+        el("div", { class: "name" }, `● ${c.cycle_name || c.cycle_id}`),
+        el("div", { class: "sub" },
+          `step ${c.step}/${c.total_steps} • ${currentLabel} • ${c.source}`
+        ),
+      ]),
+      el("div", { class: "actions" }, [
+        el("button", {
+          class: "btn danger small",
+          onClick: () => this._callService("stop_cycle", { cycle_id: c.cycle_id }),
+        }, "Stop"),
+      ]),
+    ]);
+  }
+
+  _renderCycles(root) {
+    const card = el("div", { class: "card" });
+    card.appendChild(el("div", { class: "row-between" }, [
+      el("h2", {}, "Cycles"),
+      el("button", {
+        class: "btn primary",
+        onClick: () => this._openCycleModal(null),
+      }, "+ Add cycle"),
+    ]));
+    const list = el("div", { class: "list" });
+    const cycles = this._state.cycles || [];
+    if (!cycles.length) {
+      list.appendChild(el("div", { class: "empty" },
+        "No cycles yet. A cycle runs multiple valves one after another (e.g. zone 1 → zone 2 → zone 3)."
+      ));
+    } else {
+      cycles.forEach(c => list.appendChild(this._cycleRow(c)));
+    }
+    card.appendChild(list);
+    root.appendChild(card);
+  }
+
+  _cycleRow(c) {
+    const active = (this._state.active_cycles || []).some(a => a.cycle_id === c.id);
+    const steps = c.steps || [];
+    const totalMin = steps.reduce((a, s) => a + (s.duration_min || 0), 0);
+    const valvesMap = Object.fromEntries(this._state.valves.map(v => [v.entity_id, v.label]));
+    const stepLabels = steps.map(s => `${valvesMap[s.entity_id] || s.entity_id} ${s.duration_min}m`).join(" → ");
+    return el("div", { class: "item" }, [
+      el("div", {}, [
+        el("div", { class: "name" }, (c.name || c.id) + (c.enabled ? "" : " (disabled)") + (active ? " ● running" : "")),
+        el("div", { class: "sub" }, `${steps.length} steps • total ${totalMin}m`),
+        el("div", { class: "sub", style: "margin-top:2px;" }, stepLabels),
+      ]),
+      el("div", { class: "actions" }, [
+        active
+          ? el("button", {
+              class: "btn danger small",
+              onClick: () => this._callService("stop_cycle", { cycle_id: c.id }),
+            }, "Stop")
+          : el("button", {
+              class: "btn primary small",
+              onClick: () => this._callService("run_cycle", { cycle_id: c.id }),
+            }, "Run"),
+        el("button", {
+          class: "btn small",
+          onClick: () => this._openCycleModal(c),
+        }, "Edit"),
+        el("button", {
+          class: "btn small",
+          onClick: () => this._callService("update_cycle", { cycle_id: c.id, enabled: !c.enabled }),
+        }, c.enabled ? "Disable" : "Enable"),
+        el("button", {
+          class: "btn danger small",
+          onClick: () => {
+            if (!confirm(`Delete cycle "${c.name}"?`)) return;
+            this._callService("remove_cycle", { cycle_id: c.id });
+          },
+        }, "Delete"),
+      ]),
+    ]);
+  }
+
+  _openCycleModal(existing) {
+    if (!this._state.valves.length) { this._toast("Add a valve first", "error"); return; }
+
+    let name = existing ? existing.name : "";
+    let enabled = existing ? !!existing.enabled : true;
+    let steps = existing ? JSON.parse(JSON.stringify(existing.steps || [])) : [];
+    if (!steps.length) {
+      const v = this._state.valves[0];
+      steps.push({ entity_id: v.entity_id, duration_min: v.default_duration_min });
+    }
+
+    const nameInput = el("input", { type: "text", value: name, placeholder: "e.g. Morning irrigation" });
+    nameInput.addEventListener("input", () => { name = nameInput.value; });
+
+    const enabledInput = el("input", { type: "checkbox" });
+    enabledInput.checked = enabled;
+    enabledInput.addEventListener("change", () => { enabled = enabledInput.checked; });
+
+    const stepsWrap = el("div");
+    const renderSteps = () => {
+      stepsWrap.innerHTML = "";
+      steps.forEach((s, idx) => {
+        const sel = el("select", {});
+        this._state.valves.forEach(v => {
+          const opt = el("option", { value: v.entity_id }, `${v.label} (${v.entity_id})`);
+          if (v.entity_id === s.entity_id) opt.selected = true;
+          sel.appendChild(opt);
+        });
+        sel.addEventListener("change", () => { s.entity_id = sel.value; });
+
+        const durInput = el("input", {
+          type: "number", min: "1", max: "1440",
+          value: String(s.duration_min), style: "width:70px;",
+        });
+        durInput.addEventListener("input", () => { s.duration_min = parseInt(durInput.value, 10) || 1; });
+
+        const row = el("div", {
+          style: "display:grid;grid-template-columns:24px 1fr 80px auto auto;gap:6px;align-items:center;padding:4px 0;",
+        }, [
+          el("span", { class: "muted small" }, String(idx + 1)),
+          sel,
+          durInput,
+          el("button", {
+            class: "btn small",
+            disabled: idx === 0 ? "disabled" : null,
+            onClick: () => {
+              [steps[idx - 1], steps[idx]] = [steps[idx], steps[idx - 1]];
+              renderSteps();
+            },
+          }, "▲"),
+          el("button", {
+            class: "btn danger small",
+            onClick: () => { steps.splice(idx, 1); renderSteps(); },
+          }, "✕"),
+        ]);
+        stepsWrap.appendChild(row);
+      });
+      stepsWrap.appendChild(el("button", {
+        class: "btn small",
+        style: "margin-top:6px;",
+        onClick: () => {
+          const v = this._state.valves[0];
+          steps.push({ entity_id: v.entity_id, duration_min: v.default_duration_min });
+          renderSteps();
+        },
+      }, "+ Add step"));
+    };
+    renderSteps();
+
+    const fields = [
+      el("label", { class: "field" }, [el("span", {}, "Name"), nameInput]),
+      el("div", { class: "field" }, [el("span", {}, "Steps (sequential)"), stepsWrap]),
+      el("label", { class: "field" }, [el("span", {}, "Enabled"), enabledInput]),
+    ];
+
+    this._showModal(existing ? "Edit cycle" : "Add cycle", fields, async () => {
+      if (!name.trim()) { this._toast("Name required", "error"); return false; }
+      if (!steps.length) { this._toast("At least one step", "error"); return false; }
+      const payload = {
+        name,
+        enabled,
+        steps: steps.map(s => ({
+          entity_id: s.entity_id,
+          duration_minutes: s.duration_min,
+        })),
+      };
+      if (existing) {
+        return await this._callService("update_cycle", { cycle_id: existing.id, ...payload });
+      }
+      return await this._callService("add_cycle", payload);
+    });
+  }
+
   _renderSchedules(root) {
     const card = el("div", { class: "card" });
     card.appendChild(el("div", { class: "row-between" }, [
@@ -549,12 +734,21 @@ class ScheduleWizardPanel extends HTMLElement {
   }
 
   _scheduleRow(s) {
-    const valve = this._state.valves.find((v) => v.entity_id === s.valve_entity_id);
-    const valveName = valve ? valve.label : s.valve_entity_id;
+    let targetName;
+    let targetDuration;
+    if (s.cycle_id) {
+      const cycle = (this._state.cycles || []).find(c => c.id === s.cycle_id);
+      targetName = cycle ? `cycle: ${cycle.name}` : `cycle: ${s.cycle_id}`;
+      targetDuration = cycle ? `${(cycle.steps || []).reduce((a, x) => a + (x.duration_min || 0), 0)}m total` : "";
+    } else {
+      const valve = this._state.valves.find(v => v.entity_id === s.valve_entity_id);
+      targetName = valve ? valve.label : s.valve_entity_id;
+      targetDuration = `${s.duration_min}m`;
+    }
     return el("div", { class: "item" }, [
       el("div", {}, [
-        el("div", { class: "name" }, (s.name || `${valveName} @ ${s.time_hhmm}`) + (s.enabled ? "" : " (disabled)")),
-        el("div", { class: "sub" }, `${valveName} • ${s.time_hhmm} • ${daysFromMask(s.days_mask)} • ${s.duration_min}m`),
+        el("div", { class: "name" }, (s.name || `${targetName} @ ${s.time_hhmm}`) + (s.enabled ? "" : " (disabled)")),
+        el("div", { class: "sub" }, `${targetName} • ${s.time_hhmm} • ${daysFromMask(s.days_mask)} • ${targetDuration}`),
       ]),
       el("div", { class: "actions" }, [
         el("button", {
@@ -577,31 +771,68 @@ class ScheduleWizardPanel extends HTMLElement {
   }
 
   _openScheduleModal(existing) {
-    if (!this._state.valves.length) { this._toast("Add a valve first", "error"); return; }
+    const hasValves = this._state.valves.length > 0;
+    const hasCycles = (this._state.cycles || []).length > 0;
+    if (!hasValves && !hasCycles) { this._toast("Add a valve or cycle first", "error"); return; }
 
-    let valveEntity = existing ? existing.valve_entity_id : this._state.valves[0].entity_id;
+    let targetKind;
+    if (existing) {
+      targetKind = existing.cycle_id ? "cycle" : "valve";
+    } else {
+      targetKind = hasValves ? "valve" : "cycle";
+    }
+    let valveEntity = existing && existing.valve_entity_id ? existing.valve_entity_id : (hasValves ? this._state.valves[0].entity_id : "");
+    let cycleId = existing && existing.cycle_id ? existing.cycle_id : (hasCycles ? this._state.cycles[0].id : "");
     let name = existing ? existing.name : "";
     let time = existing ? existing.time_hhmm : "06:00";
     let duration = existing ? existing.duration_min : (this._state.options.default_duration || 10);
     let mask = existing ? existing.days_mask : 127;
     let enabled = existing ? !!existing.enabled : true;
 
+    const targetSel = el("select", existing ? { disabled: "disabled" } : {});
+    if (hasValves) targetSel.appendChild(el("option", { value: "valve" }, "Single valve"));
+    if (hasCycles) targetSel.appendChild(el("option", { value: "cycle" }, "Cycle (multi-valve)"));
+    targetSel.value = targetKind;
+    targetSel.addEventListener("change", () => { targetKind = targetSel.value; renderTargetField(); });
+
+    const targetFieldHost = el("div");
     const valveSel = el("select", existing ? { disabled: "disabled" } : {});
-    this._state.valves.forEach((v) => {
+    this._state.valves.forEach(v => {
       const opt = el("option", { value: v.entity_id }, `${v.label} (${v.entity_id})`);
       if (v.entity_id === valveEntity) opt.selected = true;
       valveSel.appendChild(opt);
     });
     valveSel.addEventListener("change", () => { valveEntity = valveSel.value; });
 
-    const nameInput = el("input", { type: "text", value: name, placeholder: "Optional" });
-    nameInput.addEventListener("input", () => { name = nameInput.value; });
+    const cycleSel = el("select", existing ? { disabled: "disabled" } : {});
+    (this._state.cycles || []).forEach(c => {
+      const opt = el("option", { value: c.id }, `${c.name}`);
+      if (c.id === cycleId) opt.selected = true;
+      cycleSel.appendChild(opt);
+    });
+    cycleSel.addEventListener("change", () => { cycleId = cycleSel.value; });
 
+    const durRow = el("div", { class: "field-row" });
     const timeInput = el("input", { type: "time", value: time });
     timeInput.addEventListener("input", () => { time = timeInput.value; });
-
     const durInput = el("input", { type: "number", min: "1", max: "1440", value: String(duration) });
     durInput.addEventListener("input", () => { duration = parseInt(durInput.value, 10) || 10; });
+    const renderTargetField = () => {
+      targetFieldHost.innerHTML = "";
+      durRow.innerHTML = "";
+      if (targetKind === "cycle") {
+        targetFieldHost.appendChild(el("label", { class: "field" }, [el("span", {}, "Cycle"), cycleSel]));
+        durRow.appendChild(el("label", { class: "field" }, [el("span", {}, "Time"), timeInput]));
+      } else {
+        targetFieldHost.appendChild(el("label", { class: "field" }, [el("span", {}, "Valve"), valveSel]));
+        durRow.appendChild(el("label", { class: "field" }, [el("span", {}, "Time"), timeInput]));
+        durRow.appendChild(el("label", { class: "field" }, [el("span", {}, "Duration (min)"), durInput]));
+      }
+    };
+    renderTargetField();
+
+    const nameInput = el("input", { type: "text", value: name, placeholder: "Optional" });
+    nameInput.addEventListener("input", () => { name = nameInput.value; });
 
     const enabledInput = el("input", { type: "checkbox" });
     enabledInput.checked = enabled;
@@ -618,12 +849,10 @@ class ScheduleWizardPanel extends HTMLElement {
     });
 
     const fields = [
-      el("label", { class: "field" }, [el("span", {}, "Valve"), valveSel]),
+      el("label", { class: "field" }, [el("span", {}, "Target"), targetSel]),
+      targetFieldHost,
+      durRow,
       el("label", { class: "field" }, [el("span", {}, "Name"), nameInput]),
-      el("div", { class: "field-row" }, [
-        el("label", { class: "field" }, [el("span", {}, "Time"), timeInput]),
-        el("label", { class: "field" }, [el("span", {}, "Duration (min)"), durInput]),
-      ]),
       el("div", { class: "field" }, [el("span", {}, "Days"), days]),
       el("label", { class: "field" }, [el("span", {}, "Enabled"), enabledInput]),
     ];
@@ -635,19 +864,21 @@ class ScheduleWizardPanel extends HTMLElement {
           schedule_id: existing.id,
           name,
           time,
-          duration_minutes: duration,
+          duration_minutes: targetKind === "valve" ? duration : 1,
           days: daysFromMaskNames(mask),
           enabled,
         });
       }
-      return await this._callService("add_schedule", {
-        valve_entity_id: valveEntity,
+      const base = {
         time,
-        duration_minutes: duration,
         days: daysFromMaskNames(mask),
         name,
         enabled,
-      });
+      };
+      if (targetKind === "cycle") {
+        return await this._callService("add_schedule", { ...base, cycle_id: cycleId, duration_minutes: 1 });
+      }
+      return await this._callService("add_schedule", { ...base, valve_entity_id: valveEntity, duration_minutes: duration });
     });
   }
 

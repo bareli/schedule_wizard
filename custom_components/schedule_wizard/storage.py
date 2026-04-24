@@ -21,6 +21,7 @@ class WizardStore:
             "schedules": [],
             "history": [],
             "active_runs": [],
+            "cycles": [],
         }
         self._loaded = False
 
@@ -31,6 +32,7 @@ class WizardStore:
             self._data["schedules"] = data.get("schedules", [])
             self._data["history"] = data.get("history", [])
             self._data["active_runs"] = data.get("active_runs", [])
+            self._data["cycles"] = data.get("cycles", [])
         self._loaded = True
 
     async def async_save(self) -> None:
@@ -106,16 +108,18 @@ class WizardStore:
 
     async def async_add_schedule(
         self,
-        valve_entity_id: str,
         days_mask: int,
         time_hhmm: str,
         duration_min: int,
         name: str = "",
         enabled: bool = True,
+        valve_entity_id: Optional[str] = None,
+        cycle_id: Optional[str] = None,
     ) -> dict:
         sched = {
             "id": uuid.uuid4().hex[:12],
-            "valve_entity_id": valve_entity_id,
+            "valve_entity_id": valve_entity_id or "",
+            "cycle_id": cycle_id or "",
             "name": name,
             "days_mask": int(days_mask),
             "time_hhmm": time_hhmm,
@@ -146,6 +150,73 @@ class WizardStore:
         before = len(self._data["schedules"])
         self._data["schedules"] = [s for s in self._data["schedules"] if s["id"] != schedule_id]
         if len(self._data["schedules"]) != before:
+            await self.async_save()
+            return True
+        return False
+
+    @property
+    def cycles(self) -> list[dict]:
+        return list(self._data["cycles"])
+
+    def get_cycle(self, cycle_id: str) -> Optional[dict]:
+        for c in self._data["cycles"]:
+            if c["id"] == cycle_id:
+                return c
+        return None
+
+    def get_cycle_by_name(self, name: str) -> Optional[dict]:
+        name_l = (name or "").lower().strip()
+        if not name_l:
+            return None
+        for c in self._data["cycles"]:
+            if (c.get("name") or "").lower().strip() == name_l:
+                return c
+        return None
+
+    async def async_add_cycle(self, name: str, steps: list[dict], enabled: bool = True) -> dict:
+        cycle = {
+            "id": uuid.uuid4().hex[:12],
+            "name": name,
+            "steps": [
+                {
+                    "entity_id": s.get("entity_id"),
+                    "duration_min": int(s.get("duration_min", 1)),
+                }
+                for s in steps
+            ],
+            "enabled": bool(enabled),
+            "created_at": int(time.time()),
+        }
+        self._data["cycles"].append(cycle)
+        await self.async_save()
+        return cycle
+
+    async def async_update_cycle(self, cycle_id: str, **fields: Any) -> Optional[dict]:
+        cycle = self.get_cycle(cycle_id)
+        if not cycle:
+            return None
+        if "name" in fields and fields["name"] is not None:
+            cycle["name"] = fields["name"]
+        if "enabled" in fields and fields["enabled"] is not None:
+            cycle["enabled"] = bool(fields["enabled"])
+        if "steps" in fields and fields["steps"] is not None:
+            cycle["steps"] = [
+                {
+                    "entity_id": s.get("entity_id"),
+                    "duration_min": int(s.get("duration_min", 1)),
+                }
+                for s in fields["steps"]
+            ]
+        await self.async_save()
+        return cycle
+
+    async def async_remove_cycle(self, cycle_id: str) -> bool:
+        before = len(self._data["cycles"])
+        self._data["cycles"] = [c for c in self._data["cycles"] if c["id"] != cycle_id]
+        self._data["schedules"] = [
+            s for s in self._data["schedules"] if s.get("cycle_id") != cycle_id
+        ]
+        if len(self._data["cycles"]) != before:
             await self.async_save()
             return True
         return False

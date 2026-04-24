@@ -214,6 +214,84 @@ remove_schedule:
       selector:
         text:
 
+add_cycle:
+  name: Add cycle
+  description: Create a cycle that runs a list of valves sequentially.
+  fields:
+    name:
+      name: Name
+      description: Also used to match calendar events.
+      required: true
+      selector:
+        text:
+    steps:
+      name: Steps
+      description: Ordered list. Each step = entity_id + duration_minutes.
+      required: true
+      selector:
+        object:
+    enabled:
+      name: Enabled
+      required: false
+      default: true
+      selector:
+        boolean:
+
+update_cycle:
+  name: Update cycle
+  description: Patch an existing cycle. Any omitted field is left unchanged.
+  fields:
+    cycle_id:
+      name: Cycle ID
+      required: true
+      selector:
+        text:
+    name:
+      name: Name
+      required: false
+      selector:
+        text:
+    steps:
+      name: Steps
+      required: false
+      selector:
+        object:
+    enabled:
+      name: Enabled
+      required: false
+      selector:
+        boolean:
+
+remove_cycle:
+  name: Remove cycle
+  description: Delete a cycle by id. Also deletes any schedules targeting it.
+  fields:
+    cycle_id:
+      name: Cycle ID
+      required: true
+      selector:
+        text:
+
+run_cycle:
+  name: Run cycle
+  description: Start a cycle now. Runs each step's valve for its duration, sequentially.
+  fields:
+    cycle_id:
+      name: Cycle ID
+      required: true
+      selector:
+        text:
+
+stop_cycle:
+  name: Stop cycle
+  description: Cancel a running cycle and close the currently open valve.
+  fields:
+    cycle_id:
+      name: Cycle ID
+      required: true
+      selector:
+        text:
+
 list_config:
   name: List config
-  description: Returns the registered valves, schedules, active runs, and recent history.
+  description: Returns the registered valves, schedules, cycles, active runs, active cycles, and recent history.

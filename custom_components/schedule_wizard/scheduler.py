@@ -1,6 +1,7 @@
 """Scheduler running inside the HA event loop."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
@@ -34,11 +35,16 @@ class Scheduler:
         self._unsub_minute = None
         self._unsub_calendar = None
         self._active: dict[str, dict] = {}
+        self._active_cycles: dict[str, dict] = {}
         self._known_calendar_events: set[str] = set()
 
     @property
     def active(self) -> dict[str, dict]:
         return self._active
+
+    @property
+    def active_cycles(self) -> dict[str, dict]:
+        return self._active_cycles
 
     async def async_start(self) -> None:
         self._unsub_minute = async_track_time_change(
@@ -120,6 +126,11 @@ class Scheduler:
             if unsub:
                 unsub()
         self._active.clear()
+        for cyc in list(self._active_cycles.values()):
+            task = cyc.get("task")
+            if task and not task.done():
+                task.cancel()
+        self._active_cycles.clear()
 
     @callback
     def _on_minute(self, now: datetime) -> None:
@@ -134,6 +145,29 @@ class Scheduler:
                 continue
             if sched.get("time_hhmm") != hhmm:
                 continue
+
+            cycle_id = sched.get("cycle_id") or ""
+            if cycle_id:
+                cycle = self.store.get_cycle(cycle_id)
+                if not cycle or not cycle.get("enabled"):
+                    continue
+                if cycle_id in self._active_cycles:
+                    LOG.debug("skip schedule %s: cycle %s already running", sched["id"], cycle_id)
+                    continue
+                if self._should_skip_for_rain():
+                    LOG.info("skip schedule %s (cycle): rain condition active", sched["id"])
+                    self.hass.async_create_task(
+                        self.store.async_record_run(
+                            cycle_id, "schedule", 0,
+                            "skipped_rain", f"schedule:{sched['id']}"
+                        )
+                    )
+                    continue
+                self.hass.async_create_task(
+                    self.async_run_cycle(cycle_id, source="schedule", note=f"schedule:{sched['id']}")
+                )
+                continue
+
             valve_entity = sched.get("valve_entity_id")
             valve = self.store.get_valve(valve_entity) if valve_entity else None
             if not valve or not valve.get("enabled"):
@@ -211,9 +245,23 @@ class Scheduler:
             if key in self._known_calendar_events:
                 continue
 
+            cycles = [c for c in self.store.cycles if c.get("enabled")]
+            cycle = self._match_cycle(summary, cycles)
+            if cycle:
+                if cycle["id"] in self._active_cycles:
+                    continue
+                delay = max(0, start_ts - now_ts)
+                if delay == 0:
+                    self.hass.async_create_task(
+                        self.async_run_cycle(cycle["id"], source="calendar", note=key)
+                    )
+                else:
+                    async_call_later(self.hass, delay, self._make_cycle_callback(cycle["id"], key))
+                continue
+
             valve = self._match_valve(summary, valves)
             if not valve:
-                LOG.debug("no valve match for calendar event '%s'", summary)
+                LOG.debug("no valve or cycle match for calendar event '%s'", summary)
                 continue
 
             duration = self._parse_duration(description, end_str, start_ts)
@@ -232,6 +280,23 @@ class Scheduler:
                 async_call_later(self.hass, delay, self._make_calendar_callback(valve["entity_id"], duration, key))
 
         self._known_calendar_events = new_keys
+
+    @staticmethod
+    def _match_cycle(summary: str, cycles: list[dict]) -> Optional[dict]:
+        s = summary.lower()
+        best, best_len = None, 0
+        for c in cycles:
+            name = (c.get("name") or "").lower().strip()
+            if name and name in s and len(name) > best_len:
+                best, best_len = c, len(name)
+        return best
+
+    def _make_cycle_callback(self, cycle_id: str, key: str):
+        async def _fire(_now):
+            if cycle_id in self._active_cycles:
+                return
+            await self.async_run_cycle(cycle_id, source="calendar", note=key)
+        return _fire
 
     def _make_calendar_callback(self, entity_id: str, duration: int, key: str):
         async def _fire(_now):
@@ -372,6 +437,98 @@ class Scheduler:
         )
         await self._async_persist_active()
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+
+    async def async_run_cycle(self, cycle_id: str, source: str = "manual", note: str = "") -> dict:
+        cycle = self.store.get_cycle(cycle_id)
+        if not cycle:
+            raise ValueError("cycle not found")
+        if not cycle.get("enabled") and source != "manual":
+            raise ValueError("cycle disabled")
+        steps = cycle.get("steps") or []
+        if not steps:
+            raise ValueError("cycle has no steps")
+
+        if cycle_id in self._active_cycles:
+            await self.async_stop_cycle(cycle_id, note="superseded")
+
+        state = {
+            "cycle_id": cycle_id,
+            "cycle_name": cycle.get("name", ""),
+            "started_at": int(time.time()),
+            "step": 0,
+            "total_steps": len(steps),
+            "current_entity": None,
+            "source": source,
+            "note": note,
+        }
+        task = self.hass.async_create_task(self._run_cycle_task(cycle, state))
+        state["task"] = task
+        self._active_cycles[cycle_id] = state
+        async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+        LOG.info("started cycle %s (%s), %d steps, source=%s",
+                 cycle_id, cycle.get("name"), len(steps), source)
+        return {k: v for k, v in state.items() if k != "task"}
+
+    async def _run_cycle_task(self, cycle: dict, state: dict) -> None:
+        cycle_id = cycle["id"]
+        current_entity: Optional[str] = None
+        steps = cycle.get("steps") or []
+        try:
+            for i, step in enumerate(steps):
+                if cycle_id not in self._active_cycles:
+                    return
+                entity_id = step.get("entity_id")
+                duration = int(step.get("duration_min", 1))
+                if not entity_id or duration <= 0:
+                    continue
+                self._active_cycles[cycle_id]["step"] = i + 1
+                self._active_cycles[cycle_id]["current_entity"] = entity_id
+                async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+                try:
+                    await self.async_run_valve(
+                        entity_id, duration,
+                        source=f"cycle:{cycle_id}",
+                        note=f"{state.get('note','')}|step{i+1}",
+                    )
+                except Exception as e:
+                    LOG.warning("cycle %s step %d failed: %s", cycle_id, i + 1, e)
+                    continue
+                current_entity = entity_id
+                try:
+                    await asyncio.sleep(duration * 60)
+                except asyncio.CancelledError:
+                    raise
+                current_entity = None
+            await self.store.async_record_run(
+                cycle_id, state.get("source", "manual"), 0,
+                "cycle_completed", state.get("note", ""),
+            )
+        except asyncio.CancelledError:
+            if current_entity:
+                try:
+                    await self.async_stop_valve(current_entity)
+                except Exception as e:
+                    LOG.warning("stop step valve failed: %s", e)
+            await self.store.async_record_run(
+                cycle_id, state.get("source", "manual"), 0,
+                "cycle_cancelled", state.get("note", ""),
+            )
+        finally:
+            self._active_cycles.pop(cycle_id, None)
+            async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+
+    async def async_stop_cycle(self, cycle_id: str, note: str = "manual stop") -> None:
+        state = self._active_cycles.get(cycle_id)
+        if not state:
+            return
+        task: Optional[asyncio.Task] = state.get("task")
+        if task and not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        self._active_cycles.pop(cycle_id, None)
 
     async def async_stop_valve(self, entity_id: str) -> None:
         active = self._active.get(entity_id)

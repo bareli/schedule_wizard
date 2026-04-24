@@ -164,6 +164,36 @@ Capture the new schedule id with a response variable:
     message: "New schedule id: {{ created.schedule.id }}"
 ```
 
+## Cycles (zone sequencing)
+
+A **cycle** is an ordered list of (valve, duration) steps. Start a cycle and the integration runs valve A for its minutes, then valve B, then C, without overlap. Perfect for irrigation programs with multiple zones.
+
+Create from the **Cycles** tab in the sidebar panel: name it, add steps (pick valve + duration), save.
+
+Trigger a cycle from:
+
+- **Panel** — Cycles tab → Run on a cycle row.
+- **Schedule** — add a schedule whose target is a cycle instead of a single valve.
+- **Calendar event** — event summary contains the cycle name (case-insensitive substring).
+- **Service call**:
+  ```yaml
+  service: schedule_wizard.run_cycle
+  data:
+    cycle_id: abc123def456
+  ```
+- **Stop a running cycle**:
+  ```yaml
+  service: schedule_wizard.stop_cycle
+  data:
+    cycle_id: abc123def456
+  ```
+
+**Notes:**
+- Only one run of a cycle at a time; starting it again while already running restarts from step 1.
+- Stopping a cycle closes the currently open valve and cancels remaining steps.
+- Cycle schedules respect rain-skip (whole cycle is skipped if rain condition active).
+- Cycles persist in storage but in-progress cycle state does not survive HA restart (the currently open valve auto-closes per its own timer, but remaining steps won't fire).
+
 ## Rain skip
 
 When a rain entity is configured, cron schedules consult it before firing.

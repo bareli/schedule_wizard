@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 — cycles (zone sequencing)
+
+- **Cycles**: new first-class object. Define an ordered list of (valve, duration) steps and run them sequentially as a single program. Perfect for irrigation zone sequencing.
+- Services: `add_cycle`, `update_cycle`, `remove_cycle`, `run_cycle`, `stop_cycle`.
+- Schedules can now target a cycle instead of a single valve (panel target picker + `cycle_id` field on `add_schedule`).
+- Calendar events match cycle names too (summary contains the cycle name → whole cycle fires).
+- Panel: new **Cycles** tab with step editor (reorder, add, remove). Dashboard shows active cycles with step progress.
+- Rain skip applies to cycle schedules (whole cycle skipped on rain).
+
 ## 0.2.4 — edit schedules from the panel
 
 - Schedules tab now has Edit + Enable/Disable + Delete buttons per row.
