@@ -1077,29 +1077,69 @@ class ScheduleWizardPanel extends HTMLElement {
       style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);",
     });
     seasonalSection.appendChild(el("h3", { style: "margin:0 0 6px;font-size:14px;" }, "Seasonal adjustment (temperature-based)"));
-    seasonalSection.appendChild(el("p", { class: "muted", style: "font-size:12px;margin:0 0 10px;" },
-      "Scale schedule/calendar durations based on a temperature sensor. Manual runs are not affected."
-    ));
+    const tempUnit = this._state.temperature_unit || "°";
+    seasonalSection.appendChild(el("p", { class: "muted", style: "font-size:12px;margin:0 0 10px;line-height:1.45;" }, [
+      el("span", {}, "Scales schedule & calendar durations by the outside temperature. "),
+      el("span", {}, `Runs shrink in cool weather, grow in heat. Manual runs are NOT scaled. `),
+      el("br"),
+      el("b", {}, "How it works: "),
+      el("span", {}, `when temp ≤ Low → runs use Min %. When temp ≥ High → runs use Max %. `),
+      el("span", {}, `Between Low and High the percentage scales linearly. `),
+      el("span", {}, `Example: a 10 min schedule with factor 78% runs for 8 min.`),
+    ]));
     const seasonalEnabledInput = el("input", { type: "checkbox" });
     seasonalEnabledInput.checked = !!opts.seasonal_enabled;
     const seasonalTempEntity = el("input", { type: "text", placeholder: "weather.forecast_home or sensor.outdoor_temp", value: String(opts.seasonal_temp_entity || "") });
-    const seasonalTempAttr = el("input", { type: "text", placeholder: "temperature (if reading from weather)", value: String(opts.seasonal_temp_attribute || "") });
+    const seasonalTempAttr = el("input", { type: "text", placeholder: "temperature (if entity is weather.*)", value: String(opts.seasonal_temp_attribute || "") });
     const seasonalLow = el("input", { type: "number", step: "0.5", value: String(opts.seasonal_temp_low ?? 10) });
     const seasonalHigh = el("input", { type: "number", step: "0.5", value: String(opts.seasonal_temp_high ?? 30) });
     const seasonalMin = el("input", { type: "number", min: "0", max: "200", value: String(opts.seasonal_min_pct ?? 50) });
     const seasonalMax = el("input", { type: "number", min: "0", max: "200", value: String(opts.seasonal_max_pct ?? 120) });
 
+    const seasonalPreview = el("div", {
+      style: "margin-top:8px;padding:8px 10px;border-radius:6px;background:var(--sw-bg);border:1px solid var(--sw-border);font-size:13px;",
+    });
+    const computePreview = () => {
+      seasonalPreview.innerHTML = "";
+      const entityId = seasonalTempEntity.value.trim();
+      if (!entityId) { seasonalPreview.appendChild(el("span", { class: "muted" }, "Set a temperature entity to see a live preview.")); return; }
+      const attr = seasonalTempAttr.value.trim();
+      this._hass.callWS({ type: "get_states" }).then(states => {
+        const s = states.find(x => x.entity_id === entityId);
+        if (!s) { seasonalPreview.appendChild(el("span", { style: "color:var(--sw-danger)" }, `Entity ${entityId} not found.`)); return; }
+        let temp = null;
+        try { temp = parseFloat(attr ? s.attributes[attr] : s.state); } catch {}
+        if (temp == null || isNaN(temp)) { seasonalPreview.appendChild(el("span", { style: "color:var(--sw-danger)" }, `Value not numeric (state=${s.state}).`)); return; }
+        const low = parseFloat(seasonalLow.value) || 0;
+        const high = parseFloat(seasonalHigh.value) || 0;
+        const minP = parseFloat(seasonalMin.value) || 0;
+        const maxP = parseFloat(seasonalMax.value) || 0;
+        let pct;
+        if (high <= low) pct = 100;
+        else if (temp <= low) pct = minP;
+        else if (temp >= high) pct = maxP;
+        else { const t = (temp - low) / (high - low); pct = minP + t * (maxP - minP); }
+        const example10 = Math.max(1, Math.round(10 * pct / 100));
+        seasonalPreview.appendChild(el("span", {}, `Current: ${temp}${tempUnit} → factor ${pct.toFixed(0)}% → 10 min schedule would run ${example10} min`));
+      }).catch(() => {
+        seasonalPreview.appendChild(el("span", { class: "muted" }, "Could not read state."));
+      });
+    };
+    [seasonalTempEntity, seasonalTempAttr, seasonalLow, seasonalHigh, seasonalMin, seasonalMax].forEach(i => i.addEventListener("input", computePreview));
+    computePreview();
+
     seasonalSection.appendChild(el("label", { class: "field" }, [el("span", {}, "Enabled"), seasonalEnabledInput]));
     seasonalSection.appendChild(el("label", { class: "field" }, [el("span", {}, "Temperature entity"), seasonalTempEntity]));
     seasonalSection.appendChild(el("label", { class: "field" }, [el("span", {}, "Attribute (optional; e.g. 'temperature' for weather.*)"), seasonalTempAttr]));
     seasonalSection.appendChild(el("div", { class: "field-row" }, [
-      el("label", { class: "field" }, [el("span", {}, "Low temp (°)"), seasonalLow]),
-      el("label", { class: "field" }, [el("span", {}, "High temp (°)"), seasonalHigh]),
+      el("label", { class: "field" }, [el("span", {}, `Low temp (${tempUnit})`), seasonalLow]),
+      el("label", { class: "field" }, [el("span", {}, `High temp (${tempUnit})`), seasonalHigh]),
     ]));
     seasonalSection.appendChild(el("div", { class: "field-row" }, [
-      el("label", { class: "field" }, [el("span", {}, "Min % (at or below low)"), seasonalMin]),
-      el("label", { class: "field" }, [el("span", {}, "Max % (at or above high)"), seasonalMax]),
+      el("label", { class: "field" }, [el("span", {}, "Min % (at or below low temp)"), seasonalMin]),
+      el("label", { class: "field" }, [el("span", {}, "Max % (at or above high temp)"), seasonalMax]),
     ]));
+    seasonalSection.appendChild(seasonalPreview);
     card.appendChild(seasonalSection);
 
     const moistureSection = el("div", {

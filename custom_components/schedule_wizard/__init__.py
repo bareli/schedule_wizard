@@ -291,6 +291,10 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         ]
 
         notify_services = sorted(list((hass_inner.services.async_services().get("notify") or {}).keys()))
+        try:
+            temp_unit = hass_inner.config.units.temperature_unit
+        except Exception:
+            temp_unit = "°"
 
         history = store.history
         now_ts = int(time.time())
@@ -341,6 +345,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "calendars": calendars,
             "notify_services": notify_services,
             "notify_events": list(NOTIFY_EVENTS),
+            "temperature_unit": temp_unit,
             "webhook_id": data.get("webhook_id", ""),
             "now": int(time.time()),
         })

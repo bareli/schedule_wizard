@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1 — clearer seasonal UI
+
+- Seasonal section shows temperature unit (°C or °F) taken from HA config on all threshold labels.
+- Added inline explanation of how Low/High/Min%/Max% interact.
+- Live preview: reads the configured temperature entity/attribute and shows "current temp → factor → example 10-min schedule length" — updates as you edit fields.
+
 ## 0.6.0 — seasonal adjust, moisture skip, overlap guard, valve stats
 
 - **Seasonal adjustment** (temperature-scaled): scales schedule and calendar durations between a low and high temp threshold, clamped to min/max percent. Manual runs unaffected.
