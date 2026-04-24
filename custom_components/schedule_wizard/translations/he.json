@@ -23,7 +23,9 @@
           "rain_entity": "ישות גשם/מזג אוויר",
           "rain_skip_states": "דילוג כאשר המצב (מופרד בפסיקים)",
           "rain_attribute": "תכונה לבדיקה (אופציונלי)",
-          "rain_threshold": "סף גשם (0 = מושבת)"
+          "rain_threshold": "סף גשם (0 = מושבת)",
+          "notify_targets": "שירותי התראה (למשל mobile_app_my_phone)",
+          "notify_events": "אירועים שמפעילים התראה"
         }
       }
     }

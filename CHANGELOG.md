@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0 — notifications
+
+- Pick one or more `notify.*` services (e.g. HA Companion mobile app) and choose which events push notifications: `valve_start`, `valve_end`, `cycle_start`, `cycle_end`, `skipped_rain`.
+- Panel Settings tab has a new Notifications section with checkbox list of detected notify services + event toggles.
+- Options flow (Devices & Services → Schedule Wizard → Configure) also exposes the same fields.
+- Notifications are fire-and-forget; failures log a warning but don't block valve actions.
+
 ## 0.3.0 — cycles (zone sequencing)
 
 - **Cycles**: new first-class object. Define an ordered list of (valve, duration) steps and run them sequentially as a single program. Perfect for irrigation zone sequencing.

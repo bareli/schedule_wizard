@@ -941,6 +941,68 @@ class ScheduleWizardPanel extends HTMLElement {
     ]));
     card.appendChild(rainSection);
 
+    const notifySection = el("div", {
+      style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);",
+    });
+    notifySection.appendChild(el("h3", { style: "margin:0 0 6px;font-size:14px;" }, "Notifications"));
+    notifySection.appendChild(el("p", { class: "muted", style: "font-size:12px;margin:0 0 10px;" },
+      "Pick one or more notify services (e.g. your mobile app) and tick which events should send a notification."
+    ));
+
+    const availableTargets = this._state.notify_services || [];
+    const availableEvents = this._state.notify_events || [];
+    const currentTargets = new Set(Array.isArray(opts.notify_targets) ? opts.notify_targets : (opts.notify_targets ? String(opts.notify_targets).split(",").map(s => s.trim()).filter(Boolean) : []));
+    const currentEvents = new Set(Array.isArray(opts.notify_events) ? opts.notify_events : (opts.notify_events ? String(opts.notify_events).split(",").map(s => s.trim()).filter(Boolean) : []));
+
+    const targetsWrap = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;max-height:160px;overflow:auto;padding:8px;border:1px solid var(--sw-border);border-radius:6px;background:var(--sw-bg);" });
+    if (!availableTargets.length) {
+      targetsWrap.appendChild(el("div", { class: "empty", style: "padding:4px;" }, "No notify.* services detected."));
+    } else {
+      availableTargets.forEach(name => {
+        const lbl = el("label", { style: "display:flex;gap:6px;align-items:center;font-size:13px;padding:2px 6px;border:1px solid var(--sw-border);border-radius:4px;cursor:pointer;" });
+        const cb = el("input", { type: "checkbox" });
+        cb.checked = currentTargets.has(name);
+        cb.addEventListener("change", () => {
+          if (cb.checked) currentTargets.add(name);
+          else currentTargets.delete(name);
+        });
+        lbl.appendChild(cb);
+        lbl.appendChild(document.createTextNode(name));
+        targetsWrap.appendChild(lbl);
+      });
+    }
+    notifySection.appendChild(el("label", { class: "field" }, [
+      el("span", {}, "Notify services (e.g. notify.mobile_app_your_phone)"),
+      targetsWrap,
+    ]));
+
+    const eventsWrap = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;" });
+    const EVENT_LABELS = {
+      valve_start: "Valve opened",
+      valve_end: "Valve closed",
+      cycle_start: "Cycle started",
+      cycle_end: "Cycle ended",
+      skipped_rain: "Skipped (rain)",
+    };
+    availableEvents.forEach(ev => {
+      const lbl = el("label", { style: "display:flex;gap:6px;align-items:center;font-size:13px;padding:2px 6px;border:1px solid var(--sw-border);border-radius:4px;cursor:pointer;" });
+      const cb = el("input", { type: "checkbox" });
+      cb.checked = currentEvents.has(ev);
+      cb.addEventListener("change", () => {
+        if (cb.checked) currentEvents.add(ev);
+        else currentEvents.delete(ev);
+      });
+      lbl.appendChild(cb);
+      lbl.appendChild(document.createTextNode(EVENT_LABELS[ev] || ev));
+      eventsWrap.appendChild(lbl);
+    });
+    notifySection.appendChild(el("label", { class: "field" }, [
+      el("span", {}, "Send notification when"),
+      eventsWrap,
+    ]));
+
+    card.appendChild(notifySection);
+
     const feedback = el("div", { class: "muted", style: "margin-top:8px;font-size:12px;" });
     const saveBtn = el("button", { class: "btn primary" }, "Save settings");
     saveBtn.addEventListener("click", async () => {
@@ -960,6 +1022,8 @@ class ScheduleWizardPanel extends HTMLElement {
           rain_skip_states: rainStatesInput.value.trim(),
           rain_attribute: rainAttrInput.value.trim(),
           rain_threshold: (threshold !== null && !isNaN(threshold)) ? threshold : null,
+          notify_targets: Array.from(currentTargets),
+          notify_events: Array.from(currentEvents),
         });
         feedback.textContent = "Saved at " + new Date().toLocaleTimeString() + ". Integration reloaded.";
         this._toast("Settings saved", "ok");

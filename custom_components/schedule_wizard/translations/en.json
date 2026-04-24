@@ -23,7 +23,9 @@
           "rain_entity": "Rain / weather entity",
           "rain_skip_states": "Skip when state is (comma-separated)",
           "rain_attribute": "Attribute to check (optional)",
-          "rain_threshold": "Rain threshold (0 = disabled)"
+          "rain_threshold": "Rain threshold (0 = disabled)",
+          "notify_targets": "Notify service names (e.g. mobile_app_my_phone)",
+          "notify_events": "Events that trigger notifications"
         }
       }
     }

@@ -19,7 +19,18 @@ CONF_RAIN_SKIP_STATES = "rain_skip_states"
 CONF_RAIN_ATTRIBUTE = "rain_attribute"
 CONF_RAIN_THRESHOLD = "rain_threshold"
 
+CONF_NOTIFY_TARGETS = "notify_targets"
+CONF_NOTIFY_EVENTS = "notify_events"
+
 DEFAULT_RAIN_SKIP_STATES = "rainy,pouring,snowy,lightning-rainy"
+
+NOTIFY_EVENTS = (
+    "valve_start",
+    "valve_end",
+    "cycle_start",
+    "cycle_end",
+    "skipped_rain",
+)
 
 SUPPORTED_DOMAINS = ("switch", "valve", "cover", "input_boolean", "light")
 

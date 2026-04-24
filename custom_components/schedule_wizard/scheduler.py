@@ -162,6 +162,11 @@ class Scheduler:
                             "skipped_rain", f"schedule:{sched['id']}"
                         )
                     )
+                    self.hass.async_create_task(self._notify(
+                        "skipped_rain",
+                        "Schedule Wizard",
+                        f"Skipped cycle {cycle.get('name', cycle_id)} — rain active",
+                    ))
                     continue
                 self.hass.async_create_task(
                     self.async_run_cycle(cycle_id, source="schedule", note=f"schedule:{sched['id']}")
@@ -183,6 +188,11 @@ class Scheduler:
                         "skipped_rain", f"schedule:{sched['id']}"
                     )
                 )
+                self.hass.async_create_task(self._notify(
+                    "skipped_rain",
+                    "Schedule Wizard",
+                    f"Skipped {self._entity_label(valve_entity)} — rain active",
+                ))
                 continue
             self.hass.async_create_task(
                 self.async_run_valve(
@@ -354,6 +364,43 @@ class Scheduler:
                 return v
         return None
 
+    def _notify_targets(self) -> list[str]:
+        targets = self.options.get("notify_targets") or []
+        if isinstance(targets, str):
+            targets = [t.strip() for t in targets.split(",") if t.strip()]
+        return [t for t in targets if isinstance(t, str) and t]
+
+    def _notify_events_enabled(self) -> set[str]:
+        evs = self.options.get("notify_events") or []
+        if isinstance(evs, str):
+            evs = [e.strip() for e in evs.split(",") if e.strip()]
+        return set(evs)
+
+    async def _notify(self, event: str, title: str, message: str) -> None:
+        if event not in self._notify_events_enabled():
+            return
+        targets = self._notify_targets()
+        if not targets:
+            return
+        for target in targets:
+            try:
+                await self.hass.services.async_call(
+                    "notify", target,
+                    {"title": title, "message": message},
+                    blocking=False,
+                )
+            except Exception as e:
+                LOG.warning("notify %s failed: %s", target, e)
+
+    def _entity_label(self, entity_id: str) -> str:
+        valve = self.store.get_valve(entity_id)
+        if valve and valve.get("label"):
+            return valve["label"]
+        state = self.hass.states.get(entity_id)
+        if state and state.attributes.get("friendly_name"):
+            return state.attributes["friendly_name"]
+        return entity_id
+
     def _should_skip_for_rain(self) -> bool:
         entity_id = (self.options.get("rain_entity") or "").strip()
         if not entity_id:
@@ -417,6 +464,12 @@ class Scheduler:
         await self._async_persist_active()
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
         LOG.info("started %s for %dm (source=%s)", entity_id, duration_min, source)
+        label = self._entity_label(entity_id)
+        self.hass.async_create_task(self._notify(
+            "valve_start",
+            "Schedule Wizard",
+            f"Opened {label} for {duration_min} min ({source})",
+        ))
 
     def _make_close_callback(self, entity_id: str):
         async def _fire(_now):
@@ -437,6 +490,12 @@ class Scheduler:
         )
         await self._async_persist_active()
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+        label = self._entity_label(entity_id)
+        self.hass.async_create_task(self._notify(
+            "valve_end",
+            "Schedule Wizard",
+            f"Closed {label} ({status})",
+        ))
 
     async def async_run_cycle(self, cycle_id: str, source: str = "manual", note: str = "") -> dict:
         cycle = self.store.get_cycle(cycle_id)
@@ -467,6 +526,11 @@ class Scheduler:
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
         LOG.info("started cycle %s (%s), %d steps, source=%s",
                  cycle_id, cycle.get("name"), len(steps), source)
+        self.hass.async_create_task(self._notify(
+            "cycle_start",
+            "Schedule Wizard",
+            f"Cycle started: {cycle.get('name', cycle_id)} — {len(steps)} steps ({source})",
+        ))
         return {k: v for k, v in state.items() if k != "task"}
 
     async def _run_cycle_task(self, cycle: dict, state: dict) -> None:
@@ -503,6 +567,11 @@ class Scheduler:
                 cycle_id, state.get("source", "manual"), 0,
                 "cycle_completed", state.get("note", ""),
             )
+            self.hass.async_create_task(self._notify(
+                "cycle_end",
+                "Schedule Wizard",
+                f"Cycle completed: {cycle.get('name', cycle_id)}",
+            ))
         except asyncio.CancelledError:
             if current_entity:
                 try:
@@ -513,6 +582,11 @@ class Scheduler:
                 cycle_id, state.get("source", "manual"), 0,
                 "cycle_cancelled", state.get("note", ""),
             )
+            self.hass.async_create_task(self._notify(
+                "cycle_end",
+                "Schedule Wizard",
+                f"Cycle cancelled: {cycle.get('name', cycle_id)}",
+            ))
         finally:
             self._active_cycles.pop(cycle_id, None)
             async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)

@@ -194,6 +194,26 @@ Trigger a cycle from:
 - Cycle schedules respect rain-skip (whole cycle is skipped if rain condition active).
 - Cycles persist in storage but in-progress cycle state does not survive HA restart (the currently open valve auto-closes per its own timer, but remaining steps won't fire).
 
+## Notifications
+
+Push events to any `notify.*` service (HA Companion app, Telegram, Pushover, email, Slack, etc).
+
+**Panel → Settings → Notifications:**
+1. Tick one or more notify services (each one detected in your HA install shows as a checkbox).
+2. Tick which events should fire notifications:
+   - `valve_start` — a valve opens
+   - `valve_end` — a valve closes (completed, cancelled, error)
+   - `cycle_start` — a cycle starts
+   - `cycle_end` — a cycle finishes or is cancelled
+   - `skipped_rain` — a scheduled run or cycle was skipped due to rain
+3. Save.
+
+**On phone:** install the Home Assistant Companion app, it auto-creates `notify.mobile_app_<device>` services. Those appear in the target list automatically.
+
+**Multi-device:** pick multiple targets — notifications fan out to all picked services in parallel.
+
+**Failure behavior:** notify errors log a warning; they never block the valve or cycle itself.
+
 ## Rain skip
 
 When a rain entity is configured, cron schedules consult it before firing.

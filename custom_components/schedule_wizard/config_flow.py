@@ -13,6 +13,8 @@ from .const import (
     CONF_CALENDAR_ENTITY,
     CONF_CALENDAR_LOOKAHEAD,
     CONF_DEFAULT_DURATION,
+    CONF_NOTIFY_EVENTS,
+    CONF_NOTIFY_TARGETS,
     CONF_POLL_INTERVAL,
     CONF_RAIN_ATTRIBUTE,
     CONF_RAIN_ENTITY,
@@ -23,6 +25,7 @@ from .const import (
     DEFAULT_DURATION,
     DEFAULT_RAIN_SKIP_STATES,
     DOMAIN,
+    NOTIFY_EVENTS,
 )
 
 
@@ -95,6 +98,22 @@ class ScheduleWizardOptionsFlow(config_entries.OptionsFlow):
                 default=opts.get(CONF_RAIN_THRESHOLD, 0),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, max=100, step=0.1)
+            ),
+            vol.Optional(
+                CONF_NOTIFY_TARGETS,
+                default=opts.get(CONF_NOTIFY_TARGETS, []),
+            ): selector.TextSelector(
+                selector.TextSelectorConfig(multiple=True)
+            ),
+            vol.Optional(
+                CONF_NOTIFY_EVENTS,
+                default=opts.get(CONF_NOTIFY_EVENTS, []),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=list(NOTIFY_EVENTS),
+                    multiple=True,
+                    mode=selector.SelectSelectorMode.LIST,
+                )
             ),
         })
         return self.async_show_form(step_id="init", data_schema=schema)

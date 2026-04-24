@@ -24,6 +24,8 @@ from .const import (
     CONF_CALENDAR_ENTITY,
     CONF_CALENDAR_LOOKAHEAD,
     CONF_DEFAULT_DURATION,
+    CONF_NOTIFY_EVENTS,
+    CONF_NOTIFY_TARGETS,
     CONF_POLL_INTERVAL,
     CONF_RAIN_ATTRIBUTE,
     CONF_RAIN_ENTITY,
@@ -34,6 +36,7 @@ from .const import (
     DEFAULT_DURATION,
     DEFAULT_RAIN_SKIP_STATES,
     DOMAIN,
+    NOTIFY_EVENTS,
     SERVICE_ADD_CYCLE,
     SERVICE_ADD_SCHEDULE,
     SERVICE_ADD_VALVE,
@@ -276,6 +279,8 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             for r in scheduler.active_cycles.values()
         ]
 
+        notify_services = sorted(list((hass_inner.services.async_services().get("notify") or {}).keys()))
+
         connection.send_result(msg["id"], {
             "valves": store.valves,
             "schedules": store.schedules,
@@ -286,6 +291,8 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "options": options,
             "controllable": controllable,
             "calendars": calendars,
+            "notify_services": notify_services,
+            "notify_events": list(NOTIFY_EVENTS),
             "webhook_id": data.get("webhook_id", ""),
             "now": int(time.time()),
         })
@@ -300,6 +307,8 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         vol.Optional(CONF_RAIN_SKIP_STATES): vol.Any(str, None),
         vol.Optional(CONF_RAIN_ATTRIBUTE): vol.Any(str, None),
         vol.Optional(CONF_RAIN_THRESHOLD): vol.Any(float, int, None),
+        vol.Optional(CONF_NOTIFY_TARGETS): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional(CONF_NOTIFY_EVENTS): vol.All(cv.ensure_list, [cv.string]),
     })
     @websocket_api.async_response
     async def _ws_update_options(hass_inner, connection, msg):
@@ -316,6 +325,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         for key in (
             CONF_CALENDAR_ENTITY, CONF_CALENDAR_LOOKAHEAD, CONF_POLL_INTERVAL, CONF_DEFAULT_DURATION,
             CONF_RAIN_ENTITY, CONF_RAIN_SKIP_STATES, CONF_RAIN_ATTRIBUTE, CONF_RAIN_THRESHOLD,
+            CONF_NOTIFY_TARGETS, CONF_NOTIFY_EVENTS,
         ):
             if key in msg:
                 new_options[key] = msg[key]
@@ -340,6 +350,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         CONF_RAIN_SKIP_STATES: entry.options.get(CONF_RAIN_SKIP_STATES, DEFAULT_RAIN_SKIP_STATES),
         CONF_RAIN_ATTRIBUTE: entry.options.get(CONF_RAIN_ATTRIBUTE, ""),
         CONF_RAIN_THRESHOLD: entry.options.get(CONF_RAIN_THRESHOLD, None),
+        CONF_NOTIFY_TARGETS: entry.options.get(CONF_NOTIFY_TARGETS, []),
+        CONF_NOTIFY_EVENTS: entry.options.get(CONF_NOTIFY_EVENTS, []),
         "calendar_entity": entry.options.get(CONF_CALENDAR_ENTITY, ""),
         "calendar_lookahead_min": entry.options.get(CONF_CALENDAR_LOOKAHEAD, DEFAULT_CALENDAR_LOOKAHEAD),
         "poll_interval": entry.options.get(CONF_POLL_INTERVAL, DEFAULT_CALENDAR_POLL_SECONDS),
@@ -348,6 +360,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "rain_skip_states": entry.options.get(CONF_RAIN_SKIP_STATES, DEFAULT_RAIN_SKIP_STATES),
         "rain_attribute": entry.options.get(CONF_RAIN_ATTRIBUTE, ""),
         "rain_threshold": entry.options.get(CONF_RAIN_THRESHOLD, None),
+        "notify_targets": entry.options.get(CONF_NOTIFY_TARGETS, []),
+        "notify_events": entry.options.get(CONF_NOTIFY_EVENTS, []),
     }
 
     scheduler = Scheduler(hass, store, options)
