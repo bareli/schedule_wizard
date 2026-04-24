@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 — cache-bust panel and card
+
+- Panel `module_url` and Lovelace card resource URL now include `?v=<version>` so browsers always fetch the matching JS after an update. Stops stale UI without manual hard-refresh.
+
 ## 0.2.1 — panel rain fields + webhook URL
 
 - Settings tab in the sidebar panel now exposes rain-skip configuration (entity, skip states, attribute, threshold).

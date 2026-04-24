@@ -122,6 +122,15 @@ def _days_to_mask(days: list[str]) -> int:
     return mask
 
 
+def _integration_version() -> str:
+    try:
+        import json
+        with open(os.path.join(os.path.dirname(__file__), "manifest.json"), "r") as f:
+            return json.load(f).get("version", "0")
+    except Exception:
+        return "0"
+
+
 async def _async_register_panel(hass: HomeAssistant) -> None:
     if hass.data.get(PANEL_REGISTERED_KEY):
         return
@@ -130,11 +139,12 @@ async def _async_register_panel(hass: HomeAssistant) -> None:
         await hass.http.async_register_static_paths([
             StaticPathConfig(PANEL_STATIC_URL, panel_dir, False)
         ])
+    version = _integration_version()
     await panel_custom.async_register_panel(
         hass,
         webcomponent_name="schedule-wizard-panel",
         frontend_url_path=PANEL_URL_PATH,
-        module_url=f"{PANEL_STATIC_URL}/panel.js",
+        module_url=f"{PANEL_STATIC_URL}/panel.js?v={version}",
         sidebar_title="Schedule Wizard",
         sidebar_icon="mdi:sprinkler-variant",
         require_admin=False,
@@ -153,9 +163,15 @@ async def _async_register_card_resource(hass: HomeAssistant) -> None:
             resources: ResourceStorageCollection = lovelace.resources
             if resources.store and resources.store.key and not resources.loaded:
                 await resources.async_load()
-            existing = [r for r in resources.async_items() if r.get("url") == CARD_RESOURCE_URL]
+            version = _integration_version()
+            target_url = f"{CARD_RESOURCE_URL}?v={version}"
+            items = list(resources.async_items())
+            stale = [r for r in items if r.get("url", "").startswith(CARD_RESOURCE_URL) and r.get("url") != target_url]
+            for r in stale:
+                await resources.async_delete_item(r["id"])
+            existing = [r for r in resources.async_items() if r.get("url") == target_url]
             if not existing:
-                await resources.async_create_item({"res_type": "module", "url": CARD_RESOURCE_URL})
+                await resources.async_create_item({"res_type": "module", "url": target_url})
     except Exception as e:
         LOG.debug("card resource auto-register skipped: %s", e)
     hass.data[CARD_RESOURCE_REGISTERED_KEY] = True
