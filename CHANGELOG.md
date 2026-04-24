@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.3 — fix Settings tab input wipe
+
+- 5-second panel auto-refresh no longer re-renders the Settings tab, so typing in the rain-entity / threshold / webhook fields is preserved. Settings re-renders only on tab switch or after Save.
+
 ## 0.2.2 — cache-bust panel and card
 
 - Panel `module_url` and Lovelace card resource URL now include `?v=<version>` so browsers always fetch the matching JS after an update. Stops stale UI without manual hard-refresh.

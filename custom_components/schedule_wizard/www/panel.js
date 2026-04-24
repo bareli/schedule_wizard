@@ -255,6 +255,7 @@ class ScheduleWizardPanel extends HTMLElement {
   async _refresh() {
     try {
       this._state = await this._hass.callWS({ type: "schedule_wizard/get_state" });
+      if (this._tab === "settings") return;
       this._render();
     } catch (e) {
       this._renderError(e);
