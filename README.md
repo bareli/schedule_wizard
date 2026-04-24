@@ -148,6 +148,130 @@ Capture the new schedule id with a response variable:
 
 Use them to build custom Lovelace cards or drive automations that react to scheduler state.
 
+## Advanced automations
+
+Schedule Wizard exposes services you can wire into any HA automation. A few recipes:
+
+### Rain skip
+
+Cancel a schedule automatically when rain is forecast.
+
+```yaml
+alias: "Irrigation: skip if rain expected"
+trigger:
+  - platform: state
+    entity_id: sensor.schedule_wizard_next_schedule
+condition:
+  - condition: numeric_state
+    entity_id: sensor.rain_forecast_12h_mm
+    above: 2
+action:
+  - service: schedule_wizard.remove_schedule
+    data:
+      schedule_id: "{{ state_attr('sensor.schedule_wizard_next_schedule', 'schedule_id') }}"
+```
+
+### Soil moisture skip
+
+Run the valve only if moisture is below a threshold.
+
+```yaml
+alias: "Irrigation: run only if soil dry"
+trigger:
+  - platform: time
+    at: "06:00:00"
+condition:
+  - condition: numeric_state
+    entity_id: sensor.garden_moisture
+    below: 40
+action:
+  - service: schedule_wizard.run_valve
+    data:
+      entity_id: switch.front_lawn_valve
+      duration_minutes: 12
+```
+
+### Zone sequencing
+
+Run valve B after valve A finishes. Use the completion as the trigger by watching the entity state going off plus `sensor.schedule_wizard_active_runs` dropping.
+
+```yaml
+alias: "Irrigation: zone B after zone A"
+trigger:
+  - platform: state
+    entity_id: switch.zone_a_valve
+    to: "off"
+    for:
+      seconds: 5
+condition:
+  - condition: template
+    value_template: >
+      {{ state_attr('sensor.schedule_wizard_active_runs', 'runs')
+         | selectattr('entity_id', 'eq', 'switch.zone_a_valve')
+         | list | count == 0 }}
+action:
+  - service: schedule_wizard.run_valve
+    data:
+      entity_id: switch.zone_b_valve
+      duration_minutes: 10
+```
+
+### Run-start notification
+
+```yaml
+alias: "Irrigation: notify on start"
+trigger:
+  - platform: state
+    entity_id: sensor.schedule_wizard_active_runs
+action:
+  - service: notify.mobile_app_my_phone
+    data:
+      message: >
+        {% set runs = state_attr('sensor.schedule_wizard_active_runs', 'runs') or [] %}
+        {% if runs|length > 0 %}
+          Irrigation started: {{ runs|map(attribute='entity_id')|join(', ') }}
+        {% else %}
+          All valves closed.
+        {% endif %}
+```
+
+## FAQ
+
+**Q: Does the integration expose irrigation-specific entities (flow, pressure, season)?**
+A: No. It treats every supported entity as a generic "open for N minutes" target. Add external sensors and automations to layer weather, flow, or pressure logic on top.
+
+**Q: Can two schedules run on the same valve at the same time?**
+A: No. A second run on an already-active valve cancels the first (older run is logged as `cancelled`, new run starts).
+
+**Q: What happens if the calendar event spans midnight?**
+A: The run triggers at the event start time. Duration is taken from the event description (minutes), or from event length. Midnight has no special meaning.
+
+**Q: Can I use this for non-irrigation things (e.g., outdoor lights for N minutes)?**
+A: Yes. Any `switch` / `light` / `input_boolean` / `cover` / `valve` works. Irrigation is the original use case, not a restriction.
+
+**Q: Does the panel work on mobile / HA Companion app?**
+A: Yes. The UI is responsive; layout collapses to a single column on narrow screens.
+
+**Q: Where is the data stored? Can I back it up?**
+A: `<config>/.storage/schedule_wizard.data` — plain JSON. Included in any full HA config backup (Settings → System → Backups).
+
+**Q: How do I reset / start over?**
+A: Delete the integration (Settings → Devices & Services → Schedule Wizard → ⋮ → Delete), then reinstall and re-add. Or delete `<config>/.storage/schedule_wizard.data` manually and restart.
+
+## Roadmap
+
+Not committed dates; directional.
+
+- Lovelace card bundled with the integration (embed dashboard widget, not only sidebar panel).
+- Weather-aware rules (rain forecast skip, temp threshold) without external automations.
+- Soil moisture integration hook (skip when wet).
+- Zone sequencing primitive (multi-valve cycle as a first-class object).
+- Webhook trigger (external cron/HTTP service can fire runs).
+- Translations (strings already extracted; add Hebrew, Spanish, German).
+- Per-valve max runs per day / cooldown.
+
+Want one of these soon? Open an issue.
+
 ## Restart behavior
 
 On HA restart, the scheduler re-reads active runs from storage and checks each entity:
