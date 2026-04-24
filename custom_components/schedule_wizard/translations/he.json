@@ -1,0 +1,61 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "אשף תזמון",
+        "description": "הוספת האינטגרציה. לאחר היצירה, פתחו 'הגדר' כדי לבחור יומן וברירות מחדל."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "אשף תזמון כבר מוגדר."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "אפשרויות אשף תזמון",
+        "description": "יומן לסריקה, מרווח סריקה, חלון קדימה, משך ברירת מחדל.",
+        "data": {
+          "calendar_entity": "ישות יומן",
+          "calendar_lookahead_min": "חלון קדימה (דקות)",
+          "poll_interval": "מרווח סריקת יומן (שניות)",
+          "default_duration": "משך ברירת מחדל (דקות)",
+          "rain_entity": "ישות גשם/מזג אוויר",
+          "rain_skip_states": "דילוג כאשר המצב (מופרד בפסיקים)",
+          "rain_attribute": "תכונה לבדיקה (אופציונלי)",
+          "rain_threshold": "סף גשם (0 = מושבת)"
+        }
+      }
+    }
+  },
+  "services": {
+    "run_valve": {
+      "name": "הפעלת שסתום",
+      "description": "פתיחת שסתום למשך זמן נתון."
+    },
+    "stop_valve": {
+      "name": "עצירת שסתום",
+      "description": "סגירת שסתום וביטול טיימר קיים."
+    },
+    "add_valve": {
+      "name": "הוספת שסתום",
+      "description": "רישום שסתום במתזמן."
+    },
+    "remove_valve": {
+      "name": "הסרת שסתום",
+      "description": "הסרת שסתום וכל לוחות הזמנים שלו."
+    },
+    "add_schedule": {
+      "name": "הוספת לוח זמנים",
+      "description": "הוספת לוח זמנים חוזר לשסתום רשום."
+    },
+    "remove_schedule": {
+      "name": "הסרת לוח זמנים",
+      "description": "מחיקת לוח זמנים."
+    },
+    "list_config": {
+      "name": "הצגת תצורה",
+      "description": "החזרת רשימת שסתומים, לוחות זמנים, הרצות פעילות והיסטוריה."
+    }
+  }
+}

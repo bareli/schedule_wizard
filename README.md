@@ -79,12 +79,16 @@ Options flow (Settings → Devices & Services → Schedule Wizard → Configure)
 
 ## Options
 
-| Key                       | Default | Description                                            |
-| ------------------------- | ------- | ------------------------------------------------------ |
-| `calendar_entity`         | (none)  | HA calendar entity to poll. Optional.                  |
-| `calendar_lookahead_min`  | 10      | Minutes ahead to scan for matching events.             |
-| `poll_interval`           | 60      | Calendar poll interval in seconds (10–3600).           |
-| `default_duration`        | 10      | Default run duration when a valve has none set.        |
+| Key                       | Default                                    | Description                                          |
+| ------------------------- | ------------------------------------------ | ---------------------------------------------------- |
+| `calendar_entity`         | (none)                                     | HA calendar entity to poll. Optional.                |
+| `calendar_lookahead_min`  | 10                                         | Minutes ahead to scan for matching events.           |
+| `poll_interval`           | 60                                         | Calendar poll interval in seconds (10–3600).         |
+| `default_duration`        | 10                                         | Default run duration when a valve has none set.      |
+| `rain_entity`             | (none)                                     | Weather / sensor / binary_sensor entity for rain.    |
+| `rain_skip_states`        | `rainy,pouring,snowy,lightning-rainy`      | Skip when entity state matches any of these.         |
+| `rain_attribute`          | (none)                                     | Optional attribute to read instead of state.         |
+| `rain_threshold`          | (none)                                     | Numeric threshold (mm, %, etc). Skip when ≥ this.    |
 
 ## Calendar event format
 
@@ -159,6 +163,81 @@ Capture the new schedule id with a response variable:
   data:
     message: "New schedule id: {{ created.schedule.id }}"
 ```
+
+## Rain skip
+
+When a rain entity is configured, cron schedules consult it before firing.
+
+Three modes, checked in this order:
+
+1. **Attribute + threshold** — reads `attribute` off the entity, compares numerically to `threshold`. Skip if ≥.
+2. **Threshold only** — parses the entity's state as a number, compares to `threshold`. Skip if ≥.
+3. **Skip states** — compares entity state to comma-separated list in `rain_skip_states`. Skip if match.
+
+Skipped schedules log `skipped_rain` in history. Manual runs and calendar-triggered runs are **not** affected by rain skip.
+
+Example configs:
+
+```text
+# HA weather entity:
+rain_entity: weather.home
+rain_skip_states: rainy,pouring,snowy,lightning-rainy
+
+# Numeric rain sensor (mm forecast next N hours):
+rain_entity: sensor.rain_forecast_12h_mm
+rain_threshold: 2
+
+# Weather entity attribute:
+rain_entity: weather.home
+rain_attribute: precipitation
+rain_threshold: 1
+```
+
+## Webhook trigger
+
+Each integration install gets a unique webhook ID. Fire runs from anything that can POST:
+
+```bash
+curl -X POST https://<your-ha-url>/api/webhook/<WEBHOOK_ID> \
+  -H 'Content-Type: application/json' \
+  -d '{"entity_id": "switch.front_lawn_valve", "duration_minutes": 15}'
+```
+
+Stop action:
+
+```bash
+curl -X POST https://<your-ha-url>/api/webhook/<WEBHOOK_ID> \
+  -H 'Content-Type: application/json' \
+  -d '{"entity_id": "switch.front_lawn_valve", "action": "stop"}'
+```
+
+Find your webhook ID: Developer Tools → Services → `schedule_wizard.list_config` → the panel Settings tab also surfaces it.
+
+No HA auth token required for webhooks — the webhook ID itself is the secret. Rotate by removing and re-adding the integration if leaked.
+
+## Lovelace card
+
+The integration auto-registers a dashboard card resource. Add to any view:
+
+```yaml
+type: custom:schedule-wizard-card
+title: Irrigation
+show_active: true
+show_quick_run: true
+valves:
+  - switch.front_lawn_valve
+  - switch.back_lawn_valve
+```
+
+Options:
+- `title` — card header. Default `"Schedule Wizard"`.
+- `show_active` — show active runs section. Default `true`.
+- `show_quick_run` — show quick run/stop rows. Default `true`.
+- `valves` — optional list of entity_ids to filter. If omitted, all valves are shown.
+
+## Hebrew
+
+Translations for Hebrew (`he`) are included in `translations/he.json`. HA picks the right one based on your user language preference.
 
 ## Sensors
 

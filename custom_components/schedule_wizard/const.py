@@ -14,6 +14,12 @@ CONF_CALENDAR_ENTITY = "calendar_entity"
 CONF_CALENDAR_LOOKAHEAD = "calendar_lookahead_min"
 CONF_DEFAULT_DURATION = "default_duration"
 CONF_POLL_INTERVAL = "poll_interval"
+CONF_RAIN_ENTITY = "rain_entity"
+CONF_RAIN_SKIP_STATES = "rain_skip_states"
+CONF_RAIN_ATTRIBUTE = "rain_attribute"
+CONF_RAIN_THRESHOLD = "rain_threshold"
+
+DEFAULT_RAIN_SKIP_STATES = "rainy,pouring,snowy,lightning-rainy"
 
 SUPPORTED_DOMAINS = ("switch", "valve", "cover", "input_boolean", "light")
 

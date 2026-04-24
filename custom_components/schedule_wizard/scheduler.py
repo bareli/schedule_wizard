@@ -141,6 +141,15 @@ class Scheduler:
             if valve_entity in self._active:
                 LOG.debug("skip schedule %s: valve %s already running", sched["id"], valve_entity)
                 continue
+            if self._should_skip_for_rain():
+                LOG.info("skip schedule %s: rain condition active", sched["id"])
+                self.hass.async_create_task(
+                    self.store.async_record_run(
+                        valve_entity, "schedule", int(sched.get("duration_min", 10)),
+                        "skipped_rain", f"schedule:{sched['id']}"
+                    )
+                )
+                continue
             self.hass.async_create_task(
                 self.async_run_valve(
                     valve_entity,
@@ -279,6 +288,32 @@ class Scheduler:
             if v["entity_id"].lower() in s:
                 return v
         return None
+
+    def _should_skip_for_rain(self) -> bool:
+        entity_id = (self.options.get("rain_entity") or "").strip()
+        if not entity_id:
+            return False
+        state = self.hass.states.get(entity_id)
+        if not state:
+            return False
+        threshold = self.options.get("rain_threshold")
+        attribute = (self.options.get("rain_attribute") or "").strip()
+        if attribute and threshold is not None:
+            try:
+                value = float(state.attributes.get(attribute, 0))
+                return value >= float(threshold)
+            except (TypeError, ValueError):
+                return False
+        if threshold is not None:
+            try:
+                value = float(state.state)
+                return value >= float(threshold)
+            except (TypeError, ValueError):
+                pass
+        skip_states = [s.strip() for s in str(self.options.get("rain_skip_states", "")).split(",") if s.strip()]
+        if skip_states:
+            return state.state in skip_states
+        return False
 
     async def async_run_valve(
         self,

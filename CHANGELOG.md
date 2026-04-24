@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0 — rain skip, webhook, Lovelace card, Hebrew
+
+- **Rain skip**: options flow now accepts a rain/weather entity + skip states / threshold / attribute. Schedules skip automatically when rain condition is active; history logs `skipped_rain`.
+- **Webhook trigger**: integration registers a per-entry webhook. `POST /api/webhook/<id>` with `entity_id` (and optional `duration_minutes`, `action: run|stop`) fires a run or stop.
+- **Lovelace card** (`custom:schedule-wizard-card`): compact active runs + quick run/stop widget, auto-registered as a Lovelace module resource.
+- **Hebrew translation** (`translations/he.json`) for config flow, options flow, and services.
+- Options flow extended with rain configuration fields.
+- WebSocket `update_options` command now accepts rain fields.
+
 ## 0.1.1 — branding
 
 - Real brand assets: `icon.png`, `icon@2x.png`, `logo.png`, `logo@2x.png` (sprinkler + calendar, "Irrigation Schedule").

@@ -14,9 +14,14 @@ from .const import (
     CONF_CALENDAR_LOOKAHEAD,
     CONF_DEFAULT_DURATION,
     CONF_POLL_INTERVAL,
+    CONF_RAIN_ATTRIBUTE,
+    CONF_RAIN_ENTITY,
+    CONF_RAIN_SKIP_STATES,
+    CONF_RAIN_THRESHOLD,
     DEFAULT_CALENDAR_LOOKAHEAD,
     DEFAULT_CALENDAR_POLL_SECONDS,
     DEFAULT_DURATION,
+    DEFAULT_RAIN_SKIP_STATES,
     DOMAIN,
 )
 
@@ -70,6 +75,26 @@ class ScheduleWizardOptionsFlow(config_entries.OptionsFlow):
                 default=opts.get(CONF_DEFAULT_DURATION, DEFAULT_DURATION),
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=1, max=1440, step=1, unit_of_measurement="min")
+            ),
+            vol.Optional(
+                CONF_RAIN_ENTITY,
+                default=opts.get(CONF_RAIN_ENTITY, ""),
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=["weather", "sensor", "binary_sensor"])
+            ),
+            vol.Optional(
+                CONF_RAIN_SKIP_STATES,
+                default=opts.get(CONF_RAIN_SKIP_STATES, DEFAULT_RAIN_SKIP_STATES),
+            ): selector.TextSelector(),
+            vol.Optional(
+                CONF_RAIN_ATTRIBUTE,
+                default=opts.get(CONF_RAIN_ATTRIBUTE, ""),
+            ): selector.TextSelector(),
+            vol.Optional(
+                CONF_RAIN_THRESHOLD,
+                default=opts.get(CONF_RAIN_THRESHOLD, 0),
+            ): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=100, step=0.1)
             ),
         })
         return self.async_show_form(step_id="init", data_schema=schema)

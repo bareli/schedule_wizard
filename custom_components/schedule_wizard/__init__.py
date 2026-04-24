@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
 import time
 from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.components import panel_custom, websocket_api
+from aiohttp import web
+
+from homeassistant.components import panel_custom, webhook, websocket_api
 from homeassistant.components.frontend import async_remove_panel
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
@@ -22,9 +25,14 @@ from .const import (
     CONF_CALENDAR_LOOKAHEAD,
     CONF_DEFAULT_DURATION,
     CONF_POLL_INTERVAL,
+    CONF_RAIN_ATTRIBUTE,
+    CONF_RAIN_ENTITY,
+    CONF_RAIN_SKIP_STATES,
+    CONF_RAIN_THRESHOLD,
     DEFAULT_CALENDAR_LOOKAHEAD,
     DEFAULT_CALENDAR_POLL_SECONDS,
     DEFAULT_DURATION,
+    DEFAULT_RAIN_SKIP_STATES,
     DOMAIN,
     SERVICE_ADD_SCHEDULE,
     SERVICE_ADD_VALVE,
@@ -46,6 +54,8 @@ PANEL_URL_PATH = "schedule-wizard"
 PANEL_STATIC_URL = "/schedule_wizard_panel"
 PANEL_REGISTERED_KEY = f"{DOMAIN}_panel_registered"
 WS_COMMANDS_REGISTERED_KEY = f"{DOMAIN}_ws_registered"
+CARD_RESOURCE_REGISTERED_KEY = f"{DOMAIN}_card_registered"
+CARD_RESOURCE_URL = f"{PANEL_STATIC_URL}/card.js"
 
 
 def _entity_in_supported_domain(value: str) -> str:
@@ -133,6 +143,24 @@ async def _async_register_panel(hass: HomeAssistant) -> None:
     hass.data[PANEL_REGISTERED_KEY] = True
 
 
+async def _async_register_card_resource(hass: HomeAssistant) -> None:
+    if hass.data.get(CARD_RESOURCE_REGISTERED_KEY):
+        return
+    try:
+        from homeassistant.components.lovelace.resources import ResourceStorageCollection
+        lovelace = hass.data.get("lovelace")
+        if lovelace and getattr(lovelace, "resources", None):
+            resources: ResourceStorageCollection = lovelace.resources
+            if resources.store and resources.store.key and not resources.loaded:
+                await resources.async_load()
+            existing = [r for r in resources.async_items() if r.get("url") == CARD_RESOURCE_URL]
+            if not existing:
+                await resources.async_create_item({"res_type": "module", "url": CARD_RESOURCE_URL})
+    except Exception as e:
+        LOG.debug("card resource auto-register skipped: %s", e)
+    hass.data[CARD_RESOURCE_REGISTERED_KEY] = True
+
+
 def _async_register_ws_commands(hass: HomeAssistant) -> None:
     if hass.data.get(WS_COMMANDS_REGISTERED_KEY):
         return
@@ -181,6 +209,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "options": options,
             "controllable": controllable,
             "calendars": calendars,
+            "webhook_id": data.get("webhook_id", ""),
             "now": int(time.time()),
         })
 
@@ -190,6 +219,10 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         vol.Optional(CONF_CALENDAR_LOOKAHEAD): vol.All(int, vol.Range(min=1, max=1440)),
         vol.Optional(CONF_POLL_INTERVAL): vol.All(int, vol.Range(min=10, max=3600)),
         vol.Optional(CONF_DEFAULT_DURATION): vol.All(int, vol.Range(min=1, max=1440)),
+        vol.Optional(CONF_RAIN_ENTITY): vol.Any(str, None),
+        vol.Optional(CONF_RAIN_SKIP_STATES): vol.Any(str, None),
+        vol.Optional(CONF_RAIN_ATTRIBUTE): vol.Any(str, None),
+        vol.Optional(CONF_RAIN_THRESHOLD): vol.Any(float, int, None),
     })
     @websocket_api.async_response
     async def _ws_update_options(hass_inner, connection, msg):
@@ -203,7 +236,10 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             connection.send_error(msg["id"], "no_entry", "entry not found")
             return
         new_options = dict(entry.options)
-        for key in (CONF_CALENDAR_ENTITY, CONF_CALENDAR_LOOKAHEAD, CONF_POLL_INTERVAL, CONF_DEFAULT_DURATION):
+        for key in (
+            CONF_CALENDAR_ENTITY, CONF_CALENDAR_LOOKAHEAD, CONF_POLL_INTERVAL, CONF_DEFAULT_DURATION,
+            CONF_RAIN_ENTITY, CONF_RAIN_SKIP_STATES, CONF_RAIN_ATTRIBUTE, CONF_RAIN_THRESHOLD,
+        ):
             if key in msg:
                 new_options[key] = msg[key]
         hass_inner.config_entries.async_update_entry(entry, options=new_options)
@@ -223,18 +259,65 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         CONF_CALENDAR_LOOKAHEAD: entry.options.get(CONF_CALENDAR_LOOKAHEAD, DEFAULT_CALENDAR_LOOKAHEAD),
         CONF_POLL_INTERVAL: entry.options.get(CONF_POLL_INTERVAL, DEFAULT_CALENDAR_POLL_SECONDS),
         CONF_DEFAULT_DURATION: entry.options.get(CONF_DEFAULT_DURATION, DEFAULT_DURATION),
+        CONF_RAIN_ENTITY: entry.options.get(CONF_RAIN_ENTITY, ""),
+        CONF_RAIN_SKIP_STATES: entry.options.get(CONF_RAIN_SKIP_STATES, DEFAULT_RAIN_SKIP_STATES),
+        CONF_RAIN_ATTRIBUTE: entry.options.get(CONF_RAIN_ATTRIBUTE, ""),
+        CONF_RAIN_THRESHOLD: entry.options.get(CONF_RAIN_THRESHOLD, None),
         "calendar_entity": entry.options.get(CONF_CALENDAR_ENTITY, ""),
         "calendar_lookahead_min": entry.options.get(CONF_CALENDAR_LOOKAHEAD, DEFAULT_CALENDAR_LOOKAHEAD),
         "poll_interval": entry.options.get(CONF_POLL_INTERVAL, DEFAULT_CALENDAR_POLL_SECONDS),
+        "default_duration": entry.options.get(CONF_DEFAULT_DURATION, DEFAULT_DURATION),
+        "rain_entity": entry.options.get(CONF_RAIN_ENTITY, ""),
+        "rain_skip_states": entry.options.get(CONF_RAIN_SKIP_STATES, DEFAULT_RAIN_SKIP_STATES),
+        "rain_attribute": entry.options.get(CONF_RAIN_ATTRIBUTE, ""),
+        "rain_threshold": entry.options.get(CONF_RAIN_THRESHOLD, None),
     }
 
     scheduler = Scheduler(hass, store, options)
     await scheduler.async_start()
 
+    webhook_id = entry.data.get("webhook_id")
+    if not webhook_id:
+        webhook_id = secrets.token_hex(16)
+        hass.config_entries.async_update_entry(entry, data={**entry.data, "webhook_id": webhook_id})
+
+    async def _webhook_handler(hass_inner: HomeAssistant, wh_id: str, request: web.Request) -> web.Response:
+        try:
+            if request.method == "POST":
+                try:
+                    payload = await request.json()
+                except Exception:
+                    payload = dict(await request.post())
+            else:
+                payload = dict(request.query)
+            action = (payload.get("action") or "run").strip().lower()
+            entity_id = payload.get("entity_id")
+            if not entity_id:
+                return web.json_response({"error": "entity_id required"}, status=400)
+            if action == "stop":
+                await scheduler.async_stop_valve(entity_id)
+                return web.json_response({"ok": True, "action": "stop", "entity_id": entity_id})
+            duration = payload.get("duration_minutes")
+            if duration is None:
+                valve = store.get_valve(entity_id)
+                duration = valve["default_duration_min"] if valve else int(options[CONF_DEFAULT_DURATION])
+            await scheduler.async_run_valve(entity_id, int(duration), source="webhook")
+            return web.json_response({"ok": True, "action": "run", "entity_id": entity_id, "duration_minutes": int(duration)})
+        except Exception as e:
+            LOG.exception("webhook handler failed: %s", e)
+            return web.json_response({"error": str(e)}, status=500)
+
+    try:
+        webhook.async_register(hass, DOMAIN, "Schedule Wizard", webhook_id, _webhook_handler)
+    except ValueError:
+        webhook.async_unregister(hass, webhook_id)
+        webhook.async_register(hass, DOMAIN, "Schedule Wizard", webhook_id, _webhook_handler)
+
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "store": store,
         "scheduler": scheduler,
         "options": options,
+        "webhook_id": webhook_id,
     }
 
     async def _svc_run(call: ServiceCall) -> None:
@@ -305,6 +388,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     _async_register_ws_commands(hass)
     await _async_register_panel(hass)
+    await _async_register_card_resource(hass)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -323,6 +407,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     data = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     if data:
         await data["scheduler"].async_stop()
+        wh_id = data.get("webhook_id")
+        if wh_id:
+            try:
+                webhook.async_unregister(hass, wh_id)
+            except Exception:
+                pass
 
     if not hass.data.get(DOMAIN):
         for svc in (

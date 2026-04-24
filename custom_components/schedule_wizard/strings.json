@@ -19,7 +19,11 @@
           "calendar_entity": "Calendar entity",
           "calendar_lookahead_min": "Calendar lookahead (minutes)",
           "poll_interval": "Calendar poll interval (seconds)",
-          "default_duration": "Default duration (minutes)"
+          "default_duration": "Default duration (minutes)",
+          "rain_entity": "Rain / weather entity",
+          "rain_skip_states": "Skip when state is (comma-separated)",
+          "rain_attribute": "Attribute to check (optional)",
+          "rain_threshold": "Rain threshold (0 = disabled)"
         }
       }
     }
