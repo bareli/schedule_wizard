@@ -19,6 +19,11 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     DAY_BITS,
+    EVENT_CYCLE_ENDED,
+    EVENT_CYCLE_STARTED,
+    EVENT_RAIN_SKIPPED,
+    EVENT_VALVE_ENDED,
+    EVENT_VALVE_STARTED,
     SIGNAL_STATE_CHANGED,
     SUPPORTED_DOMAINS,
 )
@@ -162,6 +167,13 @@ class Scheduler:
                             "skipped_rain", f"schedule:{sched['id']}"
                         )
                     )
+                    self.hass.bus.async_fire(EVENT_RAIN_SKIPPED, {
+                        "target": cycle_id,
+                        "kind": "cycle",
+                        "name": cycle.get("name", ""),
+                        "source": "schedule",
+                        "schedule_id": sched["id"],
+                    })
                     self.hass.async_create_task(self._notify(
                         "skipped_rain",
                         "Schedule Wizard",
@@ -188,6 +200,13 @@ class Scheduler:
                         "skipped_rain", f"schedule:{sched['id']}"
                     )
                 )
+                self.hass.bus.async_fire(EVENT_RAIN_SKIPPED, {
+                    "target": valve_entity,
+                    "kind": "valve",
+                    "label": self._entity_label(valve_entity),
+                    "source": "schedule",
+                    "schedule_id": sched["id"],
+                })
                 self.hass.async_create_task(self._notify(
                     "skipped_rain",
                     "Schedule Wizard",
@@ -465,6 +484,15 @@ class Scheduler:
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
         LOG.info("started %s for %dm (source=%s)", entity_id, duration_min, source)
         label = self._entity_label(entity_id)
+        self.hass.bus.async_fire(EVENT_VALVE_STARTED, {
+            "entity_id": entity_id,
+            "label": label,
+            "source": source,
+            "duration_min": duration_min,
+            "started_at": int(time.time()),
+            "ends_at": ends_at,
+            "note": note,
+        })
         self.hass.async_create_task(self._notify(
             "valve_start",
             "Schedule Wizard",
@@ -491,6 +519,14 @@ class Scheduler:
         await self._async_persist_active()
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
         label = self._entity_label(entity_id)
+        self.hass.bus.async_fire(EVENT_VALVE_ENDED, {
+            "entity_id": entity_id,
+            "label": label,
+            "status": status,
+            "source": active.get("source", "manual"),
+            "duration_min": active.get("duration_min", 0),
+            "note": note or active.get("note", ""),
+        })
         self.hass.async_create_task(self._notify(
             "valve_end",
             "Schedule Wizard",
@@ -526,6 +562,14 @@ class Scheduler:
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
         LOG.info("started cycle %s (%s), %d steps, source=%s",
                  cycle_id, cycle.get("name"), len(steps), source)
+        self.hass.bus.async_fire(EVENT_CYCLE_STARTED, {
+            "cycle_id": cycle_id,
+            "name": cycle.get("name", ""),
+            "source": source,
+            "total_steps": len(steps),
+            "started_at": state["started_at"],
+            "note": note,
+        })
         self.hass.async_create_task(self._notify(
             "cycle_start",
             "Schedule Wizard",
@@ -567,6 +611,12 @@ class Scheduler:
                 cycle_id, state.get("source", "manual"), 0,
                 "cycle_completed", state.get("note", ""),
             )
+            self.hass.bus.async_fire(EVENT_CYCLE_ENDED, {
+                "cycle_id": cycle_id,
+                "name": cycle.get("name", ""),
+                "status": "completed",
+                "source": state.get("source", "manual"),
+            })
             self.hass.async_create_task(self._notify(
                 "cycle_end",
                 "Schedule Wizard",
@@ -582,6 +632,12 @@ class Scheduler:
                 cycle_id, state.get("source", "manual"), 0,
                 "cycle_cancelled", state.get("note", ""),
             )
+            self.hass.bus.async_fire(EVENT_CYCLE_ENDED, {
+                "cycle_id": cycle_id,
+                "name": cycle.get("name", ""),
+                "status": "cancelled",
+                "source": state.get("source", "manual"),
+            })
             self.hass.async_create_task(self._notify(
                 "cycle_end",
                 "Schedule Wizard",

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.1 — event bus events
+
+- Fires 5 events on the HA event bus, usable as automation triggers:
+  - `schedule_wizard_valve_started`
+  - `schedule_wizard_valve_ended`
+  - `schedule_wizard_cycle_started`
+  - `schedule_wizard_cycle_ended`
+  - `schedule_wizard_rain_skipped`
+- Each event carries `source` so you can filter schedule / calendar / manual / webhook / cycle triggers in automations.
+- README documents event names, data fields, and example automations.
+
 ## 0.5.0 — multi-language translations
 
 - 15 new translation files for HA native strings (config flow + options flow + service names/descriptions): Spanish, German, French, Italian, Dutch, Portuguese, Russian, Arabic, Polish, Simplified Chinese, Ukrainian, Swedish, Danish, Norwegian, Finnish.

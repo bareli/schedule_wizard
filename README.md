@@ -194,6 +194,49 @@ Trigger a cycle from:
 - Cycle schedules respect rain-skip (whole cycle is skipped if rain condition active).
 - Cycles persist in storage but in-progress cycle state does not survive HA restart (the currently open valve auto-closes per its own timer, but remaining steps won't fire).
 
+## Events
+
+The integration fires events on the HA event bus. Use them as triggers for any automation.
+
+| Event                              | When                                      | Data                                                             |
+| ---------------------------------- | ----------------------------------------- | ---------------------------------------------------------------- |
+| `schedule_wizard_valve_started`    | A valve opens (manual, schedule, cycle)   | `entity_id`, `label`, `source`, `duration_min`, `started_at`, `ends_at`, `note` |
+| `schedule_wizard_valve_ended`      | A valve closes                            | `entity_id`, `label`, `status` (`completed`/`cancelled`), `source`, `duration_min`, `note` |
+| `schedule_wizard_cycle_started`    | A cycle begins                            | `cycle_id`, `name`, `source`, `total_steps`, `started_at`, `note` |
+| `schedule_wizard_cycle_ended`      | A cycle finishes or is cancelled          | `cycle_id`, `name`, `status` (`completed`/`cancelled`), `source` |
+| `schedule_wizard_rain_skipped`     | A cron schedule was skipped due to rain   | `target`, `kind` (`valve`/`cycle`), `label`/`name`, `source`, `schedule_id` |
+
+**Schedule vs. calendar vs. manual:** the `source` field tells you how the run was triggered (`schedule`, `calendar`, `manual`, `service`, `webhook`, `cycle:<id>`). Filter on it in automation conditions.
+
+### Example automation
+
+```yaml
+alias: "Irrigation: log cycle completion"
+trigger:
+  - platform: event
+    event_type: schedule_wizard_cycle_ended
+action:
+  - service: system_log.write
+    data:
+      message: >
+        Cycle {{ trigger.event.data.name }} ended with status
+        {{ trigger.event.data.status }} (source: {{ trigger.event.data.source }})
+```
+
+```yaml
+alias: "Alert on cancelled valve"
+trigger:
+  - platform: event
+    event_type: schedule_wizard_valve_ended
+    event_data:
+      status: cancelled
+action:
+  - service: notify.mobile_app_my_phone
+    data:
+      title: "Irrigation"
+      message: "{{ trigger.event.data.label }} was cancelled mid-run"
+```
+
 ## Notifications
 
 Push events to any `notify.*` service (HA Companion app, Telegram, Pushover, email, Slack, etc).

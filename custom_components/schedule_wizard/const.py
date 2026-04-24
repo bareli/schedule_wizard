@@ -36,6 +36,12 @@ SUPPORTED_DOMAINS = ("switch", "valve", "cover", "input_boolean", "light")
 
 SIGNAL_STATE_CHANGED = f"{DOMAIN}_state_changed"
 
+EVENT_VALVE_STARTED = f"{DOMAIN}_valve_started"
+EVENT_VALVE_ENDED = f"{DOMAIN}_valve_ended"
+EVENT_CYCLE_STARTED = f"{DOMAIN}_cycle_started"
+EVENT_CYCLE_ENDED = f"{DOMAIN}_cycle_ended"
+EVENT_RAIN_SKIPPED = f"{DOMAIN}_rain_skipped"
+
 DAY_BITS = {0: 1, 1: 2, 2: 4, 3: 8, 4: 16, 5: 32, 6: 64}
 
 SERVICE_RUN_VALVE = "run_valve"
