@@ -1,0 +1,170 @@
+run_valve:
+  name: Run valve
+  description: Open a valve (or switch/light/cover) for a given duration. Auto-closes when done.
+  fields:
+    entity_id:
+      name: Entity
+      description: The entity to open.
+      required: true
+      selector:
+        entity:
+          domain:
+            - switch
+            - valve
+            - cover
+            - input_boolean
+            - light
+    duration_minutes:
+      name: Duration (minutes)
+      description: How long to keep the valve open. Falls back to the valve's default if omitted.
+      required: false
+      example: 15
+      selector:
+        number:
+          min: 1
+          max: 1440
+          step: 1
+          unit_of_measurement: min
+          mode: slider
+
+stop_valve:
+  name: Stop valve
+  description: Close a valve immediately and cancel its auto-close timer.
+  fields:
+    entity_id:
+      name: Entity
+      required: true
+      selector:
+        entity:
+          domain:
+            - switch
+            - valve
+            - cover
+            - input_boolean
+            - light
+
+add_valve:
+  name: Add valve
+  description: Register a valve with the scheduler.
+  fields:
+    entity_id:
+      name: Entity
+      required: true
+      selector:
+        entity:
+          domain:
+            - switch
+            - valve
+            - cover
+            - input_boolean
+            - light
+    label:
+      name: Label
+      description: Used to match calendar event summaries.
+      required: true
+      example: "Front lawn"
+      selector:
+        text:
+    default_duration_minutes:
+      name: Default duration (minutes)
+      required: false
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 1440
+          step: 1
+          unit_of_measurement: min
+    enabled:
+      name: Enabled
+      required: false
+      default: true
+      selector:
+        boolean:
+
+remove_valve:
+  name: Remove valve
+  description: Unregister a valve and delete its schedules.
+  fields:
+    entity_id:
+      name: Entity
+      required: true
+      selector:
+        entity:
+          domain:
+            - switch
+            - valve
+            - cover
+            - input_boolean
+            - light
+
+add_schedule:
+  name: Add schedule
+  description: Schedule a recurring run at a fixed time on selected days.
+  fields:
+    valve_entity_id:
+      name: Valve entity
+      required: true
+      selector:
+        entity:
+          domain:
+            - switch
+            - valve
+            - cover
+            - input_boolean
+            - light
+    time:
+      name: Time
+      description: HH:MM (24h) local time.
+      required: true
+      example: "06:30"
+      selector:
+        time:
+    duration_minutes:
+      name: Duration (minutes)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 1440
+          step: 1
+          unit_of_measurement: min
+    days:
+      name: Days
+      required: true
+      selector:
+        select:
+          multiple: true
+          options:
+            - mon
+            - tue
+            - wed
+            - thu
+            - fri
+            - sat
+            - sun
+    name:
+      name: Name
+      required: false
+      selector:
+        text:
+    enabled:
+      name: Enabled
+      required: false
+      default: true
+      selector:
+        boolean:
+
+remove_schedule:
+  name: Remove schedule
+  description: Delete a schedule by its id (find via list_config).
+  fields:
+    schedule_id:
+      name: Schedule ID
+      required: true
+      selector:
+        text:
+
+list_config:
+  name: List config
+  description: Returns the registered valves, schedules, active runs, and recent history.

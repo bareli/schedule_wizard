@@ -1,0 +1,344 @@
+"""Schedule Wizard integration."""
+from __future__ import annotations
+
+import logging
+import os
+import time
+from typing import Any
+
+import voluptuous as vol
+
+from homeassistant.components import panel_custom, websocket_api
+from homeassistant.components.frontend import async_remove_panel
+from homeassistant.components.http import StaticPathConfig
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import config_validation as cv
+
+from .const import (
+    CONF_CALENDAR_ENTITY,
+    CONF_CALENDAR_LOOKAHEAD,
+    CONF_DEFAULT_DURATION,
+    CONF_POLL_INTERVAL,
+    DEFAULT_CALENDAR_LOOKAHEAD,
+    DEFAULT_CALENDAR_POLL_SECONDS,
+    DEFAULT_DURATION,
+    DOMAIN,
+    SERVICE_ADD_SCHEDULE,
+    SERVICE_ADD_VALVE,
+    SERVICE_LIST,
+    SERVICE_REMOVE_SCHEDULE,
+    SERVICE_REMOVE_VALVE,
+    SERVICE_RUN_VALVE,
+    SERVICE_STOP_VALVE,
+    SUPPORTED_DOMAINS,
+)
+from .scheduler import Scheduler
+from .storage import WizardStore
+
+LOG = logging.getLogger(__name__)
+
+PLATFORMS: list[Platform] = [Platform.SENSOR]
+
+PANEL_URL_PATH = "schedule-wizard"
+PANEL_STATIC_URL = "/schedule_wizard_panel"
+PANEL_REGISTERED_KEY = f"{DOMAIN}_panel_registered"
+WS_COMMANDS_REGISTERED_KEY = f"{DOMAIN}_ws_registered"
+
+
+def _entity_in_supported_domain(value: str) -> str:
+    value = cv.entity_id(value)
+    domain = value.split(".")[0]
+    if domain not in SUPPORTED_DOMAINS:
+        raise vol.Invalid(f"unsupported domain {domain}")
+    return value
+
+
+def _hhmm(value: str) -> str:
+    if not isinstance(value, str) or ":" not in value:
+        raise vol.Invalid("time must be HH:MM")
+    h, m = value.split(":", 1)
+    try:
+        hi, mi = int(h), int(m)
+    except ValueError:
+        raise vol.Invalid("time must be HH:MM")
+    if not (0 <= hi < 24 and 0 <= mi < 60):
+        raise vol.Invalid("time out of range")
+    return f"{hi:02d}:{mi:02d}"
+
+
+SCHEMA_RUN = vol.Schema({
+    vol.Required("entity_id"): _entity_in_supported_domain,
+    vol.Optional("duration_minutes"): vol.All(int, vol.Range(min=1, max=1440)),
+})
+
+SCHEMA_STOP = vol.Schema({
+    vol.Required("entity_id"): _entity_in_supported_domain,
+})
+
+SCHEMA_ADD_VALVE = vol.Schema({
+    vol.Required("entity_id"): _entity_in_supported_domain,
+    vol.Required("label"): cv.string,
+    vol.Optional("default_duration_minutes", default=DEFAULT_DURATION): vol.All(int, vol.Range(min=1, max=1440)),
+    vol.Optional("enabled", default=True): cv.boolean,
+})
+
+SCHEMA_REMOVE_VALVE = vol.Schema({
+    vol.Required("entity_id"): _entity_in_supported_domain,
+})
+
+SCHEMA_ADD_SCHEDULE = vol.Schema({
+    vol.Required("valve_entity_id"): _entity_in_supported_domain,
+    vol.Required("time"): _hhmm,
+    vol.Required("duration_minutes"): vol.All(int, vol.Range(min=1, max=1440)),
+    vol.Required("days"): vol.All(cv.ensure_list, [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])]),
+    vol.Optional("name", default=""): cv.string,
+    vol.Optional("enabled", default=True): cv.boolean,
+})
+
+SCHEMA_REMOVE_SCHEDULE = vol.Schema({
+    vol.Required("schedule_id"): cv.string,
+})
+
+DAY_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+
+def _days_to_mask(days: list[str]) -> int:
+    mask = 0
+    for d in days:
+        mask |= 1 << DAY_NAMES.index(d)
+    return mask
+
+
+async def _async_register_panel(hass: HomeAssistant) -> None:
+    if hass.data.get(PANEL_REGISTERED_KEY):
+        return
+    panel_dir = os.path.join(os.path.dirname(__file__), "www")
+    if os.path.isdir(panel_dir):
+        await hass.http.async_register_static_paths([
+            StaticPathConfig(PANEL_STATIC_URL, panel_dir, False)
+        ])
+    await panel_custom.async_register_panel(
+        hass,
+        webcomponent_name="schedule-wizard-panel",
+        frontend_url_path=PANEL_URL_PATH,
+        module_url=f"{PANEL_STATIC_URL}/panel.js",
+        sidebar_title="Schedule Wizard",
+        sidebar_icon="mdi:sprinkler-variant",
+        require_admin=False,
+        config={},
+    )
+    hass.data[PANEL_REGISTERED_KEY] = True
+
+
+def _async_register_ws_commands(hass: HomeAssistant) -> None:
+    if hass.data.get(WS_COMMANDS_REGISTERED_KEY):
+        return
+
+    @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/get_state"})
+    @websocket_api.async_response
+    async def _ws_get_state(hass_inner, connection, msg):
+        domain_data = hass_inner.data.get(DOMAIN, {})
+        if not domain_data:
+            connection.send_error(msg["id"], "not_loaded", "integration not loaded")
+            return
+        entry_id = next(iter(domain_data))
+        data = domain_data[entry_id]
+        store = data["store"]
+        scheduler = data["scheduler"]
+        options = data["options"]
+
+        controllable = []
+        calendars = []
+        for s in hass_inner.states.async_all():
+            if s.domain in SUPPORTED_DOMAINS:
+                controllable.append({
+                    "entity_id": s.entity_id,
+                    "domain": s.domain,
+                    "friendly_name": s.attributes.get("friendly_name", s.entity_id),
+                    "state": s.state,
+                })
+            elif s.domain == "calendar":
+                calendars.append({
+                    "entity_id": s.entity_id,
+                    "friendly_name": s.attributes.get("friendly_name", s.entity_id),
+                })
+        controllable.sort(key=lambda x: x["friendly_name"].lower())
+        calendars.sort(key=lambda x: x["friendly_name"].lower())
+
+        active = [
+            {k: v for k, v in r.items() if k != "unsub_close"}
+            for r in scheduler.active.values()
+        ]
+
+        connection.send_result(msg["id"], {
+            "valves": store.valves,
+            "schedules": store.schedules,
+            "active": active,
+            "history": store.history[:30],
+            "options": options,
+            "controllable": controllable,
+            "calendars": calendars,
+            "now": int(time.time()),
+        })
+
+    @websocket_api.websocket_command({
+        vol.Required("type"): f"{DOMAIN}/update_options",
+        vol.Optional(CONF_CALENDAR_ENTITY): vol.Any(str, None),
+        vol.Optional(CONF_CALENDAR_LOOKAHEAD): vol.All(int, vol.Range(min=1, max=1440)),
+        vol.Optional(CONF_POLL_INTERVAL): vol.All(int, vol.Range(min=10, max=3600)),
+        vol.Optional(CONF_DEFAULT_DURATION): vol.All(int, vol.Range(min=1, max=1440)),
+    })
+    @websocket_api.async_response
+    async def _ws_update_options(hass_inner, connection, msg):
+        domain_data = hass_inner.data.get(DOMAIN, {})
+        if not domain_data:
+            connection.send_error(msg["id"], "not_loaded", "integration not loaded")
+            return
+        entry_id = next(iter(domain_data))
+        entry = hass_inner.config_entries.async_get_entry(entry_id)
+        if not entry:
+            connection.send_error(msg["id"], "no_entry", "entry not found")
+            return
+        new_options = dict(entry.options)
+        for key in (CONF_CALENDAR_ENTITY, CONF_CALENDAR_LOOKAHEAD, CONF_POLL_INTERVAL, CONF_DEFAULT_DURATION):
+            if key in msg:
+                new_options[key] = msg[key]
+        hass_inner.config_entries.async_update_entry(entry, options=new_options)
+        connection.send_result(msg["id"], {"options": new_options})
+
+    websocket_api.async_register_command(hass, _ws_get_state)
+    websocket_api.async_register_command(hass, _ws_update_options)
+    hass.data[WS_COMMANDS_REGISTERED_KEY] = True
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    store = WizardStore(hass)
+    await store.async_load()
+
+    options = {
+        CONF_CALENDAR_ENTITY: entry.options.get(CONF_CALENDAR_ENTITY, ""),
+        CONF_CALENDAR_LOOKAHEAD: entry.options.get(CONF_CALENDAR_LOOKAHEAD, DEFAULT_CALENDAR_LOOKAHEAD),
+        CONF_POLL_INTERVAL: entry.options.get(CONF_POLL_INTERVAL, DEFAULT_CALENDAR_POLL_SECONDS),
+        CONF_DEFAULT_DURATION: entry.options.get(CONF_DEFAULT_DURATION, DEFAULT_DURATION),
+        "calendar_entity": entry.options.get(CONF_CALENDAR_ENTITY, ""),
+        "calendar_lookahead_min": entry.options.get(CONF_CALENDAR_LOOKAHEAD, DEFAULT_CALENDAR_LOOKAHEAD),
+        "poll_interval": entry.options.get(CONF_POLL_INTERVAL, DEFAULT_CALENDAR_POLL_SECONDS),
+    }
+
+    scheduler = Scheduler(hass, store, options)
+    await scheduler.async_start()
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        "store": store,
+        "scheduler": scheduler,
+        "options": options,
+    }
+
+    async def _svc_run(call: ServiceCall) -> None:
+        entity_id = call.data["entity_id"]
+        duration = call.data.get("duration_minutes")
+        if duration is None:
+            valve = store.get_valve(entity_id)
+            duration = valve["default_duration_min"] if valve else int(options[CONF_DEFAULT_DURATION])
+        try:
+            await scheduler.async_run_valve(entity_id, int(duration), source="service")
+        except Exception as e:
+            raise HomeAssistantError(str(e)) from e
+
+    async def _svc_stop(call: ServiceCall) -> None:
+        await scheduler.async_stop_valve(call.data["entity_id"])
+
+    async def _svc_add_valve(call: ServiceCall) -> None:
+        await store.async_upsert_valve(
+            call.data["entity_id"],
+            call.data["label"],
+            int(call.data.get("default_duration_minutes", DEFAULT_DURATION)),
+            bool(call.data.get("enabled", True)),
+        )
+
+    async def _svc_remove_valve(call: ServiceCall) -> None:
+        await store.async_remove_valve(call.data["entity_id"])
+        await scheduler.async_stop_valve(call.data["entity_id"])
+
+    async def _svc_add_schedule(call: ServiceCall) -> ServiceResponse:
+        mask = _days_to_mask(call.data["days"])
+        sched = await store.async_add_schedule(
+            valve_entity_id=call.data["valve_entity_id"],
+            days_mask=mask,
+            time_hhmm=call.data["time"],
+            duration_min=int(call.data["duration_minutes"]),
+            name=call.data.get("name", ""),
+            enabled=bool(call.data.get("enabled", True)),
+        )
+        return {"schedule": sched}
+
+    async def _svc_remove_schedule(call: ServiceCall) -> None:
+        await store.async_remove_schedule(call.data["schedule_id"])
+
+    async def _svc_list(call: ServiceCall) -> ServiceResponse:
+        return {
+            "valves": store.valves,
+            "schedules": store.schedules,
+            "active": [
+                {k: v for k, v in run.items() if k != "unsub_close"}
+                for run in scheduler.active.values()
+            ],
+            "history": store.history[:20],
+        }
+
+    hass.services.async_register(DOMAIN, SERVICE_RUN_VALVE, _svc_run, schema=SCHEMA_RUN)
+    hass.services.async_register(DOMAIN, SERVICE_STOP_VALVE, _svc_stop, schema=SCHEMA_STOP)
+    hass.services.async_register(DOMAIN, SERVICE_ADD_VALVE, _svc_add_valve, schema=SCHEMA_ADD_VALVE)
+    hass.services.async_register(DOMAIN, SERVICE_REMOVE_VALVE, _svc_remove_valve, schema=SCHEMA_REMOVE_VALVE)
+    hass.services.async_register(
+        DOMAIN, SERVICE_ADD_SCHEDULE, _svc_add_schedule,
+        schema=SCHEMA_ADD_SCHEDULE,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(DOMAIN, SERVICE_REMOVE_SCHEDULE, _svc_remove_schedule, schema=SCHEMA_REMOVE_SCHEDULE)
+    hass.services.async_register(
+        DOMAIN, SERVICE_LIST, _svc_list, supports_response=SupportsResponse.ONLY
+    )
+
+    _async_register_ws_commands(hass)
+    await _async_register_panel(hass)
+
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    return True
+
+
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if not unloaded:
+        return False
+
+    data = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
+    if data:
+        await data["scheduler"].async_stop()
+
+    if not hass.data.get(DOMAIN):
+        for svc in (
+            SERVICE_RUN_VALVE,
+            SERVICE_STOP_VALVE,
+            SERVICE_ADD_VALVE,
+            SERVICE_REMOVE_VALVE,
+            SERVICE_ADD_SCHEDULE,
+            SERVICE_REMOVE_SCHEDULE,
+            SERVICE_LIST,
+        ):
+            if hass.services.has_service(DOMAIN, svc):
+                hass.services.async_remove(DOMAIN, svc)
+        if hass.data.pop(PANEL_REGISTERED_KEY, False):
+            try:
+                async_remove_panel(hass, PANEL_URL_PATH)
+            except Exception as e:
+                LOG.debug("panel remove failed: %s", e)
+    return True

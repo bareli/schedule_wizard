@@ -1,0 +1,57 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Schedule Wizard",
+        "description": "Add the Schedule Wizard integration. After it is created, open Configure to set the calendar and defaults."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Schedule Wizard is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Schedule Wizard options",
+        "description": "Calendar entity to poll, polling interval, lookahead window, and default run duration.",
+        "data": {
+          "calendar_entity": "Calendar entity",
+          "calendar_lookahead_min": "Calendar lookahead (minutes)",
+          "poll_interval": "Calendar poll interval (seconds)",
+          "default_duration": "Default duration (minutes)"
+        }
+      }
+    }
+  },
+  "services": {
+    "run_valve": {
+      "name": "Run valve",
+      "description": "Open a valve for a given duration."
+    },
+    "stop_valve": {
+      "name": "Stop valve",
+      "description": "Close a valve and cancel any auto-close timer."
+    },
+    "add_valve": {
+      "name": "Add valve",
+      "description": "Register a valve with the scheduler."
+    },
+    "remove_valve": {
+      "name": "Remove valve",
+      "description": "Unregister a valve and delete its schedules."
+    },
+    "add_schedule": {
+      "name": "Add schedule",
+      "description": "Add a recurring schedule for a registered valve."
+    },
+    "remove_schedule": {
+      "name": "Remove schedule",
+      "description": "Delete a schedule."
+    },
+    "list_config": {
+      "name": "List config",
+      "description": "Returns valves, schedules, active runs, and recent history."
+    }
+  }
+}
