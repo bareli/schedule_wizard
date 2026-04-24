@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 — branding
+
+- Real brand assets: `icon.png`, `icon@2x.png`, `logo.png`, `logo@2x.png` (sprinkler + calendar, "Irrigation Schedule").
+- Placeholder "SW" text icons replaced.
+
 ## 0.1.0 — initial release
 
 - HACS custom integration (in-process Python, works on all HA install types).
