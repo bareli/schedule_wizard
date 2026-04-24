@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 — panel rain fields + webhook URL
+
+- Settings tab in the sidebar panel now exposes rain-skip configuration (entity, skip states, attribute, threshold).
+- Settings tab now shows the webhook URL with one-click copy.
+
 ## 0.2.0 — rain skip, webhook, Lovelace card, Hebrew
 
 - **Rain skip**: options flow now accepts a rain/weather entity + skip states / threshold / attribute. Schedules skip automatically when rain condition is active; history logs `skipped_rain`.

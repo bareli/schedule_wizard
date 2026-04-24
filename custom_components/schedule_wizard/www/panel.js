@@ -655,6 +655,10 @@ class ScheduleWizardPanel extends HTMLElement {
     const lookInput = el("input", { type: "number", min: "1", max: "1440", value: String(opts.calendar_lookahead_min || 10) });
     const pollInput = el("input", { type: "number", min: "10", max: "3600", value: String(opts.poll_interval || 60) });
     const defDurInput = el("input", { type: "number", min: "1", max: "1440", value: String(opts.default_duration || 10) });
+    const rainEntityInput = el("input", { type: "text", placeholder: "weather.home or sensor.rain_forecast", value: String(opts.rain_entity || "") });
+    const rainStatesInput = el("input", { type: "text", placeholder: "rainy,pouring,snowy,lightning-rainy", value: String(opts.rain_skip_states || "") });
+    const rainAttrInput = el("input", { type: "text", placeholder: "precipitation (optional)", value: String(opts.rain_attribute || "") });
+    const rainThresholdInput = el("input", { type: "number", min: "0", max: "100", step: "0.1", value: opts.rain_threshold != null ? String(opts.rain_threshold) : "" });
 
     card.appendChild(el("label", { class: "field" }, [el("span", {}, "Calendar entity"), calSel]));
     card.appendChild(el("div", { class: "field-row" }, [
@@ -663,12 +667,41 @@ class ScheduleWizardPanel extends HTMLElement {
     ]));
     card.appendChild(el("label", { class: "field" }, [el("span", {}, "Default duration (minutes)"), defDurInput]));
 
+    const rainSection = el("div", {
+      style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);",
+    });
+    rainSection.appendChild(el("h3", { style: "margin:0 0 6px;font-size:14px;" }, "Rain skip"));
+    rainSection.appendChild(el("p", { class: "muted", style: "font-size:12px;margin:0 0 10px;" },
+      "Optional. Skips cron schedules when the selected entity matches any skip state, or its numeric value exceeds the threshold. Calendar and manual runs are not affected."
+    ));
+    rainSection.appendChild(el("label", { class: "field" }, [
+      el("span", {}, "Rain / weather entity"),
+      rainEntityInput,
+    ]));
+    rainSection.appendChild(el("label", { class: "field" }, [
+      el("span", {}, "Skip when state is (comma-separated)"),
+      rainStatesInput,
+    ]));
+    rainSection.appendChild(el("div", { class: "field-row" }, [
+      el("label", { class: "field" }, [
+        el("span", {}, "Attribute to check (optional)"),
+        rainAttrInput,
+      ]),
+      el("label", { class: "field" }, [
+        el("span", {}, "Numeric threshold (blank = disabled)"),
+        rainThresholdInput,
+      ]),
+    ]));
+    card.appendChild(rainSection);
+
     const feedback = el("div", { class: "muted", style: "margin-top:8px;font-size:12px;" });
     const saveBtn = el("button", { class: "btn primary" }, "Save settings");
     saveBtn.addEventListener("click", async () => {
       saveBtn.disabled = true;
       const oldText = saveBtn.textContent;
       saveBtn.textContent = "Saving...";
+      const thresholdRaw = rainThresholdInput.value.trim();
+      const threshold = thresholdRaw === "" ? null : parseFloat(thresholdRaw);
       try {
         const result = await this._hass.callWS({
           type: "schedule_wizard/update_options",
@@ -676,6 +709,10 @@ class ScheduleWizardPanel extends HTMLElement {
           calendar_lookahead_min: parseInt(lookInput.value, 10) || 10,
           poll_interval: parseInt(pollInput.value, 10) || 60,
           default_duration: parseInt(defDurInput.value, 10) || 10,
+          rain_entity: rainEntityInput.value.trim(),
+          rain_skip_states: rainStatesInput.value.trim(),
+          rain_attribute: rainAttrInput.value.trim(),
+          rain_threshold: (threshold !== null && !isNaN(threshold)) ? threshold : null,
         });
         feedback.textContent = "Saved at " + new Date().toLocaleTimeString() + ". Integration reloaded.";
         this._toast("Settings saved", "ok");
@@ -692,6 +729,40 @@ class ScheduleWizardPanel extends HTMLElement {
     card.appendChild(saveBtn);
     card.appendChild(feedback);
     root.appendChild(card);
+
+    const webhookId = this._state.webhook_id || "";
+    if (webhookId) {
+      const webhookUrl = `${location.origin}/api/webhook/${webhookId}`;
+      const webhookCard = el("div", { class: "card" });
+      webhookCard.appendChild(el("h2", {}, "Webhook"));
+      webhookCard.appendChild(el("p", { class: "muted", style: "font-size:12px;margin:0 0 8px;" },
+        "POST entity_id (+ optional duration_minutes, action) to this URL. Secret via the URL itself; rotate by removing and re-adding the integration."
+      ));
+      const urlInput = el("input", {
+        type: "text",
+        readonly: "readonly",
+        value: webhookUrl,
+        style: "width:100%;padding:6px 8px;border:1px solid var(--sw-border);border-radius:6px;background:var(--sw-bg);color:var(--sw-text);font-family:monospace;font-size:12px;",
+        onClick: (e) => e.target.select(),
+      });
+      const copyBtn = el("button", {
+        class: "btn",
+        style: "margin-top:6px;font-size:12px;",
+        onClick: async () => {
+          try {
+            await navigator.clipboard.writeText(webhookUrl);
+            this._toast("Copied", "ok");
+          } catch {
+            urlInput.select();
+            document.execCommand("copy");
+            this._toast("Copied", "ok");
+          }
+        },
+      }, "Copy URL");
+      webhookCard.appendChild(urlInput);
+      webhookCard.appendChild(copyBtn);
+      root.appendChild(webhookCard);
+    }
 
     const card2 = el("div", { class: "card" }, [
       el("h2", {}, "Current options"),
