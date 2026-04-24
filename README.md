@@ -51,10 +51,29 @@ Minimum HA version: **2024.7.0**.
 
 After install, a **Schedule Wizard** entry appears in the sidebar (sprinkler icon). Four tabs:
 
-- **Dashboard** — active runs with live progress bars, quick run/stop per valve, recent history.
-- **Valves** — add / edit / delete valves. Pick any supported HA entity, set its label (used for calendar matching) and default duration.
-- **Schedules** — recurring rules: pick a valve, time, days, duration.
-- **Settings** — calendar entity, lookahead window, poll interval, default duration. All editable here; no need to visit the Configure dialog.
+### Dashboard
+
+Active runs with live progress bars, quick run/stop per valve, recent history.
+
+![Dashboard tab](docs/screenshots/panel-dashboard.png)
+
+### Valves
+
+Add / edit / delete valves. Pick any supported HA entity, set its label (used for calendar matching) and default duration.
+
+![Valves tab](docs/screenshots/panel-valves.png)
+
+### Schedules
+
+Recurring rules: pick a valve, time, days, duration.
+
+![Schedules tab](docs/screenshots/panel-schedules.png)
+
+### Settings
+
+Calendar entity, lookahead window, poll interval, default duration. All editable here; no need to visit the Configure dialog.
+
+![Settings tab](docs/screenshots/panel-settings.png)
 
 Options flow (Settings → Devices & Services → Schedule Wizard → Configure) writes the same values — use whichever you prefer.
 
