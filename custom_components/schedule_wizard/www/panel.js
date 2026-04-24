@@ -166,12 +166,17 @@ const DAY_BITS = [1, 2, 4, 8, 16, 32, 64];
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
   for (const k of Object.keys(attrs)) {
-    if (k === "class") node.className = attrs[k];
-    else if (k === "html") node.innerHTML = attrs[k];
-    else if (k.startsWith("on") && typeof attrs[k] === "function") {
-      node.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
-    } else if (attrs[k] !== undefined && attrs[k] !== null) {
-      node.setAttribute(k, attrs[k]);
+    const v = attrs[k];
+    if (k === "class") node.className = v;
+    else if (k === "html") node.innerHTML = v;
+    else if (k.startsWith("on") && typeof v === "function") {
+      node.addEventListener(k.slice(2).toLowerCase(), v);
+    } else if (v === false || v === undefined || v === null) {
+      // skip: boolean-false / nullish
+    } else if (v === true) {
+      node.setAttribute(k, "");
+    } else {
+      node.setAttribute(k, v);
     }
   }
   (Array.isArray(children) ? children : [children]).forEach((c) => {
@@ -390,16 +395,31 @@ class ScheduleWizardPanel extends HTMLElement {
   }
 
   _quickRunRow(v) {
+    const active = this._state.active.find(r => r.entity_id === v.entity_id);
+    const now = this._state.now;
     const minsInput = el("input", {
       type: "number", min: "1", max: "1440",
       value: String(v.default_duration_min),
       style: "width:70px;",
     });
+    const meta = el("div", {}, [
+      el("div", { class: "name" }, v.label + (active ? "  ●" : "")),
+      el("div", { class: "sub" },
+        active
+          ? `${v.entity_id} • ${fmtRemaining(Math.max(0, active.ends_at - now))} remaining (${active.source})`
+          : `${v.entity_id} • default ${v.default_duration_min}m`
+      ),
+    ]);
+    if (active) {
+      const total = Math.max(1, active.ends_at - active.started_at);
+      const remaining = Math.max(0, active.ends_at - now);
+      const pct = Math.min(100, ((total - remaining) / total) * 100);
+      meta.appendChild(el("div", { class: "progress-wrap" },
+        el("div", { class: "progress-bar", style: `width:${pct}%` })
+      ));
+    }
     return el("div", { class: "item" }, [
-      el("div", {}, [
-        el("div", { class: "name" }, v.label),
-        el("div", { class: "sub" }, `${v.entity_id} • default ${v.default_duration_min}m`),
-      ]),
+      meta,
       el("div", { class: "actions" }, [
         minsInput,
         el("button", {

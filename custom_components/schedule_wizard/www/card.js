@@ -73,9 +73,12 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 function el(tag, attrs = {}, children = []) {
   const n = document.createElement(tag);
   for (const k of Object.keys(attrs)) {
-    if (k === "class") n.className = attrs[k];
-    else if (k.startsWith("on") && typeof attrs[k] === "function") n.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
-    else if (attrs[k] !== undefined && attrs[k] !== null) n.setAttribute(k, attrs[k]);
+    const v = attrs[k];
+    if (k === "class") n.className = v;
+    else if (k.startsWith("on") && typeof v === "function") n.addEventListener(k.slice(2).toLowerCase(), v);
+    else if (v === false || v === undefined || v === null) { /* skip */ }
+    else if (v === true) n.setAttribute(k, "");
+    else n.setAttribute(k, v);
   }
   (Array.isArray(children) ? children : [children]).forEach(c => {
     if (c === null || c === undefined) return;
@@ -215,17 +218,22 @@ class ScheduleWizardCard extends HTMLElement {
   }
 
   _valveRow(v) {
-    const isActive = this._state.active.some(r => r.entity_id === v.entity_id);
+    const active = this._state.active.find(r => r.entity_id === v.entity_id);
+    const now = this._state.now;
     const minsInput = el("input", { type: "number", min: "1", max: "1440", value: String(v.default_duration_min) });
-    return el("div", { class: "row" }, [
+    const children = [
       el("div", {}, [
-        el("div", { class: "name" }, v.label),
-        el("div", { class: "sub" }, `default ${v.default_duration_min}m`),
+        el("div", { class: "name" }, v.label + (active ? " ●" : "")),
+        el("div", { class: "sub" },
+          active
+            ? `${fmtRemaining(Math.max(0, active.ends_at - now))} remaining`
+            : `default ${v.default_duration_min}m`
+        ),
       ]),
       minsInput,
       el("button", {
         class: "run",
-        disabled: isActive,
+        disabled: active ? true : false,
         onClick: () => this._callService("run_valve", {
           entity_id: v.entity_id,
           duration_minutes: parseInt(minsInput.value, 10) || v.default_duration_min,
@@ -235,7 +243,16 @@ class ScheduleWizardCard extends HTMLElement {
         class: "stop",
         onClick: () => this._callService("stop_valve", { entity_id: v.entity_id }),
       }, "Stop"),
-    ]);
+    ];
+    if (active) {
+      const total = Math.max(1, active.ends_at - active.started_at);
+      const remaining = Math.max(0, active.ends_at - now);
+      const pct = Math.min(100, ((total - remaining) / total) * 100);
+      children.push(el("div", { class: "progress-wrap" },
+        el("div", { class: "progress-bar", style: `width:${pct}%` })
+      ));
+    }
+    return el("div", { class: "row" }, children);
   }
 
   async _callService(service, data) {

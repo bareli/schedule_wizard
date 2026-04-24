@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1 — fix Run button + inline progress
+
+- Run buttons in the Lovelace card were always disabled due to `setAttribute("disabled", "false")` being truthy in HTML. Internal `el()` helper now skips boolean-false attributes and emits bare attributes for boolean-true.
+- Dashboard Quick run rows now show an inline progress bar + remaining time when a valve is active.
+- Lovelace card: per-valve progress bar + remaining time inline in each row.
+
 ## 0.4.0 — notifications
 
 - Pick one or more `notify.*` services (e.g. HA Companion mobile app) and choose which events push notifications: `valve_start`, `valve_end`, `cycle_start`, `cycle_end`, `skipped_rain`.
