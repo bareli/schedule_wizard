@@ -155,6 +155,55 @@ add_schedule:
       selector:
         boolean:
 
+update_schedule:
+  name: Update schedule
+  description: Patch an existing schedule by id. Any omitted field is left unchanged.
+  fields:
+    schedule_id:
+      name: Schedule ID
+      required: true
+      selector:
+        text:
+    name:
+      name: Name
+      required: false
+      selector:
+        text:
+    time:
+      name: Time
+      required: false
+      example: "06:30"
+      selector:
+        time:
+    duration_minutes:
+      name: Duration (minutes)
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 1440
+          step: 1
+          unit_of_measurement: min
+    days:
+      name: Days
+      required: false
+      selector:
+        select:
+          multiple: true
+          options:
+            - mon
+            - tue
+            - wed
+            - thu
+            - fri
+            - sat
+            - sun
+    enabled:
+      name: Enabled
+      required: false
+      selector:
+        boolean:
+
 remove_schedule:
   name: Remove schedule
   description: Delete a schedule by its id (find via list_config).

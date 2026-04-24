@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.4 — edit schedules from the panel
+
+- Schedules tab now has Edit + Enable/Disable + Delete buttons per row.
+- New service `schedule_wizard.update_schedule` (patch existing schedule by id; any omitted field unchanged).
+- Edit modal patches in place via the new service (no delete + recreate); valve selection is locked while editing.
+
 ## 0.2.3 — fix Settings tab input wipe
 
 - 5-second panel auto-refresh no longer re-renders the Settings tab, so typing in the rain-entity / threshold / webhook fields is preserved. Settings re-renders only on tab switch or after Save.

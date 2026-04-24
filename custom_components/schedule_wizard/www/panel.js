@@ -558,6 +558,14 @@ class ScheduleWizardPanel extends HTMLElement {
       ]),
       el("div", { class: "actions" }, [
         el("button", {
+          class: "btn small",
+          onClick: () => this._openScheduleModal(s),
+        }, "Edit"),
+        el("button", {
+          class: "btn small",
+          onClick: () => this._callService("update_schedule", { schedule_id: s.id, enabled: !s.enabled }),
+        }, s.enabled ? "Disable" : "Enable"),
+        el("button", {
           class: "btn danger small",
           onClick: () => {
             if (!confirm("Delete schedule?")) return;
@@ -578,7 +586,7 @@ class ScheduleWizardPanel extends HTMLElement {
     let mask = existing ? existing.days_mask : 127;
     let enabled = existing ? !!existing.enabled : true;
 
-    const valveSel = el("select", {});
+    const valveSel = el("select", existing ? { disabled: "disabled" } : {});
     this._state.valves.forEach((v) => {
       const opt = el("option", { value: v.entity_id }, `${v.label} (${v.entity_id})`);
       if (v.entity_id === valveEntity) opt.selected = true;
@@ -620,10 +628,17 @@ class ScheduleWizardPanel extends HTMLElement {
       el("label", { class: "field" }, [el("span", {}, "Enabled"), enabledInput]),
     ];
 
-    this._showModal(existing ? "Edit schedule (delete + recreate)" : "Add schedule", fields, async () => {
+    this._showModal(existing ? "Edit schedule" : "Add schedule", fields, async () => {
       if (!mask) { this._toast("Pick at least one day", "error"); return false; }
       if (existing) {
-        await this._callService("remove_schedule", { schedule_id: existing.id });
+        return await this._callService("update_schedule", {
+          schedule_id: existing.id,
+          name,
+          time,
+          duration_minutes: duration,
+          days: daysFromMaskNames(mask),
+          enabled,
+        });
       }
       return await this._callService("add_schedule", {
         valve_entity_id: valveEntity,

@@ -41,6 +41,7 @@ from .const import (
     SERVICE_REMOVE_VALVE,
     SERVICE_RUN_VALVE,
     SERVICE_STOP_VALVE,
+    SERVICE_UPDATE_SCHEDULE,
     SUPPORTED_DOMAINS,
 )
 from .scheduler import Scheduler
@@ -110,6 +111,15 @@ SCHEMA_ADD_SCHEDULE = vol.Schema({
 
 SCHEMA_REMOVE_SCHEDULE = vol.Schema({
     vol.Required("schedule_id"): cv.string,
+})
+
+SCHEMA_UPDATE_SCHEDULE = vol.Schema({
+    vol.Required("schedule_id"): cv.string,
+    vol.Optional("name"): cv.string,
+    vol.Optional("time"): _hhmm,
+    vol.Optional("duration_minutes"): vol.All(int, vol.Range(min=1, max=1440)),
+    vol.Optional("days"): vol.All(cv.ensure_list, [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])]),
+    vol.Optional("enabled"): cv.boolean,
 })
 
 DAY_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
@@ -377,6 +387,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def _svc_remove_schedule(call: ServiceCall) -> None:
         await store.async_remove_schedule(call.data["schedule_id"])
 
+    async def _svc_update_schedule(call: ServiceCall) -> ServiceResponse:
+        fields: dict[str, Any] = {}
+        if "name" in call.data:
+            fields["name"] = call.data["name"]
+        if "time" in call.data:
+            fields["time_hhmm"] = call.data["time"]
+        if "duration_minutes" in call.data:
+            fields["duration_min"] = int(call.data["duration_minutes"])
+        if "days" in call.data:
+            fields["days_mask"] = _days_to_mask(call.data["days"])
+        if "enabled" in call.data:
+            fields["enabled"] = bool(call.data["enabled"])
+        sched = await store.async_update_schedule(call.data["schedule_id"], **fields)
+        if sched is None:
+            raise HomeAssistantError("schedule not found")
+        return {"schedule": sched}
+
     async def _svc_list(call: ServiceCall) -> ServiceResponse:
         return {
             "valves": store.valves,
@@ -398,6 +425,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         supports_response=SupportsResponse.OPTIONAL,
     )
     hass.services.async_register(DOMAIN, SERVICE_REMOVE_SCHEDULE, _svc_remove_schedule, schema=SCHEMA_REMOVE_SCHEDULE)
+    hass.services.async_register(
+        DOMAIN, SERVICE_UPDATE_SCHEDULE, _svc_update_schedule,
+        schema=SCHEMA_UPDATE_SCHEDULE,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
     hass.services.async_register(
         DOMAIN, SERVICE_LIST, _svc_list, supports_response=SupportsResponse.ONLY
     )
@@ -437,6 +469,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             SERVICE_ADD_VALVE,
             SERVICE_REMOVE_VALVE,
             SERVICE_ADD_SCHEDULE,
+            SERVICE_UPDATE_SCHEDULE,
             SERVICE_REMOVE_SCHEDULE,
             SERVICE_LIST,
         ):
