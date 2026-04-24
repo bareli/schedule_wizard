@@ -20,6 +20,7 @@ from homeassistant.util import dt as dt_util
 from .const import (
     DAY_BITS,
     EVENT_CYCLE_ENDED,
+    EVENT_CYCLE_SKIPPED_OVERLAP,
     EVENT_CYCLE_STARTED,
     EVENT_RAIN_SKIPPED,
     EVENT_VALVE_ENDED,
@@ -159,6 +160,24 @@ class Scheduler:
                 if cycle_id in self._active_cycles:
                     LOG.debug("skip schedule %s: cycle %s already running", sched["id"], cycle_id)
                     continue
+                if self._active_cycles and not self.options.get("allow_concurrent_cycles", False):
+                    running = next(iter(self._active_cycles.values()))
+                    LOG.info("skip schedule %s: another cycle is already running (%s)",
+                             sched["id"], running.get("cycle_id"))
+                    self.hass.async_create_task(
+                        self.store.async_record_run(
+                            cycle_id, "schedule", 0,
+                            "skipped_overlap", f"schedule:{sched['id']}|busy:{running.get('cycle_id')}"
+                        )
+                    )
+                    self.hass.bus.async_fire(EVENT_CYCLE_SKIPPED_OVERLAP, {
+                        "cycle_id": cycle_id,
+                        "name": cycle.get("name", ""),
+                        "source": "schedule",
+                        "schedule_id": sched["id"],
+                        "busy_with": running.get("cycle_id"),
+                    })
+                    continue
                 if self._should_skip_for_rain():
                     LOG.info("skip schedule %s (cycle): rain condition active", sched["id"])
                     self.hass.async_create_task(
@@ -180,8 +199,27 @@ class Scheduler:
                         f"Skipped cycle {cycle.get('name', cycle_id)} — rain active",
                     ))
                     continue
+                if self._should_skip_for_moisture():
+                    LOG.info("skip schedule %s (cycle): soil moisture above threshold", sched["id"])
+                    self.hass.async_create_task(
+                        self.store.async_record_run(
+                            cycle_id, "schedule", 0,
+                            "skipped_moisture", f"schedule:{sched['id']}"
+                        )
+                    )
+                    self.hass.bus.async_fire("schedule_wizard_moisture_skipped", {
+                        "target": cycle_id,
+                        "kind": "cycle",
+                        "name": cycle.get("name", ""),
+                        "source": "schedule",
+                        "schedule_id": sched["id"],
+                    })
+                    continue
+                factor = self._seasonal_factor()
                 self.hass.async_create_task(
-                    self.async_run_cycle(cycle_id, source="schedule", note=f"schedule:{sched['id']}")
+                    self.async_run_cycle(cycle_id, source="schedule",
+                                         note=f"schedule:{sched['id']}" + (f"|seasonal:{round(factor*100)}%" if factor != 1.0 else ""),
+                                         duration_factor=factor)
                 )
                 continue
 
@@ -213,12 +251,29 @@ class Scheduler:
                     f"Skipped {self._entity_label(valve_entity)} — rain active",
                 ))
                 continue
+            if self._should_skip_for_moisture():
+                LOG.info("skip schedule %s: soil moisture above threshold", sched["id"])
+                self.hass.async_create_task(
+                    self.store.async_record_run(
+                        valve_entity, "schedule", int(sched.get("duration_min", 10)),
+                        "skipped_moisture", f"schedule:{sched['id']}"
+                    )
+                )
+                self.hass.bus.async_fire("schedule_wizard_moisture_skipped", {
+                    "target": valve_entity,
+                    "kind": "valve",
+                    "label": self._entity_label(valve_entity),
+                    "source": "schedule",
+                    "schedule_id": sched["id"],
+                })
+                continue
+            factor = self._seasonal_factor()
+            adjusted_min = self._scale_minutes(int(sched.get("duration_min", 10)), factor)
             self.hass.async_create_task(
                 self.async_run_valve(
-                    valve_entity,
-                    int(sched.get("duration_min", 10)),
+                    valve_entity, adjusted_min,
                     source="schedule",
-                    note=f"schedule:{sched['id']}",
+                    note=f"schedule:{sched['id']}" + (f"|seasonal:{round(factor*100)}%" if factor != 1.0 else ""),
                 )
             )
 
@@ -279,10 +334,13 @@ class Scheduler:
             if cycle:
                 if cycle["id"] in self._active_cycles:
                     continue
+                if self._active_cycles and not self.options.get("allow_concurrent_cycles", False):
+                    continue
                 delay = max(0, start_ts - now_ts)
                 if delay == 0:
+                    factor = self._seasonal_factor()
                     self.hass.async_create_task(
-                        self.async_run_cycle(cycle["id"], source="calendar", note=key)
+                        self.async_run_cycle(cycle["id"], source="calendar", note=key, duration_factor=factor)
                     )
                 else:
                     async_call_later(self.hass, delay, self._make_cycle_callback(cycle["id"], key))
@@ -302,8 +360,11 @@ class Scheduler:
 
             delay = max(0, start_ts - now_ts)
             if delay == 0:
+                factor = self._seasonal_factor()
+                adjusted = self._scale_minutes(duration, factor)
                 self.hass.async_create_task(
-                    self.async_run_valve(valve["entity_id"], duration, source="calendar", note=key)
+                    self.async_run_valve(valve["entity_id"], adjusted, source="calendar",
+                                         note=key + (f"|seasonal:{round(factor*100)}%" if factor != 1.0 else ""))
                 )
             else:
                 async_call_later(self.hass, delay, self._make_calendar_callback(valve["entity_id"], duration, key))
@@ -420,6 +481,71 @@ class Scheduler:
             return state.attributes["friendly_name"]
         return entity_id
 
+    def _seasonal_factor(self) -> float:
+        if not self.options.get("seasonal_enabled"):
+            return 1.0
+        entity_id = (self.options.get("seasonal_temp_entity") or "").strip()
+        if not entity_id:
+            return 1.0
+        state = self.hass.states.get(entity_id)
+        if not state:
+            return 1.0
+        attr = (self.options.get("seasonal_temp_attribute") or "").strip()
+        try:
+            if attr:
+                temp = float(state.attributes.get(attr))
+            else:
+                temp = float(state.state)
+        except (TypeError, ValueError):
+            return 1.0
+        try:
+            low = float(self.options.get("seasonal_temp_low", 10))
+            high = float(self.options.get("seasonal_temp_high", 30))
+            min_pct = float(self.options.get("seasonal_min_pct", 50))
+            max_pct = float(self.options.get("seasonal_max_pct", 120))
+        except (TypeError, ValueError):
+            return 1.0
+        if high <= low:
+            return 1.0
+        if temp <= low:
+            pct = min_pct
+        elif temp >= high:
+            pct = max_pct
+        else:
+            t = (temp - low) / (high - low)
+            pct = min_pct + t * (max_pct - min_pct)
+        return max(0.0, pct / 100.0)
+
+    @staticmethod
+    def _scale_minutes(base: int, factor: float) -> int:
+        if factor == 1.0:
+            return int(base)
+        return max(1, int(round(base * factor)))
+
+    def _should_skip_for_moisture(self) -> bool:
+        entity_id = (self.options.get("moisture_entity") or "").strip()
+        if not entity_id:
+            return False
+        state = self.hass.states.get(entity_id)
+        if not state:
+            return False
+        attr = (self.options.get("moisture_attribute") or "").strip()
+        try:
+            if attr:
+                value = float(state.attributes.get(attr))
+            else:
+                value = float(state.state)
+        except (TypeError, ValueError):
+            return False
+        try:
+            threshold = self.options.get("moisture_threshold_skip_above")
+            if threshold is None:
+                return False
+            threshold = float(threshold)
+        except (TypeError, ValueError):
+            return False
+        return value >= threshold
+
     def _should_skip_for_rain(self) -> bool:
         entity_id = (self.options.get("rain_entity") or "").strip()
         if not entity_id:
@@ -533,7 +659,7 @@ class Scheduler:
             f"Closed {label} ({status})",
         ))
 
-    async def async_run_cycle(self, cycle_id: str, source: str = "manual", note: str = "") -> dict:
+    async def async_run_cycle(self, cycle_id: str, source: str = "manual", note: str = "", duration_factor: float = 1.0) -> dict:
         cycle = self.store.get_cycle(cycle_id)
         if not cycle:
             raise ValueError("cycle not found")
@@ -555,6 +681,7 @@ class Scheduler:
             "current_entity": None,
             "source": source,
             "note": note,
+            "duration_factor": duration_factor,
         }
         task = self.hass.async_create_task(self._run_cycle_task(cycle, state))
         state["task"] = task
@@ -581,12 +708,14 @@ class Scheduler:
         cycle_id = cycle["id"]
         current_entity: Optional[str] = None
         steps = cycle.get("steps") or []
+        factor = float(state.get("duration_factor", 1.0))
         try:
             for i, step in enumerate(steps):
                 if cycle_id not in self._active_cycles:
                     return
                 entity_id = step.get("entity_id")
-                duration = int(step.get("duration_min", 1))
+                base_duration = int(step.get("duration_min", 1))
+                duration = self._scale_minutes(base_duration, factor) if factor != 1.0 else base_duration
                 if not entity_id or duration <= 0:
                     continue
                 self._active_cycles[cycle_id]["step"] = i + 1

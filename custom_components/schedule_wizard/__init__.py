@@ -31,6 +31,17 @@ from .const import (
     CONF_RAIN_ENTITY,
     CONF_RAIN_SKIP_STATES,
     CONF_RAIN_THRESHOLD,
+    CONF_ALLOW_CONCURRENT_CYCLES,
+    CONF_MOISTURE_ATTRIBUTE,
+    CONF_MOISTURE_ENTITY,
+    CONF_MOISTURE_THRESHOLD_SKIP_ABOVE,
+    CONF_SEASONAL_ENABLED,
+    CONF_SEASONAL_MAX_PCT,
+    CONF_SEASONAL_MIN_PCT,
+    CONF_SEASONAL_TEMP_ATTRIBUTE,
+    CONF_SEASONAL_TEMP_ENTITY,
+    CONF_SEASONAL_TEMP_HIGH,
+    CONF_SEASONAL_TEMP_LOW,
     DEFAULT_CALENDAR_LOOKAHEAD,
     DEFAULT_CALENDAR_POLL_SECONDS,
     DEFAULT_DURATION,
@@ -281,8 +292,45 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
 
         notify_services = sorted(list((hass_inner.services.async_services().get("notify") or {}).keys()))
 
+        history = store.history
+        now_ts = int(time.time())
+        week_ago = now_ts - 7 * 24 * 3600
+        per_valve_stats: dict[str, dict] = {}
+        for h in history:
+            vid = h.get("valve_entity_id")
+            if not vid:
+                continue
+            s = per_valve_stats.setdefault(vid, {
+                "last_run": None,
+                "last_completed": None,
+                "runs_7d": 0,
+                "total_min_7d": 0,
+            })
+            if s["last_run"] is None or h["ts"] > s["last_run"]["ts"]:
+                s["last_run"] = {
+                    "ts": h["ts"], "status": h.get("status", ""),
+                    "duration_min": h.get("duration_min", 0), "source": h.get("source", ""),
+                }
+            if h.get("status") == "completed" and (s["last_completed"] is None or h["ts"] > s["last_completed"]["ts"]):
+                s["last_completed"] = {
+                    "ts": h["ts"], "duration_min": h.get("duration_min", 0),
+                    "source": h.get("source", ""),
+                }
+            if h["ts"] >= week_ago and h.get("status") in ("completed", "cancelled"):
+                s["runs_7d"] += 1
+                s["total_min_7d"] += int(h.get("duration_min", 0))
+
+        valves_enriched = []
+        for v in store.valves:
+            entry = dict(v)
+            entry["stats"] = per_valve_stats.get(v["entity_id"], {
+                "last_run": None, "last_completed": None,
+                "runs_7d": 0, "total_min_7d": 0,
+            })
+            valves_enriched.append(entry)
+
         connection.send_result(msg["id"], {
-            "valves": store.valves,
+            "valves": valves_enriched,
             "schedules": store.schedules,
             "cycles": store.cycles,
             "active": active,
@@ -309,6 +357,17 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         vol.Optional(CONF_RAIN_THRESHOLD): vol.Any(float, int, None),
         vol.Optional(CONF_NOTIFY_TARGETS): vol.All(cv.ensure_list, [cv.string]),
         vol.Optional(CONF_NOTIFY_EVENTS): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional(CONF_SEASONAL_ENABLED): cv.boolean,
+        vol.Optional(CONF_SEASONAL_TEMP_ENTITY): vol.Any(str, None),
+        vol.Optional(CONF_SEASONAL_TEMP_ATTRIBUTE): vol.Any(str, None),
+        vol.Optional(CONF_SEASONAL_TEMP_LOW): vol.Any(float, int, None),
+        vol.Optional(CONF_SEASONAL_TEMP_HIGH): vol.Any(float, int, None),
+        vol.Optional(CONF_SEASONAL_MIN_PCT): vol.Any(float, int, None),
+        vol.Optional(CONF_SEASONAL_MAX_PCT): vol.Any(float, int, None),
+        vol.Optional(CONF_ALLOW_CONCURRENT_CYCLES): cv.boolean,
+        vol.Optional(CONF_MOISTURE_ENTITY): vol.Any(str, None),
+        vol.Optional(CONF_MOISTURE_ATTRIBUTE): vol.Any(str, None),
+        vol.Optional(CONF_MOISTURE_THRESHOLD_SKIP_ABOVE): vol.Any(float, int, None),
     })
     @websocket_api.async_response
     async def _ws_update_options(hass_inner, connection, msg):
@@ -326,6 +385,11 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             CONF_CALENDAR_ENTITY, CONF_CALENDAR_LOOKAHEAD, CONF_POLL_INTERVAL, CONF_DEFAULT_DURATION,
             CONF_RAIN_ENTITY, CONF_RAIN_SKIP_STATES, CONF_RAIN_ATTRIBUTE, CONF_RAIN_THRESHOLD,
             CONF_NOTIFY_TARGETS, CONF_NOTIFY_EVENTS,
+            CONF_SEASONAL_ENABLED, CONF_SEASONAL_TEMP_ENTITY, CONF_SEASONAL_TEMP_ATTRIBUTE,
+            CONF_SEASONAL_TEMP_LOW, CONF_SEASONAL_TEMP_HIGH,
+            CONF_SEASONAL_MIN_PCT, CONF_SEASONAL_MAX_PCT,
+            CONF_ALLOW_CONCURRENT_CYCLES,
+            CONF_MOISTURE_ENTITY, CONF_MOISTURE_ATTRIBUTE, CONF_MOISTURE_THRESHOLD_SKIP_ABOVE,
         ):
             if key in msg:
                 new_options[key] = msg[key]
@@ -352,6 +416,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         CONF_RAIN_THRESHOLD: entry.options.get(CONF_RAIN_THRESHOLD, None),
         CONF_NOTIFY_TARGETS: entry.options.get(CONF_NOTIFY_TARGETS, []),
         CONF_NOTIFY_EVENTS: entry.options.get(CONF_NOTIFY_EVENTS, []),
+        CONF_SEASONAL_ENABLED: entry.options.get(CONF_SEASONAL_ENABLED, False),
+        CONF_SEASONAL_TEMP_ENTITY: entry.options.get(CONF_SEASONAL_TEMP_ENTITY, ""),
+        CONF_SEASONAL_TEMP_ATTRIBUTE: entry.options.get(CONF_SEASONAL_TEMP_ATTRIBUTE, ""),
+        CONF_SEASONAL_TEMP_LOW: entry.options.get(CONF_SEASONAL_TEMP_LOW, 10),
+        CONF_SEASONAL_TEMP_HIGH: entry.options.get(CONF_SEASONAL_TEMP_HIGH, 30),
+        CONF_SEASONAL_MIN_PCT: entry.options.get(CONF_SEASONAL_MIN_PCT, 50),
+        CONF_SEASONAL_MAX_PCT: entry.options.get(CONF_SEASONAL_MAX_PCT, 120),
+        CONF_ALLOW_CONCURRENT_CYCLES: entry.options.get(CONF_ALLOW_CONCURRENT_CYCLES, False),
+        CONF_MOISTURE_ENTITY: entry.options.get(CONF_MOISTURE_ENTITY, ""),
+        CONF_MOISTURE_ATTRIBUTE: entry.options.get(CONF_MOISTURE_ATTRIBUTE, ""),
+        CONF_MOISTURE_THRESHOLD_SKIP_ABOVE: entry.options.get(CONF_MOISTURE_THRESHOLD_SKIP_ABOVE, None),
         "calendar_entity": entry.options.get(CONF_CALENDAR_ENTITY, ""),
         "calendar_lookahead_min": entry.options.get(CONF_CALENDAR_LOOKAHEAD, DEFAULT_CALENDAR_LOOKAHEAD),
         "poll_interval": entry.options.get(CONF_POLL_INTERVAL, DEFAULT_CALENDAR_POLL_SECONDS),
@@ -362,6 +437,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "rain_threshold": entry.options.get(CONF_RAIN_THRESHOLD, None),
         "notify_targets": entry.options.get(CONF_NOTIFY_TARGETS, []),
         "notify_events": entry.options.get(CONF_NOTIFY_EVENTS, []),
+        "seasonal_enabled": entry.options.get(CONF_SEASONAL_ENABLED, False),
+        "seasonal_temp_entity": entry.options.get(CONF_SEASONAL_TEMP_ENTITY, ""),
+        "seasonal_temp_attribute": entry.options.get(CONF_SEASONAL_TEMP_ATTRIBUTE, ""),
+        "seasonal_temp_low": entry.options.get(CONF_SEASONAL_TEMP_LOW, 10),
+        "seasonal_temp_high": entry.options.get(CONF_SEASONAL_TEMP_HIGH, 30),
+        "seasonal_min_pct": entry.options.get(CONF_SEASONAL_MIN_PCT, 50),
+        "seasonal_max_pct": entry.options.get(CONF_SEASONAL_MAX_PCT, 120),
+        "allow_concurrent_cycles": entry.options.get(CONF_ALLOW_CONCURRENT_CYCLES, False),
+        "moisture_entity": entry.options.get(CONF_MOISTURE_ENTITY, ""),
+        "moisture_attribute": entry.options.get(CONF_MOISTURE_ATTRIBUTE, ""),
+        "moisture_threshold_skip_above": entry.options.get(CONF_MOISTURE_THRESHOLD_SKIP_ABOVE, None),
     }
 
     scheduler = Scheduler(hass, store, options)

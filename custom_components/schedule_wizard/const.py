@@ -22,6 +22,20 @@ CONF_RAIN_THRESHOLD = "rain_threshold"
 CONF_NOTIFY_TARGETS = "notify_targets"
 CONF_NOTIFY_EVENTS = "notify_events"
 
+CONF_SEASONAL_ENABLED = "seasonal_enabled"
+CONF_SEASONAL_TEMP_ENTITY = "seasonal_temp_entity"
+CONF_SEASONAL_TEMP_ATTRIBUTE = "seasonal_temp_attribute"
+CONF_SEASONAL_TEMP_LOW = "seasonal_temp_low"
+CONF_SEASONAL_TEMP_HIGH = "seasonal_temp_high"
+CONF_SEASONAL_MIN_PCT = "seasonal_min_pct"
+CONF_SEASONAL_MAX_PCT = "seasonal_max_pct"
+
+CONF_ALLOW_CONCURRENT_CYCLES = "allow_concurrent_cycles"
+
+CONF_MOISTURE_ENTITY = "moisture_entity"
+CONF_MOISTURE_ATTRIBUTE = "moisture_attribute"
+CONF_MOISTURE_THRESHOLD_SKIP_ABOVE = "moisture_threshold_skip_above"
+
 DEFAULT_RAIN_SKIP_STATES = "rainy,pouring,snowy,lightning-rainy"
 
 NOTIFY_EVENTS = (
@@ -41,6 +55,7 @@ EVENT_VALVE_ENDED = f"{DOMAIN}_valve_ended"
 EVENT_CYCLE_STARTED = f"{DOMAIN}_cycle_started"
 EVENT_CYCLE_ENDED = f"{DOMAIN}_cycle_ended"
 EVENT_RAIN_SKIPPED = f"{DOMAIN}_rain_skipped"
+EVENT_CYCLE_SKIPPED_OVERLAP = f"{DOMAIN}_cycle_skipped_overlap"
 
 DAY_BITS = {0: 1, 1: 2, 2: 4, 3: 8, 4: 16, 5: 32, 6: 64}
 

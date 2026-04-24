@@ -313,6 +313,16 @@ class ScheduleWizardPanel extends HTMLElement {
     setTimeout(() => t.remove(), 2800);
   }
 
+  _fmtAgo(secs) {
+    if (secs < 60) return `${secs}s ago`;
+    const m = Math.floor(secs / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    const d = Math.floor(h / 24);
+    return `${d}d ago`;
+  }
+
   async _callService(service, data) {
     try {
       await this._hass.callService("schedule_wizard", service, data);
@@ -500,10 +510,20 @@ class ScheduleWizardPanel extends HTMLElement {
   }
 
   _valveRow(v) {
+    const stats = v.stats || {};
+    let lastLine = "Never run";
+    if (stats.last_run) {
+      const ago = Math.max(0, this._state.now - stats.last_run.ts);
+      lastLine = `Last: ${this._fmtAgo(ago)} • ${stats.last_run.duration_min}m • ${stats.last_run.status}`;
+    }
+    const week = stats.runs_7d
+      ? `${stats.runs_7d} runs / ${stats.total_min_7d}m last 7 days`
+      : "no runs last 7 days";
     return el("div", { class: "item" }, [
       el("div", {}, [
         el("div", { class: "name" }, v.label + (v.enabled ? "" : " (disabled)")),
         el("div", { class: "sub" }, `${v.entity_id} • ${v.default_duration_min}m default`),
+        el("div", { class: "sub", style: "margin-top:2px;" }, lastLine + " • " + week),
       ]),
       el("div", { class: "actions" }, [
         el("button", { class: "btn small", onClick: () => this._openValveModal(v) }, "Edit"),
@@ -1053,6 +1073,65 @@ class ScheduleWizardPanel extends HTMLElement {
 
     card.appendChild(notifySection);
 
+    const seasonalSection = el("div", {
+      style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);",
+    });
+    seasonalSection.appendChild(el("h3", { style: "margin:0 0 6px;font-size:14px;" }, "Seasonal adjustment (temperature-based)"));
+    seasonalSection.appendChild(el("p", { class: "muted", style: "font-size:12px;margin:0 0 10px;" },
+      "Scale schedule/calendar durations based on a temperature sensor. Manual runs are not affected."
+    ));
+    const seasonalEnabledInput = el("input", { type: "checkbox" });
+    seasonalEnabledInput.checked = !!opts.seasonal_enabled;
+    const seasonalTempEntity = el("input", { type: "text", placeholder: "weather.forecast_home or sensor.outdoor_temp", value: String(opts.seasonal_temp_entity || "") });
+    const seasonalTempAttr = el("input", { type: "text", placeholder: "temperature (if reading from weather)", value: String(opts.seasonal_temp_attribute || "") });
+    const seasonalLow = el("input", { type: "number", step: "0.5", value: String(opts.seasonal_temp_low ?? 10) });
+    const seasonalHigh = el("input", { type: "number", step: "0.5", value: String(opts.seasonal_temp_high ?? 30) });
+    const seasonalMin = el("input", { type: "number", min: "0", max: "200", value: String(opts.seasonal_min_pct ?? 50) });
+    const seasonalMax = el("input", { type: "number", min: "0", max: "200", value: String(opts.seasonal_max_pct ?? 120) });
+
+    seasonalSection.appendChild(el("label", { class: "field" }, [el("span", {}, "Enabled"), seasonalEnabledInput]));
+    seasonalSection.appendChild(el("label", { class: "field" }, [el("span", {}, "Temperature entity"), seasonalTempEntity]));
+    seasonalSection.appendChild(el("label", { class: "field" }, [el("span", {}, "Attribute (optional; e.g. 'temperature' for weather.*)"), seasonalTempAttr]));
+    seasonalSection.appendChild(el("div", { class: "field-row" }, [
+      el("label", { class: "field" }, [el("span", {}, "Low temp (°)"), seasonalLow]),
+      el("label", { class: "field" }, [el("span", {}, "High temp (°)"), seasonalHigh]),
+    ]));
+    seasonalSection.appendChild(el("div", { class: "field-row" }, [
+      el("label", { class: "field" }, [el("span", {}, "Min % (at or below low)"), seasonalMin]),
+      el("label", { class: "field" }, [el("span", {}, "Max % (at or above high)"), seasonalMax]),
+    ]));
+    card.appendChild(seasonalSection);
+
+    const moistureSection = el("div", {
+      style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);",
+    });
+    moistureSection.appendChild(el("h3", { style: "margin:0 0 6px;font-size:14px;" }, "Soil moisture skip"));
+    moistureSection.appendChild(el("p", { class: "muted", style: "font-size:12px;margin:0 0 10px;" },
+      "Skip cron/calendar triggers when soil moisture is above a threshold (soil already wet)."
+    ));
+    const moistureEntity = el("input", { type: "text", placeholder: "sensor.garden_moisture", value: String(opts.moisture_entity || "") });
+    const moistureAttr = el("input", { type: "text", placeholder: "moisture (optional attribute)", value: String(opts.moisture_attribute || "") });
+    const moistureThresholdRaw = (opts.moisture_threshold_skip_above === null || opts.moisture_threshold_skip_above === undefined) ? "" : String(opts.moisture_threshold_skip_above);
+    const moistureThreshold = el("input", { type: "number", min: "0", max: "100", step: "0.5", value: moistureThresholdRaw });
+    moistureSection.appendChild(el("label", { class: "field" }, [el("span", {}, "Moisture sensor entity"), moistureEntity]));
+    moistureSection.appendChild(el("div", { class: "field-row" }, [
+      el("label", { class: "field" }, [el("span", {}, "Attribute (optional)"), moistureAttr]),
+      el("label", { class: "field" }, [el("span", {}, "Skip when ≥ (blank = off)"), moistureThreshold]),
+    ]));
+    card.appendChild(moistureSection);
+
+    const overlapSection = el("div", {
+      style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);",
+    });
+    overlapSection.appendChild(el("h3", { style: "margin:0 0 6px;font-size:14px;" }, "Cycle overlap"));
+    overlapSection.appendChild(el("p", { class: "muted", style: "font-size:12px;margin:0 0 10px;" },
+      "When off (default), a schedule or calendar event that would start a cycle while another cycle is already running is skipped. Manual runs always allowed."
+    ));
+    const allowConcurrent = el("input", { type: "checkbox" });
+    allowConcurrent.checked = !!opts.allow_concurrent_cycles;
+    overlapSection.appendChild(el("label", { class: "field" }, [el("span", {}, "Allow concurrent cycles"), allowConcurrent]));
+    card.appendChild(overlapSection);
+
     const feedback = el("div", { class: "muted", style: "margin-top:8px;font-size:12px;" });
     const saveBtn = el("button", { class: "btn primary" }, "Save settings");
     saveBtn.addEventListener("click", async () => {
@@ -1074,6 +1153,17 @@ class ScheduleWizardPanel extends HTMLElement {
           rain_threshold: (threshold !== null && !isNaN(threshold)) ? threshold : null,
           notify_targets: Array.from(currentTargets),
           notify_events: Array.from(currentEvents),
+          seasonal_enabled: seasonalEnabledInput.checked,
+          seasonal_temp_entity: seasonalTempEntity.value.trim(),
+          seasonal_temp_attribute: seasonalTempAttr.value.trim(),
+          seasonal_temp_low: parseFloat(seasonalLow.value),
+          seasonal_temp_high: parseFloat(seasonalHigh.value),
+          seasonal_min_pct: parseFloat(seasonalMin.value),
+          seasonal_max_pct: parseFloat(seasonalMax.value),
+          allow_concurrent_cycles: allowConcurrent.checked,
+          moisture_entity: moistureEntity.value.trim(),
+          moisture_attribute: moistureAttr.value.trim(),
+          moisture_threshold_skip_above: moistureThreshold.value.trim() === "" ? null : parseFloat(moistureThreshold.value),
         });
         feedback.textContent = "Saved at " + new Date().toLocaleTimeString() + ". Integration reloaded.";
         this._toast("Settings saved", "ok");

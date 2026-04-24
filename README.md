@@ -194,17 +194,58 @@ Trigger a cycle from:
 - Cycle schedules respect rain-skip (whole cycle is skipped if rain condition active).
 - Cycles persist in storage but in-progress cycle state does not survive HA restart (the currently open valve auto-closes per its own timer, but remaining steps won't fire).
 
+## Seasonal adjustment
+
+Scale schedule and calendar run durations based on a temperature sensor. Manual runs are **not** scaled.
+
+Settings → **Seasonal adjustment (temperature-based)**:
+- **Temperature entity** — sensor with numeric °C/°F state, or a weather entity (use attribute).
+- **Attribute** — optional. For a weather entity, set `temperature`.
+- **Low / High temp** — thresholds. Typical: low 10, high 30.
+- **Min / Max %** — clamp factor at the edges. Typical: min 50%, max 120%.
+
+Linear interpolation between low↔high. Below low = min %. Above high = max %. 1.0 ( = 100%) means no change.
+
+Example: sensor = 18 °C, low=10, high=30, min=50, max=120. Factor = 50 + (18−10)/(30−10) × (120−50) = 78%. A 10-minute schedule runs for 8 minutes.
+
+## Soil moisture skip
+
+One level above rain skip. Skip cron and calendar triggers when a moisture sensor shows the soil is already wet.
+
+Settings → **Soil moisture skip**:
+- **Moisture sensor entity** — e.g. `sensor.garden_moisture`.
+- **Attribute** — optional (if value sits on an attribute).
+- **Skip when ≥** — numeric threshold. Blank disables. Value scale depends on the sensor (e.g. 60 = 60% wetness).
+
+Fires event `schedule_wizard_moisture_skipped` with `target`, `kind`, `schedule_id`, `source`.
+
+Manual runs and cycles are not affected.
+
+## Cycle overlap protection
+
+By default, a new cycle (from schedule or calendar) is **skipped** if any cycle is already running, to avoid opening the same valve twice or overlapping irrigation zones.
+
+Settings → **Cycle overlap → Allow concurrent cycles**:
+- Off (default) — schedule/calendar triggers skip while another cycle is active.
+- On — multiple cycles run in parallel (use only if your cycles target disjoint valves).
+
+Skipped runs fire `schedule_wizard_cycle_skipped_overlap` event.
+
+Manual runs always proceed (existing cycle of the same id is replaced).
+
 ## Events
 
 The integration fires events on the HA event bus. Use them as triggers for any automation.
 
-| Event                              | When                                      | Data                                                             |
-| ---------------------------------- | ----------------------------------------- | ---------------------------------------------------------------- |
-| `schedule_wizard_valve_started`    | A valve opens (manual, schedule, cycle)   | `entity_id`, `label`, `source`, `duration_min`, `started_at`, `ends_at`, `note` |
-| `schedule_wizard_valve_ended`      | A valve closes                            | `entity_id`, `label`, `status` (`completed`/`cancelled`), `source`, `duration_min`, `note` |
-| `schedule_wizard_cycle_started`    | A cycle begins                            | `cycle_id`, `name`, `source`, `total_steps`, `started_at`, `note` |
-| `schedule_wizard_cycle_ended`      | A cycle finishes or is cancelled          | `cycle_id`, `name`, `status` (`completed`/`cancelled`), `source` |
-| `schedule_wizard_rain_skipped`     | A cron schedule was skipped due to rain   | `target`, `kind` (`valve`/`cycle`), `label`/`name`, `source`, `schedule_id` |
+| Event                                    | When                                                 | Data                                                             |
+| ---------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------------- |
+| `schedule_wizard_valve_started`          | A valve opens (manual, schedule, cycle)              | `entity_id`, `label`, `source`, `duration_min`, `started_at`, `ends_at`, `note` |
+| `schedule_wizard_valve_ended`            | A valve closes                                       | `entity_id`, `label`, `status` (`completed`/`cancelled`), `source`, `duration_min`, `note` |
+| `schedule_wizard_cycle_started`          | A cycle begins                                       | `cycle_id`, `name`, `source`, `total_steps`, `started_at`, `note` |
+| `schedule_wizard_cycle_ended`            | A cycle finishes or is cancelled                     | `cycle_id`, `name`, `status` (`completed`/`cancelled`), `source` |
+| `schedule_wizard_rain_skipped`           | A cron schedule was skipped due to rain              | `target`, `kind` (`valve`/`cycle`), `label`/`name`, `source`, `schedule_id` |
+| `schedule_wizard_moisture_skipped`       | A cron schedule was skipped due to wet soil          | `target`, `kind`, `label`/`name`, `source`, `schedule_id`        |
+| `schedule_wizard_cycle_skipped_overlap`  | A schedule/calendar cycle skipped while another ran  | `cycle_id`, `name`, `source`, `schedule_id`, `busy_with`         |
 
 **Schedule vs. calendar vs. manual:** the `source` field tells you how the run was triggered (`schedule`, `calendar`, `manual`, `service`, `webhook`, `cycle:<id>`). Filter on it in automation conditions.
 

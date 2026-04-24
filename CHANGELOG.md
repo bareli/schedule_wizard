@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.0 — seasonal adjust, moisture skip, overlap guard, valve stats
+
+- **Seasonal adjustment** (temperature-scaled): scales schedule and calendar durations between a low and high temp threshold, clamped to min/max percent. Manual runs unaffected.
+- **Soil moisture skip**: skip cron/calendar when moisture sensor ≥ threshold (soil already wet). Independent of rain.
+- **Cycle overlap protection**: when off (default), schedule/calendar cycles skip while another cycle is running. Opt-in via `allow_concurrent_cycles`.
+- **Per-valve stats** on Valves tab: last run timestamp + status + duration, plus runs / minutes in the last 7 days.
+- New events: `schedule_wizard_moisture_skipped`, `schedule_wizard_cycle_skipped_overlap`.
+- Schedule/calendar runs whose duration was adjusted record `|seasonal:N%` in the history note.
+
 ## 0.5.1 — event bus events
 
 - Fires 5 events on the HA event bus, usable as automation triggers:
