@@ -146,10 +146,36 @@ class ScheduleWizardCard extends HTMLElement {
   async _refresh() {
     try {
       this._state = await this._hass.callWS({ type: "schedule_wizard/get_state" });
+      const focused = this.shadowRoot && this.shadowRoot.activeElement;
+      if (focused && (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA")) {
+        this._updateInPlace();
+        return;
+      }
       this._render();
     } catch (e) {
       this._renderError(e);
     }
+  }
+
+  _updateInPlace() {
+    if (!this._root) return;
+    const bars = this._root.querySelectorAll(".progress-bar");
+    bars.forEach(b => {
+      const row = b.closest(".row");
+      if (!row) return;
+      const name = row.querySelector(".name");
+      if (!name) return;
+      const label = name.textContent.replace(/\s*●\s*$/, "").trim();
+      const active = this._state.active.find(r => {
+        const valve = this._state.valves.find(v => v.entity_id === r.entity_id);
+        return (valve ? valve.label : r.entity_id) === label;
+      });
+      if (!active) return;
+      const total = Math.max(1, active.ends_at - active.started_at);
+      const remaining = Math.max(0, active.ends_at - this._state.now);
+      const pct = Math.min(100, ((total - remaining) / total) * 100);
+      b.style.width = `${pct}%`;
+    });
   }
 
   _renderError(e) {

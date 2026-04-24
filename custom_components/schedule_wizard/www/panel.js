@@ -261,10 +261,40 @@ class ScheduleWizardPanel extends HTMLElement {
     try {
       this._state = await this._hass.callWS({ type: "schedule_wizard/get_state" });
       if (this._tab === "settings") return;
+      const focused = document.activeElement;
+      if (focused && (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA" || focused.tagName === "SELECT") && this.contains(focused)) {
+        this._updateInPlace();
+        return;
+      }
       this._render();
     } catch (e) {
       this._renderError(e);
     }
+  }
+
+  _updateInPlace() {
+    const pills = this.querySelectorAll(".pill");
+    if (pills && pills[0]) {
+      pills[0].textContent = `${this._state.valves.length} valves, ${this._state.active.length} active`;
+      pills[0].className = "pill " + (this._state.active.length ? "ok" : "");
+    }
+    const bars = this.querySelectorAll(".progress-bar");
+    bars.forEach(b => {
+      const row = b.closest(".item");
+      if (!row) return;
+      const name = row.querySelector(".name");
+      if (!name) return;
+      const label = name.textContent.replace(/\s*●\s*$/, "").trim();
+      const active = this._state.active.find(r => {
+        const valve = this._state.valves.find(v => v.entity_id === r.entity_id);
+        return (valve ? valve.label : r.entity_id) === label;
+      });
+      if (!active) return;
+      const total = Math.max(1, active.ends_at - active.started_at);
+      const remaining = Math.max(0, active.ends_at - this._state.now);
+      const pct = Math.min(100, ((total - remaining) / total) * 100);
+      b.style.width = `${pct}%`;
+    });
   }
 
   _renderError(e) {

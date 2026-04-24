@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2 — preserve input focus across auto-refresh
+
+- Panel Dashboard and Lovelace card no longer destroy DOM on the 5s auto-refresh when an input/select is focused. Progress bars still update smoothly in place.
+- Typing in the minutes number box stays put.
+
 ## 0.4.1 — fix Run button + inline progress
 
 - Run buttons in the Lovelace card were always disabled due to `setAttribute("disabled", "false")` being truthy in HTML. Internal `el()` helper now skips boolean-false attributes and emits bare attributes for boolean-true.
