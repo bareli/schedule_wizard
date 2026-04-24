@@ -450,6 +450,13 @@ class ScheduleWizardPanel extends HTMLElement {
           : `${v.entity_id} • default ${v.default_duration_min}m`
       ),
     ]);
+    if (!active && v.next_run) {
+      const inMin = Math.max(0, Math.round(v.next_run.in_seconds / 60));
+      const inLabel = inMin < 60 ? `in ${inMin}m` : inMin < 1440 ? `in ${Math.round(inMin / 60)}h` : `in ${Math.round(inMin / 1440)}d`;
+      meta.appendChild(el("div", { class: "sub", style: "margin-top:2px;color:var(--sw-primary);" },
+        `Next: ${v.next_run.time_label} (${inLabel})${v.next_run.duration_min ? ` • ${v.next_run.duration_min}m` : ""}`
+      ));
+    }
     if (active) {
       const total = Math.max(1, active.ends_at - active.started_at);
       const remaining = Math.max(0, active.ends_at - now);
@@ -519,12 +526,20 @@ class ScheduleWizardPanel extends HTMLElement {
     const week = stats.runs_7d
       ? `${stats.runs_7d} runs / ${stats.total_min_7d}m last 7 days`
       : "no runs last 7 days";
+    const metaChildren = [
+      el("div", { class: "name" }, v.label + (v.enabled ? "" : " (disabled)")),
+      el("div", { class: "sub" }, `${v.entity_id} • ${v.default_duration_min}m default`),
+      el("div", { class: "sub", style: "margin-top:2px;" }, lastLine + " • " + week),
+    ];
+    if (v.next_run) {
+      const inMin = Math.max(0, Math.round(v.next_run.in_seconds / 60));
+      const inLabel = inMin < 60 ? `in ${inMin}m` : inMin < 1440 ? `in ${Math.round(inMin / 60)}h` : `in ${Math.round(inMin / 1440)}d`;
+      metaChildren.push(el("div", { class: "sub", style: "margin-top:2px;color:var(--sw-primary);" },
+        `Next: ${v.next_run.time_label} (${inLabel})${v.next_run.duration_min ? ` • ${v.next_run.duration_min}m` : ""}`
+      ));
+    }
     return el("div", { class: "item" }, [
-      el("div", {}, [
-        el("div", { class: "name" }, v.label + (v.enabled ? "" : " (disabled)")),
-        el("div", { class: "sub" }, `${v.entity_id} • ${v.default_duration_min}m default`),
-        el("div", { class: "sub", style: "margin-top:2px;" }, lastLine + " • " + week),
-      ]),
+      el("div", {}, metaChildren),
       el("div", { class: "actions" }, [
         el("button", { class: "btn small", onClick: () => this._openValveModal(v) }, "Edit"),
         el("button", {

@@ -247,15 +247,20 @@ class ScheduleWizardCard extends HTMLElement {
     const active = this._state.active.find(r => r.entity_id === v.entity_id);
     const now = this._state.now;
     const minsInput = el("input", { type: "number", min: "1", max: "1440", value: String(v.default_duration_min) });
+    const subLines = [
+      active
+        ? `${fmtRemaining(Math.max(0, active.ends_at - now))} remaining`
+        : `default ${v.default_duration_min}m`,
+    ];
+    if (!active && v.next_run) {
+      const inMin = Math.max(0, Math.round(v.next_run.in_seconds / 60));
+      const inLabel = inMin < 60 ? `in ${inMin}m` : inMin < 1440 ? `in ${Math.round(inMin / 60)}h` : `in ${Math.round(inMin / 1440)}d`;
+      subLines.push(`Next: ${v.next_run.time_label} (${inLabel})`);
+    }
+    const metaInner = [el("div", { class: "name" }, v.label + (active ? " ●" : ""))];
+    subLines.forEach(s => metaInner.push(el("div", { class: "sub" }, s)));
     const children = [
-      el("div", {}, [
-        el("div", { class: "name" }, v.label + (active ? " ●" : "")),
-        el("div", { class: "sub" },
-          active
-            ? `${fmtRemaining(Math.max(0, active.ends_at - now))} remaining`
-            : `default ${v.default_duration_min}m`
-        ),
-      ]),
+      el("div", {}, metaInner),
       minsInput,
       el("button", {
         class: "run",

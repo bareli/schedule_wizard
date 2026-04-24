@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.2 — next opening time per valve
+
+- Dashboard Quick run, Valves tab, and Lovelace card now show the next scheduled opening per valve with time label and countdown (`Next: Wed 06:00 (in 18h)`).
+- Computed from direct valve schedules AND schedules targeting a cycle that contains the valve.
+
 ## 0.6.1 — clearer seasonal UI
 
 - Seasonal section shows temperature unit (°C or °F) taken from HA config on all threshold labels.

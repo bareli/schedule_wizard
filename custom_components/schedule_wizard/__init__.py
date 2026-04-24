@@ -324,6 +324,58 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
                 s["runs_7d"] += 1
                 s["total_min_7d"] += int(h.get("duration_min", 0))
 
+        from datetime import datetime, timedelta as _td
+        schedules_snapshot = store.schedules
+        cycles_snapshot = store.cycles
+        cycles_by_id = {c["id"]: c for c in cycles_snapshot}
+        now_dt = datetime.now()
+
+        def _next_run_for(valve_id: str) -> dict | None:
+            best = None
+            for s in schedules_snapshot:
+                if not s.get("enabled"):
+                    continue
+                duration_for_valve = 0
+                matches = False
+                if s.get("valve_entity_id") == valve_id:
+                    matches = True
+                    duration_for_valve = int(s.get("duration_min", 0) or 0)
+                elif s.get("cycle_id"):
+                    cyc = cycles_by_id.get(s["cycle_id"])
+                    if cyc and cyc.get("enabled"):
+                        for step in (cyc.get("steps") or []):
+                            if step.get("entity_id") == valve_id:
+                                matches = True
+                                duration_for_valve = int(step.get("duration_min", 0) or 0)
+                                break
+                if not matches:
+                    continue
+                try:
+                    hh, mm = [int(x) for x in s.get("time_hhmm", "00:00").split(":")]
+                except Exception:
+                    continue
+                mask = int(s.get("days_mask", 0) or 0)
+                for dd in range(8):
+                    check = now_dt + _td(days=dd)
+                    bit = 1 << check.weekday()
+                    if not (mask & bit):
+                        continue
+                    fire = check.replace(hour=hh, minute=mm, second=0, microsecond=0)
+                    if fire <= now_dt:
+                        continue
+                    delta_sec = int((fire - now_dt).total_seconds())
+                    if best is None or delta_sec < best["in_seconds"]:
+                        best = {
+                            "fires_at": int(fire.timestamp()),
+                            "in_seconds": delta_sec,
+                            "time_label": fire.strftime("%a %H:%M"),
+                            "duration_min": duration_for_valve,
+                            "schedule_id": s["id"],
+                            "cycle_id": s.get("cycle_id") or "",
+                        }
+                    break
+            return best
+
         valves_enriched = []
         for v in store.valves:
             entry = dict(v)
@@ -331,6 +383,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
                 "last_run": None, "last_completed": None,
                 "runs_7d": 0, "total_min_7d": 0,
             })
+            entry["next_run"] = _next_run_for(v["entity_id"])
             valves_enriched.append(entry)
 
         connection.send_result(msg["id"], {
