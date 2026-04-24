@@ -49,15 +49,39 @@
     },
     "add_schedule": {
       "name": "Add schedule",
-      "description": "Add a recurring schedule for a registered valve."
+      "description": "Add a recurring schedule for a registered valve or cycle."
+    },
+    "update_schedule": {
+      "name": "Update schedule",
+      "description": "Patch an existing schedule by id."
     },
     "remove_schedule": {
       "name": "Remove schedule",
       "description": "Delete a schedule."
     },
+    "add_cycle": {
+      "name": "Add cycle",
+      "description": "Create a cycle that runs a list of valves sequentially."
+    },
+    "update_cycle": {
+      "name": "Update cycle",
+      "description": "Patch an existing cycle."
+    },
+    "remove_cycle": {
+      "name": "Remove cycle",
+      "description": "Delete a cycle and any linked schedules."
+    },
+    "run_cycle": {
+      "name": "Run cycle",
+      "description": "Start a cycle now; valves run sequentially."
+    },
+    "stop_cycle": {
+      "name": "Stop cycle",
+      "description": "Cancel a running cycle."
+    },
     "list_config": {
       "name": "List config",
-      "description": "Returns valves, schedules, active runs, and recent history."
+      "description": "Returns valves, schedules, cycles, active runs, active cycles, and recent history."
     }
   }
 }

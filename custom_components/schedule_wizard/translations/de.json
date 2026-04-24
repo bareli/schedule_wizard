@@ -1,0 +1,48 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Schedule Wizard",
+        "description": "Integration hinzufügen. Danach auf Konfigurieren klicken, um Kalender und Standardwerte festzulegen."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Schedule Wizard ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Schedule Wizard Optionen",
+        "description": "Kalender, Abrufintervall, Vorschau-Fenster und Standarddauer.",
+        "data": {
+          "calendar_entity": "Kalender-Entität",
+          "calendar_lookahead_min": "Kalender-Vorschau (Minuten)",
+          "poll_interval": "Abrufintervall Kalender (Sekunden)",
+          "default_duration": "Standarddauer (Minuten)",
+          "rain_entity": "Regen- / Wetter-Entität",
+          "rain_skip_states": "Überspringen wenn Zustand (kommagetrennt)",
+          "rain_attribute": "Zu prüfendes Attribut (optional)",
+          "rain_threshold": "Regen-Schwellenwert (0 = deaktiviert)",
+          "notify_targets": "Benachrichtigungsdienste (z. B. mobile_app_mein_telefon)",
+          "notify_events": "Ereignisse, die Benachrichtigungen auslösen"
+        }
+      }
+    }
+  },
+  "services": {
+    "run_valve": { "name": "Ventil öffnen", "description": "Öffnet ein Ventil für die angegebene Dauer." },
+    "stop_valve": { "name": "Ventil schließen", "description": "Schließt ein Ventil und stoppt den Timer." },
+    "add_valve": { "name": "Ventil hinzufügen", "description": "Registriert ein Ventil beim Scheduler." },
+    "remove_valve": { "name": "Ventil entfernen", "description": "Entfernt ein Ventil und alle zugehörigen Zeitpläne." },
+    "add_schedule": { "name": "Zeitplan hinzufügen", "description": "Fügt einen wiederkehrenden Zeitplan hinzu." },
+    "update_schedule": { "name": "Zeitplan aktualisieren", "description": "Ändert einen bestehenden Zeitplan." },
+    "remove_schedule": { "name": "Zeitplan entfernen", "description": "Löscht einen Zeitplan." },
+    "add_cycle": { "name": "Zyklus hinzufügen", "description": "Erstellt einen Zyklus aus mehreren Ventilen in Reihenfolge." },
+    "update_cycle": { "name": "Zyklus aktualisieren", "description": "Ändert einen vorhandenen Zyklus." },
+    "remove_cycle": { "name": "Zyklus entfernen", "description": "Löscht einen Zyklus und zugehörige Zeitpläne." },
+    "run_cycle": { "name": "Zyklus starten", "description": "Startet einen Zyklus jetzt; Ventile laufen nacheinander." },
+    "stop_cycle": { "name": "Zyklus stoppen", "description": "Bricht einen laufenden Zyklus ab." },
+    "list_config": { "name": "Konfiguration auflisten", "description": "Gibt Ventile, Zeitpläne, Zyklen, aktive Läufe und Verlauf zurück." }
+  }
+}

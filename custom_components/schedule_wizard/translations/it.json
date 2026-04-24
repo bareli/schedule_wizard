@@ -1,0 +1,48 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Schedule Wizard",
+        "description": "Aggiungi l'integrazione. Poi clicca su Configura per scegliere il calendario e i valori predefiniti."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Schedule Wizard è già configurato."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opzioni di Schedule Wizard",
+        "description": "Calendario da interrogare, intervallo di polling, finestra futura e durata predefinita.",
+        "data": {
+          "calendar_entity": "Entità calendario",
+          "calendar_lookahead_min": "Finestra futura calendario (minuti)",
+          "poll_interval": "Intervallo di polling calendario (secondi)",
+          "default_duration": "Durata predefinita (minuti)",
+          "rain_entity": "Entità pioggia / meteo",
+          "rain_skip_states": "Salta quando lo stato è (separati da virgola)",
+          "rain_attribute": "Attributo da controllare (opzionale)",
+          "rain_threshold": "Soglia pioggia (0 = disabilitato)",
+          "notify_targets": "Servizi di notifica (es. mobile_app_mio_telefono)",
+          "notify_events": "Eventi che inviano notifiche"
+        }
+      }
+    }
+  },
+  "services": {
+    "run_valve": { "name": "Apri valvola", "description": "Apre una valvola per una durata data." },
+    "stop_valve": { "name": "Chiudi valvola", "description": "Chiude la valvola e annulla il timer." },
+    "add_valve": { "name": "Aggiungi valvola", "description": "Registra una valvola nello scheduler." },
+    "remove_valve": { "name": "Rimuovi valvola", "description": "Rimuove una valvola e le sue pianificazioni." },
+    "add_schedule": { "name": "Aggiungi pianificazione", "description": "Aggiunge una pianificazione ricorrente." },
+    "update_schedule": { "name": "Aggiorna pianificazione", "description": "Modifica una pianificazione esistente." },
+    "remove_schedule": { "name": "Rimuovi pianificazione", "description": "Elimina una pianificazione." },
+    "add_cycle": { "name": "Aggiungi ciclo", "description": "Crea un ciclo che esegue più valvole in sequenza." },
+    "update_cycle": { "name": "Aggiorna ciclo", "description": "Modifica un ciclo esistente." },
+    "remove_cycle": { "name": "Rimuovi ciclo", "description": "Elimina un ciclo e le pianificazioni collegate." },
+    "run_cycle": { "name": "Esegui ciclo", "description": "Avvia un ciclo; le valvole vengono eseguite in sequenza." },
+    "stop_cycle": { "name": "Arresta ciclo", "description": "Annulla un ciclo in esecuzione." },
+    "list_config": { "name": "Elenca configurazione", "description": "Restituisce valvole, pianificazioni, cicli, esecuzioni attive e cronologia." }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Schedule Wizard",
+        "description": "添加此集成。之后点击 配置 来选择日历和默认值。"
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Schedule Wizard 已经配置。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Schedule Wizard 选项",
+        "description": "要轮询的日历、轮询间隔、前瞻窗口和默认运行时长。",
+        "data": {
+          "calendar_entity": "日历实体",
+          "calendar_lookahead_min": "日历前瞻(分钟)",
+          "poll_interval": "日历轮询间隔(秒)",
+          "default_duration": "默认时长(分钟)",
+          "rain_entity": "雨 / 天气 实体",
+          "rain_skip_states": "当状态为以下时跳过(逗号分隔)",
+          "rain_attribute": "要检查的属性(可选)",
+          "rain_threshold": "降雨阈值(0 = 禁用)",
+          "notify_targets": "通知服务(例如 mobile_app_my_phone)",
+          "notify_events": "触发通知的事件"
+        }
+      }
+    }
+  },
+  "services": {
+    "run_valve": { "name": "打开阀门", "description": "按指定时长打开阀门。" },
+    "stop_valve": { "name": "关闭阀门", "description": "关闭阀门并取消计时器。" },
+    "add_valve": { "name": "添加阀门", "description": "将阀门注册到调度器。" },
+    "remove_valve": { "name": "删除阀门", "description": "删除阀门及其所有计划。" },
+    "add_schedule": { "name": "添加计划", "description": "添加重复的计划。" },
+    "update_schedule": { "name": "更新计划", "description": "按 ID 修改已有计划。" },
+    "remove_schedule": { "name": "删除计划", "description": "删除一个计划。" },
+    "add_cycle": { "name": "添加循环", "description": "创建按顺序运行多个阀门的循环。" },
+    "update_cycle": { "name": "更新循环", "description": "修改现有的循环。" },
+    "remove_cycle": { "name": "删除循环", "description": "删除循环及其关联的计划。" },
+    "run_cycle": { "name": "运行循环", "description": "立即启动循环;阀门按顺序运行。" },
+    "stop_cycle": { "name": "停止循环", "description": "取消正在运行的循环。" },
+    "list_config": { "name": "列出配置", "description": "返回阀门、计划、循环、活动运行和历史。" }
+  }
+}

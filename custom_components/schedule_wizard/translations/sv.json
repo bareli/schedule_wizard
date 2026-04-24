@@ -1,0 +1,48 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Schedule Wizard",
+        "description": "Lägg till integrationen. Öppna sedan Konfigurera för att välja kalender och standardvärden."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Schedule Wizard är redan konfigurerad."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Schedule Wizard-alternativ",
+        "description": "Kalender att polla, pollintervall, framtidsfönster och standardlängd.",
+        "data": {
+          "calendar_entity": "Kalenderenhet",
+          "calendar_lookahead_min": "Kalenderns framtidsfönster (minuter)",
+          "poll_interval": "Pollintervall kalender (sekunder)",
+          "default_duration": "Standardlängd (minuter)",
+          "rain_entity": "Regn- / väderenhet",
+          "rain_skip_states": "Hoppa över när tillstånd är (kommaseparerat)",
+          "rain_attribute": "Attribut att kontrollera (valfritt)",
+          "rain_threshold": "Regntröskel (0 = avstängd)",
+          "notify_targets": "Aviseringstjänster (t.ex. mobile_app_min_telefon)",
+          "notify_events": "Händelser som skickar aviseringar"
+        }
+      }
+    }
+  },
+  "services": {
+    "run_valve": { "name": "Öppna ventil", "description": "Öppnar en ventil under angiven tid." },
+    "stop_valve": { "name": "Stäng ventil", "description": "Stänger ventilen och avbryter timern." },
+    "add_valve": { "name": "Lägg till ventil", "description": "Registrerar en ventil i schemat." },
+    "remove_valve": { "name": "Ta bort ventil", "description": "Tar bort en ventil och dess scheman." },
+    "add_schedule": { "name": "Lägg till schema", "description": "Lägger till ett återkommande schema." },
+    "update_schedule": { "name": "Uppdatera schema", "description": "Ändrar ett befintligt schema efter id." },
+    "remove_schedule": { "name": "Ta bort schema", "description": "Raderar ett schema." },
+    "add_cycle": { "name": "Lägg till cykel", "description": "Skapar en cykel som kör flera ventiler i följd." },
+    "update_cycle": { "name": "Uppdatera cykel", "description": "Ändrar en befintlig cykel." },
+    "remove_cycle": { "name": "Ta bort cykel", "description": "Tar bort en cykel och länkade scheman." },
+    "run_cycle": { "name": "Kör cykel", "description": "Startar cykeln; ventiler körs i följd." },
+    "stop_cycle": { "name": "Stoppa cykel", "description": "Avbryter en pågående cykel." },
+    "list_config": { "name": "Lista konfiguration", "description": "Returnerar ventiler, scheman, cykler, aktiva körningar och historik." }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Schedule Wizard",
+        "description": "Ajouter l'intégration. Ensuite cliquez sur Configurer pour choisir le calendrier et les valeurs par défaut."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Schedule Wizard est déjà configuré."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options de Schedule Wizard",
+        "description": "Calendrier à consulter, intervalle de sondage, fenêtre d'anticipation et durée par défaut.",
+        "data": {
+          "calendar_entity": "Entité calendrier",
+          "calendar_lookahead_min": "Fenêtre d'anticipation (minutes)",
+          "poll_interval": "Intervalle de sondage (secondes)",
+          "default_duration": "Durée par défaut (minutes)",
+          "rain_entity": "Entité pluie / météo",
+          "rain_skip_states": "Ignorer lorsque l'état est (séparés par virgule)",
+          "rain_attribute": "Attribut à vérifier (optionnel)",
+          "rain_threshold": "Seuil de pluie (0 = désactivé)",
+          "notify_targets": "Services de notification (ex. mobile_app_mon_telephone)",
+          "notify_events": "Événements déclenchant les notifications"
+        }
+      }
+    }
+  },
+  "services": {
+    "run_valve": { "name": "Ouvrir la vanne", "description": "Ouvre une vanne pendant une durée donnée." },
+    "stop_valve": { "name": "Fermer la vanne", "description": "Ferme la vanne et annule le minuteur." },
+    "add_valve": { "name": "Ajouter une vanne", "description": "Enregistre une vanne dans le planificateur." },
+    "remove_valve": { "name": "Supprimer une vanne", "description": "Supprime une vanne et ses plannings." },
+    "add_schedule": { "name": "Ajouter un planning", "description": "Ajoute un planning récurrent." },
+    "update_schedule": { "name": "Modifier un planning", "description": "Modifie un planning existant par id." },
+    "remove_schedule": { "name": "Supprimer un planning", "description": "Supprime un planning." },
+    "add_cycle": { "name": "Ajouter un cycle", "description": "Crée un cycle exécutant plusieurs vannes en séquence." },
+    "update_cycle": { "name": "Modifier un cycle", "description": "Modifie un cycle existant." },
+    "remove_cycle": { "name": "Supprimer un cycle", "description": "Supprime un cycle et les plannings associés." },
+    "run_cycle": { "name": "Lancer le cycle", "description": "Démarre un cycle maintenant ; les vannes s'exécutent en séquence." },
+    "stop_cycle": { "name": "Arrêter le cycle", "description": "Annule un cycle en cours." },
+    "list_config": { "name": "Lister la configuration", "description": "Retourne vannes, plannings, cycles, exécutions actives et historique." }
+  }
+}

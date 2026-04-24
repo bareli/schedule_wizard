@@ -1,0 +1,48 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Schedule Wizard",
+        "description": "Legg til integrasjonen. Deretter klikk Konfigurer for å velge kalender og standardverdier."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Schedule Wizard er allerede konfigurert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Schedule Wizard-alternativer",
+        "description": "Kalender som skal hentes, hentingsintervall, framovervindu og standardvarighet.",
+        "data": {
+          "calendar_entity": "Kalenderentitet",
+          "calendar_lookahead_min": "Framovervindu for kalender (minutter)",
+          "poll_interval": "Hentingsintervall kalender (sekunder)",
+          "default_duration": "Standardvarighet (minutter)",
+          "rain_entity": "Regn- / værentitet",
+          "rain_skip_states": "Hopp over når tilstand er (kommaseparert)",
+          "rain_attribute": "Attributt som skal sjekkes (valgfritt)",
+          "rain_threshold": "Regnterskel (0 = av)",
+          "notify_targets": "Varslingstjenester (f.eks. mobile_app_min_telefon)",
+          "notify_events": "Hendelser som sender varsler"
+        }
+      }
+    }
+  },
+  "services": {
+    "run_valve": { "name": "Åpne ventil", "description": "Åpner en ventil i en gitt varighet." },
+    "stop_valve": { "name": "Lukk ventil", "description": "Lukker ventilen og avbryter tidtakeren." },
+    "add_valve": { "name": "Legg til ventil", "description": "Registrerer en ventil i planleggeren." },
+    "remove_valve": { "name": "Fjern ventil", "description": "Fjerner en ventil og tilhørende planer." },
+    "add_schedule": { "name": "Legg til plan", "description": "Legger til en gjentakende plan." },
+    "update_schedule": { "name": "Oppdater plan", "description": "Endrer en eksisterende plan etter id." },
+    "remove_schedule": { "name": "Fjern plan", "description": "Sletter en plan." },
+    "add_cycle": { "name": "Legg til syklus", "description": "Oppretter en syklus som kjører flere ventiler i rekkefølge." },
+    "update_cycle": { "name": "Oppdater syklus", "description": "Endrer en eksisterende syklus." },
+    "remove_cycle": { "name": "Fjern syklus", "description": "Sletter en syklus og tilknyttede planer." },
+    "run_cycle": { "name": "Kjør syklus", "description": "Starter syklusen; ventiler kjører etter hverandre." },
+    "stop_cycle": { "name": "Stopp syklus", "description": "Avbryter en pågående syklus." },
+    "list_config": { "name": "Vis konfigurasjon", "description": "Returnerer ventiler, planer, sykluser, aktive kjøringer og historikk." }
+  }
+}

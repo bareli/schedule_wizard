@@ -1,0 +1,48 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Schedule Wizard",
+        "description": "أضف التكامل. بعد ذلك افتح الإعدادات لاختيار التقويم والقيم الافتراضية."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Schedule Wizard مُعدّ بالفعل."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "إعدادات Schedule Wizard",
+        "description": "التقويم المراد استطلاعه، فترة الاستطلاع، نافذة الأمام، والمدة الافتراضية.",
+        "data": {
+          "calendar_entity": "كيان التقويم",
+          "calendar_lookahead_min": "نافذة التقويم الأمامية (دقائق)",
+          "poll_interval": "فترة استطلاع التقويم (ثوان)",
+          "default_duration": "المدة الافتراضية (دقائق)",
+          "rain_entity": "كيان المطر / الطقس",
+          "rain_skip_states": "تخطَّ عندما تكون الحالة (مفصولة بفواصل)",
+          "rain_attribute": "السمة التي يجب فحصها (اختياري)",
+          "rain_threshold": "عتبة المطر (0 = معطلة)",
+          "notify_targets": "خدمات الإشعار (مثلاً mobile_app_my_phone)",
+          "notify_events": "الأحداث التي تطلق الإشعارات"
+        }
+      }
+    }
+  },
+  "services": {
+    "run_valve": { "name": "فتح الصمام", "description": "يفتح صمامًا لفترة محددة." },
+    "stop_valve": { "name": "إغلاق الصمام", "description": "يغلق الصمام ويلغي المؤقت." },
+    "add_valve": { "name": "إضافة صمام", "description": "يسجل الصمام في المجدول." },
+    "remove_valve": { "name": "إزالة الصمام", "description": "يزيل الصمام وجميع جداوله." },
+    "add_schedule": { "name": "إضافة جدول", "description": "يضيف جدولاً متكررًا." },
+    "update_schedule": { "name": "تحديث الجدول", "description": "يعدل جدولاً قائمًا حسب المعرّف." },
+    "remove_schedule": { "name": "إزالة الجدول", "description": "يحذف جدولاً." },
+    "add_cycle": { "name": "إضافة دورة", "description": "ينشئ دورة تشغل عدة صمامات بالتسلسل." },
+    "update_cycle": { "name": "تحديث الدورة", "description": "يعدل دورة قائمة." },
+    "remove_cycle": { "name": "إزالة الدورة", "description": "يحذف الدورة والجداول المرتبطة بها." },
+    "run_cycle": { "name": "تشغيل الدورة", "description": "يبدأ الدورة الآن؛ الصمامات تعمل بالتسلسل." },
+    "stop_cycle": { "name": "إيقاف الدورة", "description": "يلغي دورة قيد التشغيل." },
+    "list_config": { "name": "عرض الإعدادات", "description": "يعيد الصمامات والجداول والدورات والتشغيل النشط والسجل." }
+  }
+}

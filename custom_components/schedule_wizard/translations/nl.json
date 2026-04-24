@@ -1,0 +1,48 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Schedule Wizard",
+        "description": "Voeg de integratie toe. Klik daarna op Configureren om een agenda en standaardwaarden te kiezen."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Schedule Wizard is al geconfigureerd."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Schedule Wizard opties",
+        "description": "Agenda om te pollen, polling-interval, vooruitblik en standaardduur.",
+        "data": {
+          "calendar_entity": "Agenda-entiteit",
+          "calendar_lookahead_min": "Agenda vooruitblik (minuten)",
+          "poll_interval": "Polling-interval agenda (seconden)",
+          "default_duration": "Standaardduur (minuten)",
+          "rain_entity": "Regen- / weer-entiteit",
+          "rain_skip_states": "Overslaan als toestand is (kommagescheiden)",
+          "rain_attribute": "Te controleren attribuut (optioneel)",
+          "rain_threshold": "Regen-drempel (0 = uitgeschakeld)",
+          "notify_targets": "Notificatiediensten (bijv. mobile_app_mijn_telefoon)",
+          "notify_events": "Gebeurtenissen die notificaties versturen"
+        }
+      }
+    }
+  },
+  "services": {
+    "run_valve": { "name": "Open klep", "description": "Opent een klep voor een bepaalde duur." },
+    "stop_valve": { "name": "Sluit klep", "description": "Sluit een klep en annuleert de timer." },
+    "add_valve": { "name": "Klep toevoegen", "description": "Registreert een klep bij de scheduler." },
+    "remove_valve": { "name": "Klep verwijderen", "description": "Verwijdert een klep en de bijbehorende schema's." },
+    "add_schedule": { "name": "Schema toevoegen", "description": "Voegt een terugkerend schema toe." },
+    "update_schedule": { "name": "Schema bijwerken", "description": "Wijzigt een bestaand schema op id." },
+    "remove_schedule": { "name": "Schema verwijderen", "description": "Verwijdert een schema." },
+    "add_cycle": { "name": "Cyclus toevoegen", "description": "Maakt een cyclus die meerdere kleppen na elkaar uitvoert." },
+    "update_cycle": { "name": "Cyclus bijwerken", "description": "Wijzigt een bestaande cyclus." },
+    "remove_cycle": { "name": "Cyclus verwijderen", "description": "Verwijdert een cyclus en gekoppelde schema's." },
+    "run_cycle": { "name": "Cyclus starten", "description": "Start een cyclus; kleppen draaien achter elkaar." },
+    "stop_cycle": { "name": "Cyclus stoppen", "description": "Annuleert een lopende cyclus." },
+    "list_config": { "name": "Configuratie tonen", "description": "Geeft kleppen, schema's, cycli, actieve runs en geschiedenis terug." }
+  }
+}

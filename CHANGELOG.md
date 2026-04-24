@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0 — multi-language translations
+
+- 15 new translation files for HA native strings (config flow + options flow + service names/descriptions): Spanish, German, French, Italian, Dutch, Portuguese, Russian, Arabic, Polish, Simplified Chinese, Ukrainian, Swedish, Danish, Norwegian, Finnish.
+- Existing English and Hebrew translations extended with all new services (cycles, update_schedule).
+- Panel UI text (sidebar tabs, buttons, modals) still English; JavaScript i18n is deferred.
+
 ## 0.4.2 — preserve input focus across auto-refresh
 
 - Panel Dashboard and Lovelace card no longer destroy DOM on the 5s auto-refresh when an input/select is focused. Progress bars still update smoothly in place.

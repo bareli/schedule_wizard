@@ -1,0 +1,48 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Schedule Wizard",
+        "description": "Añadir la integración Schedule Wizard. Después abre Configurar para elegir calendario y valores predeterminados."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Schedule Wizard ya está configurado."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opciones de Schedule Wizard",
+        "description": "Calendario a consultar, intervalo de sondeo, ventana futura y duración predeterminada.",
+        "data": {
+          "calendar_entity": "Entidad de calendario",
+          "calendar_lookahead_min": "Ventana futura del calendario (minutos)",
+          "poll_interval": "Intervalo de sondeo del calendario (segundos)",
+          "default_duration": "Duración predeterminada (minutos)",
+          "rain_entity": "Entidad de lluvia / meteorología",
+          "rain_skip_states": "Saltar cuando el estado sea (separado por comas)",
+          "rain_attribute": "Atributo a comprobar (opcional)",
+          "rain_threshold": "Umbral de lluvia (0 = deshabilitado)",
+          "notify_targets": "Servicios de notificación (p.ej. mobile_app_mi_telefono)",
+          "notify_events": "Eventos que envían notificaciones"
+        }
+      }
+    }
+  },
+  "services": {
+    "run_valve": { "name": "Abrir válvula", "description": "Abre una válvula durante un tiempo determinado." },
+    "stop_valve": { "name": "Cerrar válvula", "description": "Cierra la válvula y cancela el temporizador automático." },
+    "add_valve": { "name": "Agregar válvula", "description": "Registra una válvula en el programador." },
+    "remove_valve": { "name": "Quitar válvula", "description": "Elimina una válvula y sus programaciones." },
+    "add_schedule": { "name": "Agregar programación", "description": "Agrega una programación recurrente." },
+    "update_schedule": { "name": "Actualizar programación", "description": "Modifica una programación existente por id." },
+    "remove_schedule": { "name": "Quitar programación", "description": "Elimina una programación." },
+    "add_cycle": { "name": "Agregar ciclo", "description": "Crea un ciclo de varias válvulas ejecutadas en secuencia." },
+    "update_cycle": { "name": "Actualizar ciclo", "description": "Modifica un ciclo existente." },
+    "remove_cycle": { "name": "Quitar ciclo", "description": "Elimina un ciclo y las programaciones vinculadas." },
+    "run_cycle": { "name": "Ejecutar ciclo", "description": "Inicia un ciclo ahora; las válvulas se ejecutan en secuencia." },
+    "stop_cycle": { "name": "Detener ciclo", "description": "Cancela un ciclo en ejecución." },
+    "list_config": { "name": "Listar configuración", "description": "Devuelve válvulas, programaciones, ciclos, ejecuciones activas e historial." }
+  }
+}

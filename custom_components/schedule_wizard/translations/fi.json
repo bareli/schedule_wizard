@@ -1,0 +1,48 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Schedule Wizard",
+        "description": "Lisää integraatio. Avaa sen jälkeen Määritä valitaksesi kalenterin ja oletusarvot."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Schedule Wizard on jo määritetty."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Schedule Wizard -asetukset",
+        "description": "Kalenteri, kyselyväli, eteenpäin katseluikkuna ja oletuskesto.",
+        "data": {
+          "calendar_entity": "Kalenteri-entiteetti",
+          "calendar_lookahead_min": "Kalenterin eteenpäin katseluikkuna (min)",
+          "poll_interval": "Kalenterin kyselyväli (s)",
+          "default_duration": "Oletuskesto (min)",
+          "rain_entity": "Sade- / sää-entiteetti",
+          "rain_skip_states": "Ohita kun tila on (pilkuilla eroteltuna)",
+          "rain_attribute": "Tarkistettava attribuutti (valinnainen)",
+          "rain_threshold": "Sadekynnys (0 = pois käytöstä)",
+          "notify_targets": "Ilmoituspalvelut (esim. mobile_app_puhelimeni)",
+          "notify_events": "Tapahtumat jotka lähettävät ilmoituksia"
+        }
+      }
+    }
+  },
+  "services": {
+    "run_valve": { "name": "Avaa venttiili", "description": "Avaa venttiilin annetuksi ajaksi." },
+    "stop_valve": { "name": "Sulje venttiili", "description": "Sulkee venttiilin ja peruuttaa ajastimen." },
+    "add_valve": { "name": "Lisää venttiili", "description": "Rekisteröi venttiilin ajastimeen." },
+    "remove_valve": { "name": "Poista venttiili", "description": "Poistaa venttiilin ja sen aikataulut." },
+    "add_schedule": { "name": "Lisää aikataulu", "description": "Lisää toistuvan aikataulun." },
+    "update_schedule": { "name": "Päivitä aikataulu", "description": "Muokkaa olemassa olevaa aikataulua id:llä." },
+    "remove_schedule": { "name": "Poista aikataulu", "description": "Poistaa aikataulun." },
+    "add_cycle": { "name": "Lisää sykli", "description": "Luo syklin, joka ajaa useita venttiileitä peräkkäin." },
+    "update_cycle": { "name": "Päivitä sykli", "description": "Muokkaa olemassa olevaa sykliä." },
+    "remove_cycle": { "name": "Poista sykli", "description": "Poistaa syklin ja siihen liittyvät aikataulut." },
+    "run_cycle": { "name": "Käynnistä sykli", "description": "Käynnistää syklin; venttiilit ajetaan peräkkäin." },
+    "stop_cycle": { "name": "Pysäytä sykli", "description": "Peruuttaa käynnissä olevan syklin." },
+    "list_config": { "name": "Näytä konfiguraatio", "description": "Palauttaa venttiilit, aikataulut, syklit, aktiiviset ajot ja historian." }
+  }
+}

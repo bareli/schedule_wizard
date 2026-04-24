@@ -1,0 +1,48 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Schedule Wizard",
+        "description": "Додайте інтеграцію. Потім відкрийте Налаштувати, щоб вибрати календар і значення за замовчуванням."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Schedule Wizard вже налаштовано."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Параметри Schedule Wizard",
+        "description": "Календар для опитування, інтервал опитування, вікно попередньо і типова тривалість.",
+        "data": {
+          "calendar_entity": "Сутність календаря",
+          "calendar_lookahead_min": "Вікно календаря (хвилини)",
+          "poll_interval": "Інтервал опитування календаря (секунди)",
+          "default_duration": "Типова тривалість (хвилини)",
+          "rain_entity": "Сутність дощу / погоди",
+          "rain_skip_states": "Пропустити, коли стан (через кому)",
+          "rain_attribute": "Атрибут для перевірки (необов'язково)",
+          "rain_threshold": "Поріг дощу (0 = вимкнено)",
+          "notify_targets": "Сервіси сповіщень (напр. mobile_app_miy_telefon)",
+          "notify_events": "Події, що надсилають сповіщення"
+        }
+      }
+    }
+  },
+  "services": {
+    "run_valve": { "name": "Відкрити клапан", "description": "Відкриває клапан на заданий час." },
+    "stop_valve": { "name": "Закрити клапан", "description": "Закриває клапан і скасовує таймер." },
+    "add_valve": { "name": "Додати клапан", "description": "Реєструє клапан у планувальнику." },
+    "remove_valve": { "name": "Видалити клапан", "description": "Видаляє клапан та його розклади." },
+    "add_schedule": { "name": "Додати розклад", "description": "Додає повторюваний розклад." },
+    "update_schedule": { "name": "Оновити розклад", "description": "Змінює наявний розклад за id." },
+    "remove_schedule": { "name": "Видалити розклад", "description": "Видаляє розклад." },
+    "add_cycle": { "name": "Додати цикл", "description": "Створює цикл послідовного запуску клапанів." },
+    "update_cycle": { "name": "Оновити цикл", "description": "Змінює наявний цикл." },
+    "remove_cycle": { "name": "Видалити цикл", "description": "Видаляє цикл і пов'язані розклади." },
+    "run_cycle": { "name": "Запустити цикл", "description": "Запускає цикл; клапани працюють по черзі." },
+    "stop_cycle": { "name": "Зупинити цикл", "description": "Скасовує запущений цикл." },
+    "list_config": { "name": "Показати конфігурацію", "description": "Повертає клапани, розклади, цикли, активні запуски та історію." }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Schedule Wizard",
+        "description": "Dodaj integrację. Następnie otwórz Konfiguruj, aby wybrać kalendarz i wartości domyślne."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Schedule Wizard jest już skonfigurowany."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opcje Schedule Wizard",
+        "description": "Kalendarz do odpytywania, interwał odpytywania, okno wyprzedzenia i domyślny czas trwania.",
+        "data": {
+          "calendar_entity": "Encja kalendarza",
+          "calendar_lookahead_min": "Okno wyprzedzenia kalendarza (minuty)",
+          "poll_interval": "Interwał odpytywania kalendarza (sekundy)",
+          "default_duration": "Domyślny czas trwania (minuty)",
+          "rain_entity": "Encja deszczu / pogody",
+          "rain_skip_states": "Pomiń gdy stan to (oddzielone przecinkami)",
+          "rain_attribute": "Atrybut do sprawdzenia (opcjonalnie)",
+          "rain_threshold": "Próg deszczu (0 = wyłączone)",
+          "notify_targets": "Usługi powiadomień (np. mobile_app_moj_telefon)",
+          "notify_events": "Zdarzenia wysyłające powiadomienia"
+        }
+      }
+    }
+  },
+  "services": {
+    "run_valve": { "name": "Otwórz zawór", "description": "Otwiera zawór na zadany czas." },
+    "stop_valve": { "name": "Zamknij zawór", "description": "Zamyka zawór i anuluje timer." },
+    "add_valve": { "name": "Dodaj zawór", "description": "Rejestruje zawór w harmonogramie." },
+    "remove_valve": { "name": "Usuń zawór", "description": "Usuwa zawór i jego harmonogramy." },
+    "add_schedule": { "name": "Dodaj harmonogram", "description": "Dodaje cykliczny harmonogram." },
+    "update_schedule": { "name": "Zaktualizuj harmonogram", "description": "Modyfikuje istniejący harmonogram według id." },
+    "remove_schedule": { "name": "Usuń harmonogram", "description": "Usuwa harmonogram." },
+    "add_cycle": { "name": "Dodaj cykl", "description": "Tworzy cykl uruchamiający wiele zaworów sekwencyjnie." },
+    "update_cycle": { "name": "Zaktualizuj cykl", "description": "Modyfikuje istniejący cykl." },
+    "remove_cycle": { "name": "Usuń cykl", "description": "Usuwa cykl i powiązane harmonogramy." },
+    "run_cycle": { "name": "Uruchom cykl", "description": "Startuje cykl; zawory działają po kolei." },
+    "stop_cycle": { "name": "Zatrzymaj cykl", "description": "Anuluje trwający cykl." },
+    "list_config": { "name": "Pokaż konfigurację", "description": "Zwraca zawory, harmonogramy, cykle, aktywne uruchomienia i historię." }
+  }
+}
