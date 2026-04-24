@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(git init *)",
-      "Bash(git add *)",
-      "Bash(git -c user.email=\"bareli@gmail.com\" -c user.name=\"Bar Eli\" commit -m \"Initial v0.1.0: Schedule Wizard HACS integration\")"
-    ]
-  }
-}
