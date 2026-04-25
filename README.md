@@ -77,29 +77,41 @@ Minimum HA version: **2024.7.0**.
 
 ## Using the panel
 
-After install, a **Schedule Wizard** entry appears in the sidebar (sprinkler icon). Four tabs:
+After install, a **Schedule Wizard** entry appears in the sidebar (sprinkler icon). Six tabs:
 
 ### Dashboard
 
-Active runs with live progress bars, quick run/stop per valve, recent history.
+Rain delay buttons, active runs and active cycles with live progress, quick run/stop per valve with inline progress bar and next-opening hint, grouped recent activity (cycles + child valves indented).
 
 ![Dashboard tab](docs/screenshots/panel-dashboard.png)
 
 ### Valves
 
-Add / edit / delete valves. Pick any supported HA entity, set its label (used for calendar matching) and default duration.
+Add / edit / delete valves. Pick any supported HA entity, set its label (used for calendar matching) and default duration. Each row shows last run, 7-day stats, and the next scheduled opening.
 
 ![Valves tab](docs/screenshots/panel-valves.png)
 
+### Cycles
+
+Multi-valve programs (zone sequencing). Add an ordered list of `(valve, minutes)` steps. Run, pause, resume, edit, enable/disable, delete.
+
+![Cycles tab](docs/screenshots/panel-cycles.png)
+
 ### Schedules
 
-Recurring rules: pick a valve, time, days, duration.
+Recurring rules: pick a valve **or cycle**, time, days, duration. Edit / enable / disable / delete per row.
 
 ![Schedules tab](docs/screenshots/panel-schedules.png)
 
+### Reports
+
+30-day daily-minutes mini chart. Per-valve totals (7d / 30d / lifetime). Per-cycle stats. Skip-reason summary. CSV export of the full history.
+
+![Reports tab](docs/screenshots/panel-reports.png)
+
 ### Settings
 
-Calendar entity, lookahead window, poll interval, default duration. All editable here; no need to visit the Configure dialog.
+Calendar, polling, default duration, then a Show advanced toggle to access rain skip, soil moisture, seasonal adjustment, master valve / pump, fail detection, notifications, and cycle overlap.
 
 ![Settings tab](docs/screenshots/panel-settings.png)
 

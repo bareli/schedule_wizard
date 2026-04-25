@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.3 — fresh README screenshots
+
+- Refreshed all panel screenshots in the README to reflect the new tabs (Cycles, Reports), rain delay button, advanced toggle, and per-valve stats.
+
 ## 0.7.2 — Reports tab + README sync + UI spacing
 
 - **New Reports tab** in the panel:
