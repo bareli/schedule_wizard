@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.4 — fix cycle never starting + blocking I/O
+
+- Fixed: cycle task started eagerly before being added to the active-cycles map (HA 2024.7+ `async_create_task` runs eagerly). The task saw "not in active_cycles" and exited immediately, leaving a phantom step-0 entry. Now adds to the map first, then starts the task.
+- Fixed: blocking `open()` on `manifest.json` from the event loop. Version is now read once via the executor and cached.
+
 ## 0.6.3 — list_config completeness + cycle skip diagnostics
 
 - `schedule_wizard.list_config` service now also returns `cycles`, `active_cycles`, and `options` (previously missing).

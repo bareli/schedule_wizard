@@ -683,9 +683,9 @@ class Scheduler:
             "note": note,
             "duration_factor": duration_factor,
         }
+        self._active_cycles[cycle_id] = state
         task = self.hass.async_create_task(self._run_cycle_task(cycle, state))
         state["task"] = task
-        self._active_cycles[cycle_id] = state
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
         LOG.info("started cycle %s (%s), %d steps, source=%s",
                  cycle_id, cycle.get("name"), len(steps), source)

@@ -191,13 +191,23 @@ def _days_to_mask(days: list[str]) -> int:
     return mask
 
 
-def _integration_version() -> str:
+_INTEGRATION_VERSION_CACHE: str | None = None
+
+
+def _integration_version_sync() -> str:
     try:
         import json
         with open(os.path.join(os.path.dirname(__file__), "manifest.json"), "r") as f:
             return json.load(f).get("version", "0")
     except Exception:
         return "0"
+
+
+async def _integration_version(hass: HomeAssistant) -> str:
+    global _INTEGRATION_VERSION_CACHE
+    if _INTEGRATION_VERSION_CACHE is None:
+        _INTEGRATION_VERSION_CACHE = await hass.async_add_executor_job(_integration_version_sync)
+    return _INTEGRATION_VERSION_CACHE
 
 
 async def _async_register_panel(hass: HomeAssistant) -> None:
@@ -208,7 +218,7 @@ async def _async_register_panel(hass: HomeAssistant) -> None:
         await hass.http.async_register_static_paths([
             StaticPathConfig(PANEL_STATIC_URL, panel_dir, False)
         ])
-    version = _integration_version()
+    version = await _integration_version(hass)
     await panel_custom.async_register_panel(
         hass,
         webcomponent_name="schedule-wizard-panel",
@@ -232,7 +242,7 @@ async def _async_register_card_resource(hass: HomeAssistant) -> None:
             resources: ResourceStorageCollection = lovelace.resources
             if resources.store and resources.store.key and not resources.loaded:
                 await resources.async_load()
-            version = _integration_version()
+            version = await _integration_version(hass)
             target_url = f"{CARD_RESOURCE_URL}?v={version}"
             items = list(resources.async_items())
             stale = [r for r in items if r.get("url", "").startswith(CARD_RESOURCE_URL) and r.get("url") != target_url]
