@@ -668,11 +668,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return {
             "valves": store.valves,
             "schedules": store.schedules,
+            "cycles": store.cycles,
             "active": [
                 {k: v for k, v in run.items() if k != "unsub_close"}
                 for run in scheduler.active.values()
             ],
+            "active_cycles": [
+                {k: v for k, v in r.items() if k != "task"}
+                for r in scheduler.active_cycles.values()
+            ],
             "history": store.history[:20],
+            "options": options,
         }
 
     hass.services.async_register(DOMAIN, SERVICE_RUN_VALVE, _svc_run, schema=SCHEMA_RUN)

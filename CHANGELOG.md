@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.3 — list_config completeness + cycle skip diagnostics
+
+- `schedule_wizard.list_config` service now also returns `cycles`, `active_cycles`, and `options` (previously missing).
+- Cycle steps that are skipped due to missing `entity_id` or zero duration now log a warning with the cycle id, step number, and computed values, making "stuck on step 0" much easier to diagnose.
+
 ## 0.6.2 — next opening time per valve
 
 - Dashboard Quick run, Valves tab, and Lovelace card now show the next scheduled opening per valve with time label and countdown (`Next: Wed 06:00 (in 18h)`).

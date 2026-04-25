@@ -717,6 +717,10 @@ class Scheduler:
                 base_duration = int(step.get("duration_min", 1))
                 duration = self._scale_minutes(base_duration, factor) if factor != 1.0 else base_duration
                 if not entity_id or duration <= 0:
+                    LOG.warning(
+                        "cycle %s step %d skipped: entity_id=%r duration=%s base=%s factor=%s",
+                        cycle_id, i + 1, entity_id, duration, base_duration, factor,
+                    )
                     continue
                 self._active_cycles[cycle_id]["step"] = i + 1
                 self._active_cycles[cycle_id]["current_entity"] = entity_id
