@@ -371,6 +371,33 @@ class ScheduleWizardPanel extends HTMLElement {
   }
 
   _renderDashboard(root) {
+    const rainUntil = parseInt(this._state.rain_delay_until || 0, 10);
+    const now = this._state.now;
+    const rainCard = el("div", { class: "card" });
+    if (rainUntil > now) {
+      const left = rainUntil - now;
+      const lbl = left < 3600 ? `${Math.round(left / 60)}m` : left < 86400 ? `${Math.round(left / 3600)}h` : `${Math.round(left / 86400)}d`;
+      rainCard.appendChild(el("div", { class: "row-between" }, [
+        el("h2", { style: "margin:0;color:var(--sw-warn);" }, `🌧 Rain delay active — ${lbl} left`),
+        el("button", {
+          class: "btn small",
+          onClick: () => this._callService("clear_rain_delay", {}),
+        }, "Clear"),
+      ]));
+    } else {
+      rainCard.appendChild(el("div", { class: "row-between" }, [
+        el("h2", { style: "margin:0;" }, "Rain delay"),
+        el("div", { class: "actions" }, [
+          el("button", { class: "btn small", onClick: () => this._callService("set_rain_delay", { hours: 24 }) }, "24h"),
+          el("button", { class: "btn small", onClick: () => this._callService("set_rain_delay", { hours: 48 }) }, "48h"),
+          el("button", { class: "btn small", onClick: () => this._callService("set_rain_delay", { hours: 168 }) }, "7d"),
+        ]),
+      ]));
+      rainCard.appendChild(el("p", { class: "muted small", style: "margin:4px 0 0;" },
+        "Pause all schedule and calendar runs for the chosen duration. Manual runs still work."));
+    }
+    root.appendChild(rainCard);
+
     const activeCycles = this._state.active_cycles || [];
     if (activeCycles.length) {
       const cyclesCard = el("div", { class: "card" }, [el("h2", {}, "Active cycles")]);
@@ -405,10 +432,74 @@ class ScheduleWizardPanel extends HTMLElement {
     if (!this._state.history.length) {
       hList.appendChild(el("div", { class: "empty" }, "No history yet."));
     } else {
-      this._state.history.slice(0, 12).forEach((r) => hList.appendChild(this._historyRow(r)));
+      const grouped = this._groupHistory(this._state.history.slice(0, 30));
+      grouped.slice(0, 14).forEach((g) => {
+        if (g.kind === "cycle") {
+          hList.appendChild(this._cycleHistoryRow(g.entry, g.children));
+        } else {
+          hList.appendChild(this._historyRow(g.entry));
+        }
+      });
     }
     hist.appendChild(hList);
     root.appendChild(hist);
+  }
+
+  _groupHistory(history) {
+    const cyclesById = Object.fromEntries((this._state.cycles || []).map(c => [c.id, c]));
+    const used = new Set();
+    const out = [];
+    for (let i = 0; i < history.length; i++) {
+      if (used.has(i)) continue;
+      const h = history[i];
+      if (cyclesById[h.valve_entity_id]) {
+        const cycleId = h.valve_entity_id;
+        const children = [];
+        for (let j = i + 1; j < history.length; j++) {
+          if (used.has(j)) continue;
+          const c = history[j];
+          if (cyclesById[c.valve_entity_id] && c.valve_entity_id === cycleId) break;
+          if (c.source && c.source.startsWith(`cycle:${cycleId}`)) {
+            children.push(c);
+            used.add(j);
+          }
+        }
+        out.push({ kind: "cycle", entry: h, children });
+        used.add(i);
+      } else if (!h.source || !h.source.startsWith("cycle:")) {
+        out.push({ kind: "valve", entry: h });
+        used.add(i);
+      } else {
+        out.push({ kind: "valve", entry: h });
+        used.add(i);
+      }
+    }
+    return out;
+  }
+
+  _cycleHistoryRow(r, children) {
+    const cycle = (this._state.cycles || []).find(c => c.id === r.valve_entity_id);
+    const cycleName = cycle ? cycle.name : r.valve_entity_id;
+    const valvesMap = Object.fromEntries((this._state.valves || []).map(v => [v.entity_id, v.label]));
+    const wrap = el("div", { class: "item", style: "display:block;" });
+    wrap.appendChild(el("div", { style: "display:flex;justify-content:space-between;gap:10px;" }, [
+      el("div", {}, [
+        el("div", { class: "name" }, "🔁 " + cycleName),
+        el("div", { class: "sub" }, `${fmtTime(r.ts)} • ${r.source} • ${r.status}`),
+      ]),
+    ]));
+    const meaningfulChildren = (children || []).filter(c => c.status !== "started");
+    if (meaningfulChildren.length) {
+      const sub = el("div", { style: "margin-left:18px;margin-top:6px;border-left:2px solid var(--sw-border);padding-left:10px;display:flex;flex-direction:column;gap:4px;" });
+      meaningfulChildren.forEach(c => {
+        const lbl = valvesMap[c.valve_entity_id] || c.valve_entity_id;
+        sub.appendChild(el("div", { class: "sub" },
+          `↳ ${lbl} • ${c.duration_min}min • ${c.status} • ${fmtTime(c.ts)}`
+        ));
+      });
+      wrap.appendChild(sub);
+    }
+    return wrap;
   }
 
   _activeRunRow(r) {
@@ -447,14 +538,14 @@ class ScheduleWizardPanel extends HTMLElement {
       el("div", { class: "sub" },
         active
           ? `${v.entity_id} • ${fmtRemaining(Math.max(0, active.ends_at - now))} remaining (${active.source})`
-          : `${v.entity_id} • default ${v.default_duration_min}m`
+          : `${v.entity_id} • default ${v.default_duration_min}min`
       ),
     ]);
     if (!active && v.next_run) {
       const inMin = Math.max(0, Math.round(v.next_run.in_seconds / 60));
       const inLabel = inMin < 60 ? `in ${inMin}m` : inMin < 1440 ? `in ${Math.round(inMin / 60)}h` : `in ${Math.round(inMin / 1440)}d`;
       meta.appendChild(el("div", { class: "sub", style: "margin-top:2px;color:var(--sw-primary);" },
-        `Next: ${v.next_run.time_label} (${inLabel})${v.next_run.duration_min ? ` • ${v.next_run.duration_min}m` : ""}`
+        `Next: ${v.next_run.time_label} (${inLabel})${v.next_run.duration_min ? ` • ${v.next_run.duration_min}min` : ""}`
       ));
     }
     if (active) {
@@ -491,7 +582,7 @@ class ScheduleWizardPanel extends HTMLElement {
       el("div", {}, [
         el("div", { class: "name" }, label),
         el("div", { class: "sub" },
-          `${fmtTime(r.ts)} • ${r.duration_min}m • ${r.source} • ${r.status}`),
+          `${fmtTime(r.ts)} • ${r.duration_min}min • ${r.source} • ${r.status}`),
       ]),
       el("div"),
     ]);
@@ -535,7 +626,7 @@ class ScheduleWizardPanel extends HTMLElement {
       const inMin = Math.max(0, Math.round(v.next_run.in_seconds / 60));
       const inLabel = inMin < 60 ? `in ${inMin}m` : inMin < 1440 ? `in ${Math.round(inMin / 60)}h` : `in ${Math.round(inMin / 1440)}d`;
       metaChildren.push(el("div", { class: "sub", style: "margin-top:2px;color:var(--sw-primary);" },
-        `Next: ${v.next_run.time_label} (${inLabel})${v.next_run.duration_min ? ` • ${v.next_run.duration_min}m` : ""}`
+        `Next: ${v.next_run.time_label} (${inLabel})${v.next_run.duration_min ? ` • ${v.next_run.duration_min}min` : ""}`
       ));
     }
     return el("div", { class: "item" }, [
@@ -627,19 +718,32 @@ class ScheduleWizardPanel extends HTMLElement {
   _activeCycleRow(c) {
     const valve = this._state.valves.find(v => v.entity_id === c.current_entity);
     const currentLabel = valve ? valve.label : (c.current_entity || "—");
+    const paused = !!c.paused;
+    const stepLine = paused
+      ? `paused at step ${c.paused_at_step || c.step}/${c.total_steps} • ${c.source}`
+      : `step ${c.step}/${c.total_steps} • ${currentLabel} • ${c.source}`;
+    const actions = [];
+    if (paused) {
+      actions.push(el("button", {
+        class: "btn primary small",
+        onClick: () => this._callService("resume_cycle", { cycle_id: c.cycle_id }),
+      }, "Resume"));
+    } else {
+      actions.push(el("button", {
+        class: "btn small",
+        onClick: () => this._callService("pause_cycle", { cycle_id: c.cycle_id }),
+      }, "Pause"));
+    }
+    actions.push(el("button", {
+      class: "btn danger small",
+      onClick: () => this._callService("stop_cycle", { cycle_id: c.cycle_id }),
+    }, "Stop"));
     return el("div", { class: "item" }, [
       el("div", {}, [
-        el("div", { class: "name" }, `● ${c.cycle_name || c.cycle_id}`),
-        el("div", { class: "sub" },
-          `step ${c.step}/${c.total_steps} • ${currentLabel} • ${c.source}`
-        ),
+        el("div", { class: "name" }, `${paused ? "⏸" : "●"} ${c.cycle_name || c.cycle_id}`),
+        el("div", { class: "sub" }, stepLine),
       ]),
-      el("div", { class: "actions" }, [
-        el("button", {
-          class: "btn danger small",
-          onClick: () => this._callService("stop_cycle", { cycle_id: c.cycle_id }),
-        }, "Stop"),
-      ]),
+      el("div", { class: "actions" }, actions),
     ]);
   }
 
@@ -970,6 +1074,9 @@ class ScheduleWizardPanel extends HTMLElement {
   _renderSettings(root) {
     const opts = this._state.options || {};
 
+    const advancedKey = "_sw_show_advanced";
+    const showAdvanced = !!this._showAdvanced;
+
     const card = el("div", { class: "card" }, [el("h2", {}, "Calendar integration")]);
     card.appendChild(el("p", { class: "muted" },
       "Pick an HA calendar. Events whose summary contains a valve label will trigger that valve. " +
@@ -999,8 +1106,26 @@ class ScheduleWizardPanel extends HTMLElement {
     ]));
     card.appendChild(el("label", { class: "field" }, [el("span", {}, "Default duration (minutes)"), defDurInput]));
 
+    const advancedToggle = el("div", {
+      style: "margin-top:14px;padding-top:12px;border-top:1px solid var(--sw-border);display:flex;justify-content:space-between;align-items:center;",
+    });
+    advancedToggle.appendChild(el("strong", {}, showAdvanced ? "Advanced settings (shown)" : "Advanced settings (hidden)"));
+    const advBtn = el("button", { class: "btn small" }, showAdvanced ? "Hide" : "Show");
+    advBtn.addEventListener("click", () => {
+      this._showAdvanced = !this._showAdvanced;
+      this._render();
+    });
+    advancedToggle.appendChild(advBtn);
+    card.appendChild(advancedToggle);
+
+    if (!showAdvanced) {
+      card.appendChild(el("p", { class: "muted small", style: "margin-top:8px;" },
+        "Click Show to configure rain skip, soil moisture, seasonal adjustment, master valve / pump, fail detection, notifications, and cycle overlap."
+      ));
+    }
+
     const rainSection = el("div", {
-      style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);",
+      style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);" + (showAdvanced ? "" : "display:none;"),
     });
     rainSection.appendChild(el("h3", { style: "margin:0 0 6px;font-size:14px;" }, "Rain skip"));
     rainSection.appendChild(el("p", { class: "muted", style: "font-size:12px;margin:0 0 10px;" },
@@ -1027,7 +1152,7 @@ class ScheduleWizardPanel extends HTMLElement {
     card.appendChild(rainSection);
 
     const notifySection = el("div", {
-      style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);",
+      style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);" + (showAdvanced ? "" : "display:none;"),
     });
     notifySection.appendChild(el("h3", { style: "margin:0 0 6px;font-size:14px;" }, "Notifications"));
     notifySection.appendChild(el("p", { class: "muted", style: "font-size:12px;margin:0 0 10px;" },
@@ -1068,6 +1193,8 @@ class ScheduleWizardPanel extends HTMLElement {
       cycle_start: "Cycle started",
       cycle_end: "Cycle ended",
       skipped_rain: "Skipped (rain)",
+      valve_failed: "Valve failed to open",
+      rain_delay: "Rain delay set",
     };
     availableEvents.forEach(ev => {
       const lbl = el("label", { style: "display:flex;gap:6px;align-items:center;font-size:13px;padding:2px 6px;border:1px solid var(--sw-border);border-radius:4px;cursor:pointer;" });
@@ -1089,7 +1216,7 @@ class ScheduleWizardPanel extends HTMLElement {
     card.appendChild(notifySection);
 
     const seasonalSection = el("div", {
-      style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);",
+      style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);" + (showAdvanced ? "" : "display:none;"),
     });
     seasonalSection.appendChild(el("h3", { style: "margin:0 0 6px;font-size:14px;" }, "Seasonal adjustment (temperature-based)"));
     const tempUnit = this._state.temperature_unit || "°";
@@ -1158,7 +1285,7 @@ class ScheduleWizardPanel extends HTMLElement {
     card.appendChild(seasonalSection);
 
     const moistureSection = el("div", {
-      style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);",
+      style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);" + (showAdvanced ? "" : "display:none;"),
     });
     moistureSection.appendChild(el("h3", { style: "margin:0 0 6px;font-size:14px;" }, "Soil moisture skip"));
     moistureSection.appendChild(el("p", { class: "muted", style: "font-size:12px;margin:0 0 10px;" },
@@ -1176,7 +1303,7 @@ class ScheduleWizardPanel extends HTMLElement {
     card.appendChild(moistureSection);
 
     const overlapSection = el("div", {
-      style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);",
+      style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);" + (showAdvanced ? "" : "display:none;"),
     });
     overlapSection.appendChild(el("h3", { style: "margin:0 0 6px;font-size:14px;" }, "Cycle overlap"));
     overlapSection.appendChild(el("p", { class: "muted", style: "font-size:12px;margin:0 0 10px;" },
@@ -1186,6 +1313,39 @@ class ScheduleWizardPanel extends HTMLElement {
     allowConcurrent.checked = !!opts.allow_concurrent_cycles;
     overlapSection.appendChild(el("label", { class: "field" }, [el("span", {}, "Allow concurrent cycles"), allowConcurrent]));
     card.appendChild(overlapSection);
+
+    const masterSection = el("div", {
+      style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);" + (showAdvanced ? "" : "display:none;"),
+    });
+    masterSection.appendChild(el("h3", { style: "margin:0 0 6px;font-size:14px;" }, "Master valve / pump"));
+    masterSection.appendChild(el("p", { class: "muted", style: "font-size:12px;margin:0 0 10px;" },
+      "Optional. A central valve/pump that opens before any zone runs and closes after the last zone closes."
+    ));
+    const masterEntity = el("input", { type: "text", placeholder: "switch.water_pump", value: String(opts.master_valve_entity || "") });
+    const masterPreOpen = el("input", { type: "number", min: "0", max: "600", value: String(opts.master_valve_pre_open_sec ?? 0) });
+    masterSection.appendChild(el("label", { class: "field" }, [el("span", {}, "Master valve / pump entity"), masterEntity]));
+    masterSection.appendChild(el("label", { class: "field" }, [
+      el("span", {}, "Pre-open delay (seconds — pump pressurization time)"),
+      masterPreOpen,
+    ]));
+    card.appendChild(masterSection);
+
+    const failSection = el("div", {
+      style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);" + (showAdvanced ? "" : "display:none;"),
+    });
+    failSection.appendChild(el("h3", { style: "margin:0 0 6px;font-size:14px;" }, "Fail-to-open detection"));
+    failSection.appendChild(el("p", { class: "muted", style: "font-size:12px;margin:0 0 10px;" },
+      "After opening a valve, verify it actually went on. If not, log error, fire event, and notify."
+    ));
+    const failEnabled = el("input", { type: "checkbox" });
+    failEnabled.checked = !!opts.fail_detection_enabled;
+    const failSeconds = el("input", { type: "number", min: "1", max: "120", value: String(opts.fail_detection_seconds ?? 5) });
+    failSection.appendChild(el("label", { class: "field" }, [el("span", {}, "Enabled"), failEnabled]));
+    failSection.appendChild(el("label", { class: "field" }, [
+      el("span", {}, "Verification window (seconds)"),
+      failSeconds,
+    ]));
+    card.appendChild(failSection);
 
     const feedback = el("div", { class: "muted", style: "margin-top:8px;font-size:12px;" });
     const saveBtn = el("button", { class: "btn primary" }, "Save settings");
@@ -1219,6 +1379,10 @@ class ScheduleWizardPanel extends HTMLElement {
           moisture_entity: moistureEntity.value.trim(),
           moisture_attribute: moistureAttr.value.trim(),
           moisture_threshold_skip_above: moistureThreshold.value.trim() === "" ? null : parseFloat(moistureThreshold.value),
+          master_valve_entity: masterEntity.value.trim(),
+          master_valve_pre_open_sec: parseInt(masterPreOpen.value, 10) || 0,
+          fail_detection_enabled: failEnabled.checked,
+          fail_detection_seconds: parseInt(failSeconds.value, 10) || 5,
         });
         feedback.textContent = "Saved at " + new Date().toLocaleTimeString() + ". Integration reloaded.";
         this._toast("Settings saved", "ok");

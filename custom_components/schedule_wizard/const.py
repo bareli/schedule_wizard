@@ -36,6 +36,12 @@ CONF_MOISTURE_ENTITY = "moisture_entity"
 CONF_MOISTURE_ATTRIBUTE = "moisture_attribute"
 CONF_MOISTURE_THRESHOLD_SKIP_ABOVE = "moisture_threshold_skip_above"
 
+CONF_MASTER_VALVE_ENTITY = "master_valve_entity"
+CONF_MASTER_VALVE_PRE_OPEN_SEC = "master_valve_pre_open_sec"
+CONF_FAIL_DETECTION_ENABLED = "fail_detection_enabled"
+CONF_FAIL_DETECTION_SECONDS = "fail_detection_seconds"
+CONF_RAIN_DELAY_UNTIL = "rain_delay_until"
+
 DEFAULT_RAIN_SKIP_STATES = "rainy,pouring,snowy,lightning-rainy"
 
 NOTIFY_EVENTS = (
@@ -44,6 +50,8 @@ NOTIFY_EVENTS = (
     "cycle_start",
     "cycle_end",
     "skipped_rain",
+    "valve_failed",
+    "rain_delay",
 )
 
 SUPPORTED_DOMAINS = ("switch", "valve", "cover", "input_boolean", "light")
@@ -56,6 +64,15 @@ EVENT_CYCLE_STARTED = f"{DOMAIN}_cycle_started"
 EVENT_CYCLE_ENDED = f"{DOMAIN}_cycle_ended"
 EVENT_RAIN_SKIPPED = f"{DOMAIN}_rain_skipped"
 EVENT_CYCLE_SKIPPED_OVERLAP = f"{DOMAIN}_cycle_skipped_overlap"
+EVENT_VALVE_FAILED = f"{DOMAIN}_valve_failed_to_open"
+EVENT_RAIN_DELAY_SET = f"{DOMAIN}_rain_delay_set"
+EVENT_CYCLE_PAUSED = f"{DOMAIN}_cycle_paused"
+EVENT_CYCLE_RESUMED = f"{DOMAIN}_cycle_resumed"
+
+NOTIFY_EVENTS_EXTRA = (
+    "valve_failed",
+    "rain_delay",
+)
 
 DAY_BITS = {0: 1, 1: 2, 2: 4, 3: 8, 4: 16, 5: 32, 6: 64}
 
@@ -72,3 +89,7 @@ SERVICE_REMOVE_CYCLE = "remove_cycle"
 SERVICE_RUN_CYCLE = "run_cycle"
 SERVICE_STOP_CYCLE = "stop_cycle"
 SERVICE_LIST = "list_config"
+SERVICE_RAIN_DELAY = "set_rain_delay"
+SERVICE_CLEAR_RAIN_DELAY = "clear_rain_delay"
+SERVICE_PAUSE_CYCLE = "pause_cycle"
+SERVICE_RESUME_CYCLE = "resume_cycle"

@@ -20,10 +20,13 @@ from homeassistant.util import dt as dt_util
 from .const import (
     DAY_BITS,
     EVENT_CYCLE_ENDED,
+    EVENT_CYCLE_PAUSED,
+    EVENT_CYCLE_RESUMED,
     EVENT_CYCLE_SKIPPED_OVERLAP,
     EVENT_CYCLE_STARTED,
     EVENT_RAIN_SKIPPED,
     EVENT_VALVE_ENDED,
+    EVENT_VALVE_FAILED,
     EVENT_VALVE_STARTED,
     SIGNAL_STATE_CHANGED,
     SUPPORTED_DOMAINS,
@@ -140,6 +143,8 @@ class Scheduler:
 
     @callback
     def _on_minute(self, now: datetime) -> None:
+        if self._is_rain_delay_active():
+            return
         local = dt_util.as_local(now)
         weekday = local.weekday()
         bit = DAY_BITS[weekday]
@@ -278,6 +283,8 @@ class Scheduler:
             )
 
     async def _on_calendar_poll(self, _now: datetime) -> None:
+        if self._is_rain_delay_active():
+            return
         cal = self.options.get("calendar_entity") or ""
         if not cal:
             return
@@ -522,6 +529,14 @@ class Scheduler:
             return int(base)
         return max(1, int(round(base * factor)))
 
+    def _is_rain_delay_active(self) -> int:
+        until = int(self.options.get("rain_delay_until") or 0)
+        if until <= 0:
+            return 0
+        if until <= int(time.time()):
+            return 0
+        return until
+
     def _should_skip_for_moisture(self) -> bool:
         entity_id = (self.options.get("moisture_entity") or "").strip()
         if not entity_id:
@@ -592,8 +607,30 @@ class Scheduler:
                 unsub()
             self._active.pop(entity_id, None)
 
+        if not self._active and not self._active_cycles:
+            await self._async_master_open()
+
         await self._call_service_on(entity_id)
         ends_at = int(time.time()) + seconds
+
+        opened = await self._async_verify_opened(entity_id)
+        if not opened:
+            label = self._entity_label(entity_id)
+            LOG.error("valve %s did not open within %ss", entity_id, self.options.get("fail_detection_seconds", 5))
+            self.hass.bus.async_fire(EVENT_VALVE_FAILED, {
+                "entity_id": entity_id,
+                "label": label,
+                "source": source,
+                "duration_min": duration_min,
+            })
+            self.hass.async_create_task(self._notify(
+                "valve_failed",
+                "Schedule Wizard",
+                f"Valve failed to open: {label}",
+            ))
+            await self.store.async_record_run(entity_id, source, duration_min, "failed_to_open", note)
+            await self._async_master_maybe_close()
+            raise RuntimeError(f"valve {entity_id} did not open")
 
         unsub = async_call_later(self.hass, seconds, self._make_close_callback(entity_id))
         self._active[entity_id] = {
@@ -658,6 +695,7 @@ class Scheduler:
             "Schedule Wizard",
             f"Closed {label} ({status})",
         ))
+        self.hass.async_create_task(self._async_master_maybe_close())
 
     async def async_run_cycle(self, cycle_id: str, source: str = "manual", note: str = "", duration_factor: float = 1.0) -> dict:
         cycle = self.store.get_cycle(cycle_id)
@@ -722,7 +760,8 @@ class Scheduler:
                         cycle_id, i + 1, entity_id, duration, base_duration, factor,
                     )
                     continue
-                self._active_cycles[cycle_id]["step"] = i + 1
+                offset = int(state.get("start_offset", 0))
+                self._active_cycles[cycle_id]["step"] = offset + i + 1
                 self._active_cycles[cycle_id]["current_entity"] = entity_id
                 async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
                 try:
@@ -761,24 +800,89 @@ class Scheduler:
                     await self.async_stop_valve(current_entity)
                 except Exception as e:
                     LOG.warning("stop step valve failed: %s", e)
-            await self.store.async_record_run(
-                cycle_id, state.get("source", "manual"), 0,
-                "cycle_cancelled", state.get("note", ""),
-            )
-            self.hass.bus.async_fire(EVENT_CYCLE_ENDED, {
-                "cycle_id": cycle_id,
-                "name": cycle.get("name", ""),
-                "status": "cancelled",
-                "source": state.get("source", "manual"),
-            })
-            self.hass.async_create_task(self._notify(
-                "cycle_end",
-                "Schedule Wizard",
-                f"Cycle cancelled: {cycle.get('name', cycle_id)}",
-            ))
+            if not state.get("paused"):
+                await self.store.async_record_run(
+                    cycle_id, state.get("source", "manual"), 0,
+                    "cycle_cancelled", state.get("note", ""),
+                )
+                self.hass.bus.async_fire(EVENT_CYCLE_ENDED, {
+                    "cycle_id": cycle_id,
+                    "name": cycle.get("name", ""),
+                    "status": "cancelled",
+                    "source": state.get("source", "manual"),
+                })
+                self.hass.async_create_task(self._notify(
+                    "cycle_end",
+                    "Schedule Wizard",
+                    f"Cycle cancelled: {cycle.get('name', cycle_id)}",
+                ))
         finally:
+            if not state.get("paused"):
+                self._active_cycles.pop(cycle_id, None)
+            async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+            self.hass.async_create_task(self._async_master_maybe_close())
+
+    async def async_pause_cycle(self, cycle_id: str) -> None:
+        state = self._active_cycles.get(cycle_id)
+        if not state or state.get("paused"):
+            return
+        current_step_idx = max(0, int(state.get("step", 0)) - 1)
+        state["paused"] = True
+        state["paused_at_step"] = current_step_idx + 1
+        cur_entity = state.get("current_entity")
+        task = state.get("task")
+        if task and not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        if cur_entity:
+            await self._close_valve_safe(cur_entity)
+        # Re-add to active_cycles in paused state (cancellation popped via finally)
+        self._active_cycles[cycle_id] = state
+        async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+        self.hass.bus.async_fire(EVENT_CYCLE_PAUSED, {
+            "cycle_id": cycle_id,
+            "name": state.get("cycle_name", ""),
+            "paused_at_step": state.get("paused_at_step", 0),
+        })
+
+    async def async_resume_cycle(self, cycle_id: str) -> None:
+        state = self._active_cycles.get(cycle_id)
+        if not state or not state.get("paused"):
+            return
+        cycle = self.store.get_cycle(cycle_id)
+        if not cycle:
+            self._active_cycles.pop(cycle_id, None)
+            return
+        start_from = int(state.get("paused_at_step", 0))
+        steps_full = cycle.get("steps") or []
+        remaining_steps = steps_full[start_from:]
+        if not remaining_steps:
             self._active_cycles.pop(cycle_id, None)
             async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+            return
+        cycle_resume = {**cycle, "steps": remaining_steps}
+        state["paused"] = False
+        state["step"] = 0
+        state["total_steps"] = len(steps_full)
+        state["start_offset"] = start_from
+        self._active_cycles[cycle_id] = state
+        task = self.hass.async_create_task(self._run_cycle_task(cycle_resume, state))
+        state["task"] = task
+        async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+        self.hass.bus.async_fire(EVENT_CYCLE_RESUMED, {
+            "cycle_id": cycle_id,
+            "name": cycle.get("name", ""),
+            "from_step": start_from + 1,
+        })
+
+    async def _close_valve_safe(self, entity_id: str) -> None:
+        try:
+            await self._call_service_off(entity_id)
+        except Exception as e:
+            LOG.warning("close valve %s failed: %s", entity_id, e)
 
     async def async_stop_cycle(self, cycle_id: str, note: str = "manual stop") -> None:
         state = self._active_cycles.get(cycle_id)
@@ -809,6 +913,42 @@ class Scheduler:
             "open_valve" if domain == "valve" else "turn_on"
         )
         await self.hass.services.async_call(domain, service, {"entity_id": entity_id}, blocking=True)
+
+    async def _async_master_open(self) -> None:
+        master = (self.options.get("master_valve_entity") or "").strip()
+        if not master:
+            return
+        try:
+            await self._call_service_on(master)
+            pre = int(self.options.get("master_valve_pre_open_sec") or 0)
+            if pre > 0:
+                await asyncio.sleep(pre)
+        except Exception as e:
+            LOG.warning("master valve open failed: %s", e)
+
+    async def _async_master_maybe_close(self) -> None:
+        master = (self.options.get("master_valve_entity") or "").strip()
+        if not master:
+            return
+        if self._active or self._active_cycles:
+            return
+        try:
+            await self._call_service_off(master)
+        except Exception as e:
+            LOG.warning("master valve close failed: %s", e)
+
+    async def _async_verify_opened(self, entity_id: str) -> bool:
+        if not self.options.get("fail_detection_enabled"):
+            return True
+        wait = int(self.options.get("fail_detection_seconds") or 5)
+        on_states = {"on", "open", "opening", "active"}
+        for _ in range(wait):
+            await asyncio.sleep(1)
+            state = self.hass.states.get(entity_id)
+            if state and state.state in on_states:
+                return True
+        state = self.hass.states.get(entity_id)
+        return bool(state and state.state in on_states)
 
     async def _call_service_off(self, entity_id: str) -> None:
         domain = entity_id.split(".")[0]

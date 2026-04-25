@@ -250,7 +250,7 @@ class ScheduleWizardCard extends HTMLElement {
     const subLines = [
       active
         ? `${fmtRemaining(Math.max(0, active.ends_at - now))} remaining`
-        : `default ${v.default_duration_min}m`,
+        : `default ${v.default_duration_min}min`,
     ];
     if (!active && v.next_run) {
       const inMin = Math.max(0, Math.round(v.next_run.in_seconds / 60));

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0 — rain delay, master valve, fail detection, cycle pause/resume, Settings basic/advanced
+
+- **Rain delay** button on Dashboard: pause all schedule + calendar runs for 24h / 48h / 7d, with one-tap clear. New services `set_rain_delay` and `clear_rain_delay`.
+- **Master valve / pump** option: a central valve that auto-opens before the first zone runs and auto-closes after the last zone closes. Optional pre-open delay for pump pressurization.
+- **Fail-to-open detection**: after issuing a turn-on, verify entity reaches an "on" state within N seconds. If not, log error, fire `schedule_wizard_valve_failed_to_open`, send notification.
+- **Cycle pause / resume**: pause an in-progress cycle (current valve closes, remaining steps held) and resume from where it left off. New services `pause_cycle`, `resume_cycle`. New events `cycle_paused`, `cycle_resumed`.
+- **Settings: Basic / Advanced split**: Settings tab opens with just calendar fields visible. "Show advanced" reveals rain skip, seasonal, moisture, master valve, fail detection, notifications, cycle overlap.
+- New notification event types: `valve_failed`, `rain_delay`.
+- "10m" → "10min" everywhere in the dashboard for clarity.
+- **Recent activity** groups cycle runs with their valve openings indented under the parent cycle.
+
 ## 0.6.4 — fix cycle never starting + blocking I/O
 
 - Fixed: cycle task started eagerly before being added to the active-cycles map (HA 2024.7+ `async_create_task` runs eagerly). The task saw "not in active_cycles" and exited immediately, leaving a phantom step-0 entry. Now adds to the map first, then starts the task.

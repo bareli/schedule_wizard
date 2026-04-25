@@ -32,9 +32,14 @@ from .const import (
     CONF_RAIN_SKIP_STATES,
     CONF_RAIN_THRESHOLD,
     CONF_ALLOW_CONCURRENT_CYCLES,
+    CONF_FAIL_DETECTION_ENABLED,
+    CONF_FAIL_DETECTION_SECONDS,
+    CONF_MASTER_VALVE_ENTITY,
+    CONF_MASTER_VALVE_PRE_OPEN_SEC,
     CONF_MOISTURE_ATTRIBUTE,
     CONF_MOISTURE_ENTITY,
     CONF_MOISTURE_THRESHOLD_SKIP_ABOVE,
+    CONF_RAIN_DELAY_UNTIL,
     CONF_SEASONAL_ENABLED,
     CONF_SEASONAL_MAX_PCT,
     CONF_SEASONAL_MIN_PCT,
@@ -51,10 +56,14 @@ from .const import (
     SERVICE_ADD_CYCLE,
     SERVICE_ADD_SCHEDULE,
     SERVICE_ADD_VALVE,
+    SERVICE_CLEAR_RAIN_DELAY,
     SERVICE_LIST,
+    SERVICE_PAUSE_CYCLE,
+    SERVICE_RAIN_DELAY,
     SERVICE_REMOVE_CYCLE,
     SERVICE_REMOVE_SCHEDULE,
     SERVICE_REMOVE_VALVE,
+    SERVICE_RESUME_CYCLE,
     SERVICE_RUN_CYCLE,
     SERVICE_RUN_VALVE,
     SERVICE_STOP_CYCLE,
@@ -165,6 +174,16 @@ SCHEMA_RUN_CYCLE = vol.Schema({
 })
 
 SCHEMA_STOP_CYCLE = vol.Schema({
+    vol.Required("cycle_id"): cv.string,
+})
+
+SCHEMA_RAIN_DELAY = vol.Schema({
+    vol.Required("hours"): vol.All(vol.Any(int, float), vol.Range(min=0.5, max=720)),
+})
+
+SCHEMA_NO_ARGS = vol.Schema({})
+
+SCHEMA_PAUSE_RESUME_CYCLE = vol.Schema({
     vol.Required("cycle_id"): cv.string,
 })
 
@@ -409,6 +428,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "notify_services": notify_services,
             "notify_events": list(NOTIFY_EVENTS),
             "temperature_unit": temp_unit,
+            "rain_delay_until": entry.options.get(CONF_RAIN_DELAY_UNTIL, 0),
             "webhook_id": data.get("webhook_id", ""),
             "now": int(time.time()),
         })
@@ -436,6 +456,10 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         vol.Optional(CONF_MOISTURE_ENTITY): vol.Any(str, None),
         vol.Optional(CONF_MOISTURE_ATTRIBUTE): vol.Any(str, None),
         vol.Optional(CONF_MOISTURE_THRESHOLD_SKIP_ABOVE): vol.Any(float, int, None),
+        vol.Optional(CONF_MASTER_VALVE_ENTITY): vol.Any(str, None),
+        vol.Optional(CONF_MASTER_VALVE_PRE_OPEN_SEC): vol.All(int, vol.Range(min=0, max=600)),
+        vol.Optional(CONF_FAIL_DETECTION_ENABLED): cv.boolean,
+        vol.Optional(CONF_FAIL_DETECTION_SECONDS): vol.All(int, vol.Range(min=1, max=120)),
     })
     @websocket_api.async_response
     async def _ws_update_options(hass_inner, connection, msg):
@@ -458,6 +482,8 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             CONF_SEASONAL_MIN_PCT, CONF_SEASONAL_MAX_PCT,
             CONF_ALLOW_CONCURRENT_CYCLES,
             CONF_MOISTURE_ENTITY, CONF_MOISTURE_ATTRIBUTE, CONF_MOISTURE_THRESHOLD_SKIP_ABOVE,
+            CONF_MASTER_VALVE_ENTITY, CONF_MASTER_VALVE_PRE_OPEN_SEC,
+            CONF_FAIL_DETECTION_ENABLED, CONF_FAIL_DETECTION_SECONDS,
         ):
             if key in msg:
                 new_options[key] = msg[key]
@@ -495,6 +521,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         CONF_MOISTURE_ENTITY: entry.options.get(CONF_MOISTURE_ENTITY, ""),
         CONF_MOISTURE_ATTRIBUTE: entry.options.get(CONF_MOISTURE_ATTRIBUTE, ""),
         CONF_MOISTURE_THRESHOLD_SKIP_ABOVE: entry.options.get(CONF_MOISTURE_THRESHOLD_SKIP_ABOVE, None),
+        CONF_MASTER_VALVE_ENTITY: entry.options.get(CONF_MASTER_VALVE_ENTITY, ""),
+        CONF_MASTER_VALVE_PRE_OPEN_SEC: entry.options.get(CONF_MASTER_VALVE_PRE_OPEN_SEC, 0),
+        CONF_FAIL_DETECTION_ENABLED: entry.options.get(CONF_FAIL_DETECTION_ENABLED, False),
+        CONF_FAIL_DETECTION_SECONDS: entry.options.get(CONF_FAIL_DETECTION_SECONDS, 5),
+        CONF_RAIN_DELAY_UNTIL: entry.options.get(CONF_RAIN_DELAY_UNTIL, 0),
         "calendar_entity": entry.options.get(CONF_CALENDAR_ENTITY, ""),
         "calendar_lookahead_min": entry.options.get(CONF_CALENDAR_LOOKAHEAD, DEFAULT_CALENDAR_LOOKAHEAD),
         "poll_interval": entry.options.get(CONF_POLL_INTERVAL, DEFAULT_CALENDAR_POLL_SECONDS),
@@ -516,6 +547,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "moisture_entity": entry.options.get(CONF_MOISTURE_ENTITY, ""),
         "moisture_attribute": entry.options.get(CONF_MOISTURE_ATTRIBUTE, ""),
         "moisture_threshold_skip_above": entry.options.get(CONF_MOISTURE_THRESHOLD_SKIP_ABOVE, None),
+        "master_valve_entity": entry.options.get(CONF_MASTER_VALVE_ENTITY, ""),
+        "master_valve_pre_open_sec": entry.options.get(CONF_MASTER_VALVE_PRE_OPEN_SEC, 0),
+        "fail_detection_enabled": entry.options.get(CONF_FAIL_DETECTION_ENABLED, False),
+        "fail_detection_seconds": entry.options.get(CONF_FAIL_DETECTION_SECONDS, 5),
+        "rain_delay_until": entry.options.get(CONF_RAIN_DELAY_UNTIL, 0),
     }
 
     scheduler = Scheduler(hass, store, options)
@@ -654,6 +690,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def _svc_stop_cycle(call: ServiceCall) -> None:
         await scheduler.async_stop_cycle(call.data["cycle_id"])
 
+    async def _svc_rain_delay(call: ServiceCall) -> None:
+        hours = float(call.data["hours"])
+        until_ts = int(time.time()) + int(hours * 3600)
+        new_options = dict(entry.options)
+        new_options[CONF_RAIN_DELAY_UNTIL] = until_ts
+        hass.config_entries.async_update_entry(entry, options=new_options)
+        hass.bus.async_fire("schedule_wizard_rain_delay_set", {"until": until_ts, "hours": hours})
+        await scheduler._notify("rain_delay", "Schedule Wizard", f"Rain delay set for {hours}h")
+
+    async def _svc_clear_rain_delay(call: ServiceCall) -> None:
+        new_options = dict(entry.options)
+        new_options[CONF_RAIN_DELAY_UNTIL] = 0
+        hass.config_entries.async_update_entry(entry, options=new_options)
+        hass.bus.async_fire("schedule_wizard_rain_delay_set", {"until": 0, "hours": 0})
+        await scheduler._notify("rain_delay", "Schedule Wizard", "Rain delay cleared")
+
+    async def _svc_pause_cycle(call: ServiceCall) -> None:
+        await scheduler.async_pause_cycle(call.data["cycle_id"])
+
+    async def _svc_resume_cycle(call: ServiceCall) -> None:
+        await scheduler.async_resume_cycle(call.data["cycle_id"])
+
     async def _svc_remove_schedule(call: ServiceCall) -> None:
         await store.async_remove_schedule(call.data["schedule_id"])
 
@@ -719,6 +777,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(DOMAIN, SERVICE_REMOVE_CYCLE, _svc_remove_cycle, schema=SCHEMA_REMOVE_CYCLE)
     hass.services.async_register(DOMAIN, SERVICE_RUN_CYCLE, _svc_run_cycle, schema=SCHEMA_RUN_CYCLE)
     hass.services.async_register(DOMAIN, SERVICE_STOP_CYCLE, _svc_stop_cycle, schema=SCHEMA_STOP_CYCLE)
+    hass.services.async_register(DOMAIN, SERVICE_RAIN_DELAY, _svc_rain_delay, schema=SCHEMA_RAIN_DELAY)
+    hass.services.async_register(DOMAIN, SERVICE_CLEAR_RAIN_DELAY, _svc_clear_rain_delay, schema=SCHEMA_NO_ARGS)
+    hass.services.async_register(DOMAIN, SERVICE_PAUSE_CYCLE, _svc_pause_cycle, schema=SCHEMA_PAUSE_RESUME_CYCLE)
+    hass.services.async_register(DOMAIN, SERVICE_RESUME_CYCLE, _svc_resume_cycle, schema=SCHEMA_PAUSE_RESUME_CYCLE)
     hass.services.async_register(
         DOMAIN, SERVICE_LIST, _svc_list, supports_response=SupportsResponse.ONLY
     )
@@ -765,6 +827,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             SERVICE_REMOVE_CYCLE,
             SERVICE_RUN_CYCLE,
             SERVICE_STOP_CYCLE,
+            SERVICE_RAIN_DELAY,
+            SERVICE_CLEAR_RAIN_DELAY,
+            SERVICE_PAUSE_CYCLE,
+            SERVICE_RESUME_CYCLE,
             SERVICE_LIST,
         ):
             if hass.services.has_service(DOMAIN, svc):

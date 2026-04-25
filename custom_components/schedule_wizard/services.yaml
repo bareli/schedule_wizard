@@ -292,6 +292,45 @@ stop_cycle:
       selector:
         text:
 
+set_rain_delay:
+  name: Set rain delay
+  description: Skip all schedule and calendar runs for the next N hours.
+  fields:
+    hours:
+      name: Hours
+      required: true
+      example: 24
+      selector:
+        number:
+          min: 0.5
+          max: 720
+          step: 0.5
+          unit_of_measurement: h
+
+clear_rain_delay:
+  name: Clear rain delay
+  description: Resume schedule and calendar runs immediately.
+
+pause_cycle:
+  name: Pause cycle
+  description: Pause an in-progress cycle. Current valve closes; remaining steps wait for resume.
+  fields:
+    cycle_id:
+      name: Cycle ID
+      required: true
+      selector:
+        text:
+
+resume_cycle:
+  name: Resume cycle
+  description: Resume a paused cycle from where it left off.
+  fields:
+    cycle_id:
+      name: Cycle ID
+      required: true
+      selector:
+        text:
+
 list_config:
   name: List config
   description: Returns the registered valves, schedules, cycles, active runs, active cycles, and recent history.
