@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.1 — fix get_state crash on rain_delay_until
+
+- Fixed `AttributeError: 'dict' object has no attribute 'options'` in the WebSocket `get_state` handler when reading `rain_delay_until`. Reads from the cached options dict instead of trying to access a non-existent `entry` variable.
+
 ## 0.7.0 — rain delay, master valve, fail detection, cycle pause/resume, Settings basic/advanced
 
 - **Rain delay** button on Dashboard: pause all schedule + calendar runs for 24h / 48h / 7d, with one-tap clear. New services `set_rain_delay` and `clear_rain_delay`.

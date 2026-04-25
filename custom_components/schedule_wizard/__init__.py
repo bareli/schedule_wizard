@@ -428,7 +428,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "notify_services": notify_services,
             "notify_events": list(NOTIFY_EVENTS),
             "temperature_unit": temp_unit,
-            "rain_delay_until": entry.options.get(CONF_RAIN_DELAY_UNTIL, 0),
+            "rain_delay_until": options.get(CONF_RAIN_DELAY_UNTIL, options.get("rain_delay_until", 0)),
             "webhook_id": data.get("webhook_id", ""),
             "now": int(time.time()),
         })
