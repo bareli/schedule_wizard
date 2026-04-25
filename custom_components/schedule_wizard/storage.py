@@ -10,7 +10,7 @@ from homeassistant.helpers.storage import Store
 
 from .const import STORAGE_KEY, STORAGE_VERSION
 
-MAX_HISTORY = 100
+MAX_HISTORY = 500
 
 
 class WizardStore:

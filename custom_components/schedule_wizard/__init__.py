@@ -421,7 +421,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "cycles": store.cycles,
             "active": active,
             "active_cycles": active_cycles,
-            "history": store.history[:30],
+            "history": store.history[:500],
             "options": options,
             "controllable": controllable,
             "calendars": calendars,

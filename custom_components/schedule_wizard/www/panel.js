@@ -55,7 +55,7 @@ const STYLES = `
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 .card h2 { margin: 0 0 12px; font-size: 16px; font-weight: 600; }
-.row-between { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 .list { display: flex; flex-direction: column; gap: 8px; }
 .empty { color: var(--sw-muted); font-style: italic; padding: 8px 0; }
 .item {
@@ -348,7 +348,7 @@ class ScheduleWizardPanel extends HTMLElement {
     app.appendChild(top);
 
     const tabs = el("div", { class: "tabs" });
-    [["dashboard", "Dashboard"], ["valves", "Valves"], ["cycles", "Cycles"], ["schedules", "Schedules"], ["settings", "Settings"]]
+    [["dashboard", "Dashboard"], ["valves", "Valves"], ["cycles", "Cycles"], ["schedules", "Schedules"], ["reports", "Reports"], ["settings", "Settings"]]
       .forEach(([key, label]) => {
         const btn = el("button", {
           class: "tab" + (this._tab === key ? " active" : ""),
@@ -366,6 +366,7 @@ class ScheduleWizardPanel extends HTMLElement {
       case "valves": this._renderValves(content); break;
       case "cycles": this._renderCycles(content); break;
       case "schedules": this._renderSchedules(content); break;
+      case "reports": this._renderReports(content); break;
       case "settings": this._renderSettings(content); break;
     }
   }
@@ -1069,6 +1070,210 @@ class ScheduleWizardPanel extends HTMLElement {
       }
       return await this._callService("add_schedule", { ...base, valve_entity_id: valveEntity, duration_minutes: duration });
     });
+  }
+
+  _renderReports(root) {
+    const history = this._state.history || [];
+    const valves = this._state.valves || [];
+    const cycles = this._state.cycles || [];
+    const cyclesById = Object.fromEntries(cycles.map(c => [c.id, c]));
+    const valvesById = Object.fromEntries(valves.map(v => [v.entity_id, v]));
+    const now = this._state.now;
+    const day = 86400;
+
+    const inWindow = (ts, days) => ts >= (now - days * day);
+
+    const valveStats = {};
+    const cycleStats = {};
+    const dailyMin = {};
+    const skipReasons = { skipped_rain: 0, skipped_moisture: 0, skipped_overlap: 0, failed_to_open: 0, cancelled: 0 };
+
+    history.forEach(h => {
+      const status = h.status || "";
+      const dur = parseInt(h.duration_min || 0, 10);
+      const isCycleEntry = !!cyclesById[h.valve_entity_id];
+      const target = isCycleEntry ? "cycle" : "valve";
+
+      if (status === "started") return;
+
+      if (status in skipReasons) skipReasons[status]++;
+
+      if (target === "valve") {
+        const id = h.valve_entity_id;
+        const s = valveStats[id] = valveStats[id] || { runs_7d: 0, min_7d: 0, runs_30d: 0, min_30d: 0, runs_total: 0, min_total: 0, last: null };
+        if (status === "completed" || status === "cancelled") {
+          if (inWindow(h.ts, 7)) { s.runs_7d++; s.min_7d += dur; }
+          if (inWindow(h.ts, 30)) { s.runs_30d++; s.min_30d += dur; }
+          s.runs_total++; s.min_total += dur;
+          if (!s.last || h.ts > s.last.ts) s.last = h;
+          if (inWindow(h.ts, 30)) {
+            const dayKey = Math.floor(h.ts / day);
+            dailyMin[dayKey] = (dailyMin[dayKey] || 0) + dur;
+          }
+        }
+      } else {
+        const id = h.valve_entity_id;
+        const cs = cycleStats[id] = cycleStats[id] || { name: cyclesById[id]?.name || id, runs_30d: 0, completed: 0, cancelled: 0, skipped: 0 };
+        if (inWindow(h.ts, 30)) {
+          cs.runs_30d++;
+          if (status === "cycle_completed") cs.completed++;
+          else if (status === "cycle_cancelled") cs.cancelled++;
+          else if (status.startsWith("skipped")) cs.skipped++;
+        }
+      }
+    });
+
+    const exportCard = el("div", { class: "card" }, [
+      el("div", { class: "row-between" }, [
+        el("h2", {}, "Reports"),
+        el("button", {
+          class: "btn primary small",
+          onClick: () => this._downloadHistoryCsv(),
+        }, "Export CSV"),
+      ]),
+      el("p", { class: "muted small", style: "margin:0;" },
+        `Based on the last ${history.length} history entries (cap 500). Older entries are dropped.`),
+    ]);
+    root.appendChild(exportCard);
+
+    const dayLabels = [];
+    const dayValues = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date((now - i * day) * 1000);
+      const key = Math.floor((now - i * day) / day);
+      dayLabels.push(d.toLocaleDateString(undefined, { month: "numeric", day: "numeric" }));
+      dayValues.push(dailyMin[key] || 0);
+    }
+    const maxVal = Math.max(1, ...dayValues);
+    const chartCard = el("div", { class: "card" }, [el("h2", {}, "Last 30 days — total minutes per day")]);
+    const chart = el("div", {
+      style: "display:flex;align-items:flex-end;gap:2px;height:120px;border-bottom:1px solid var(--sw-border);padding-bottom:4px;",
+    });
+    dayValues.forEach((v, i) => {
+      const h = Math.round((v / maxVal) * 110);
+      const bar = el("div", {
+        title: `${dayLabels[i]} — ${v} min`,
+        style: `flex:1;height:${h}px;min-width:6px;background:var(--sw-primary);border-radius:2px 2px 0 0;`,
+      });
+      chart.appendChild(bar);
+    });
+    chartCard.appendChild(chart);
+    chartCard.appendChild(el("div", { style: "display:flex;justify-content:space-between;font-size:11px;color:var(--sw-muted);margin-top:4px;" }, [
+      el("span", {}, dayLabels[0]),
+      el("span", {}, dayLabels[Math.floor(dayValues.length / 2)]),
+      el("span", {}, dayLabels[dayValues.length - 1]),
+    ]));
+    root.appendChild(chartCard);
+
+    const valveTable = el("div", { class: "card" }, [el("h2", {}, "Per-valve totals")]);
+    if (!valves.length) {
+      valveTable.appendChild(el("div", { class: "empty" }, "No valves yet."));
+    } else {
+      const head = el("div", {
+        style: "display:grid;grid-template-columns:1.4fr repeat(3, 1fr);gap:6px;font-size:12px;font-weight:600;color:var(--sw-muted);padding:6px 4px;border-bottom:1px solid var(--sw-border);",
+      }, [
+        el("span", {}, "Valve"),
+        el("span", { style: "text-align:right;" }, "7d"),
+        el("span", { style: "text-align:right;" }, "30d"),
+        el("span", { style: "text-align:right;" }, "Total"),
+      ]);
+      valveTable.appendChild(head);
+      valves.forEach(v => {
+        const s = valveStats[v.entity_id] || { runs_7d: 0, min_7d: 0, runs_30d: 0, min_30d: 0, runs_total: 0, min_total: 0 };
+        const row = el("div", {
+          style: "display:grid;grid-template-columns:1.4fr repeat(3, 1fr);gap:6px;font-size:13px;padding:6px 4px;border-bottom:1px solid var(--sw-border);",
+        }, [
+          el("span", {}, v.label),
+          el("span", { style: "text-align:right;" }, `${s.runs_7d}× / ${s.min_7d}min`),
+          el("span", { style: "text-align:right;" }, `${s.runs_30d}× / ${s.min_30d}min`),
+          el("span", { style: "text-align:right;" }, `${s.runs_total}× / ${s.min_total}min`),
+        ]);
+        valveTable.appendChild(row);
+      });
+    }
+    root.appendChild(valveTable);
+
+    if (cycles.length) {
+      const cycleTable = el("div", { class: "card" }, [el("h2", {}, "Per-cycle totals (last 30 days)")]);
+      const head = el("div", {
+        style: "display:grid;grid-template-columns:1.5fr repeat(3, 0.7fr) 0.7fr;gap:6px;font-size:12px;font-weight:600;color:var(--sw-muted);padding:6px 4px;border-bottom:1px solid var(--sw-border);",
+      }, [
+        el("span", {}, "Cycle"),
+        el("span", { style: "text-align:right;" }, "Done"),
+        el("span", { style: "text-align:right;" }, "Cancelled"),
+        el("span", { style: "text-align:right;" }, "Skipped"),
+        el("span", { style: "text-align:right;" }, "Total"),
+      ]);
+      cycleTable.appendChild(head);
+      cycles.forEach(c => {
+        const s = cycleStats[c.id] || { completed: 0, cancelled: 0, skipped: 0, runs_30d: 0 };
+        const row = el("div", {
+          style: "display:grid;grid-template-columns:1.5fr repeat(3, 0.7fr) 0.7fr;gap:6px;font-size:13px;padding:6px 4px;border-bottom:1px solid var(--sw-border);",
+        }, [
+          el("span", {}, c.name),
+          el("span", { style: "text-align:right;color:var(--sw-success);" }, String(s.completed)),
+          el("span", { style: "text-align:right;color:var(--sw-warn);" }, String(s.cancelled)),
+          el("span", { style: "text-align:right;color:var(--sw-muted);" }, String(s.skipped)),
+          el("span", { style: "text-align:right;font-weight:600;" }, String(s.runs_30d)),
+        ]);
+        cycleTable.appendChild(row);
+      });
+      root.appendChild(cycleTable);
+    }
+
+    const skipsCard = el("div", { class: "card" }, [el("h2", {}, "Skip reasons (entire history)")]);
+    const skipGrid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;" });
+    [
+      ["skipped_rain", "Rain"],
+      ["skipped_moisture", "Moisture"],
+      ["skipped_overlap", "Overlap"],
+      ["failed_to_open", "Failed"],
+      ["cancelled", "Cancelled"],
+    ].forEach(([key, label]) => {
+      skipGrid.appendChild(el("div", {
+        style: "padding:10px;border:1px solid var(--sw-border);border-radius:8px;background:var(--sw-bg);text-align:center;",
+      }, [
+        el("div", { style: "font-size:24px;font-weight:600;color:var(--sw-text);" }, String(skipReasons[key] || 0)),
+        el("div", { class: "muted small" }, label),
+      ]));
+    });
+    skipsCard.appendChild(skipGrid);
+    root.appendChild(skipsCard);
+  }
+
+  _downloadHistoryCsv() {
+    const history = this._state.history || [];
+    const valvesById = Object.fromEntries((this._state.valves || []).map(v => [v.entity_id, v.label]));
+    const cyclesById = Object.fromEntries((this._state.cycles || []).map(c => [c.id, c.name]));
+    const header = ["timestamp", "iso_time", "target_kind", "target_id", "target_label", "duration_min", "source", "status", "note"];
+    const rows = history.map(h => {
+      const isCycle = !!cyclesById[h.valve_entity_id];
+      const id = h.valve_entity_id || "";
+      const label = isCycle ? cyclesById[id] : (valvesById[id] || id);
+      const iso = new Date(h.ts * 1000).toISOString();
+      return [
+        h.ts, iso,
+        isCycle ? "cycle" : "valve",
+        id, label,
+        h.duration_min || 0,
+        h.source || "",
+        h.status || "",
+        (h.note || "").replace(/"/g, '""'),
+      ];
+    });
+    const escape = (v) => {
+      const s = String(v == null ? "" : v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const csv = [header.map(escape).join(","), ...rows.map(r => r.map(escape).join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `schedule_wizard_history_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
   }
 
   _renderSettings(root) {

@@ -19,13 +19,41 @@ Schedule Wizard handles all of the above in one integration with its own sidebar
 
 ## Features
 
+**Core scheduling**
 - Recurring schedules per valve: HH:MM + any subset of weekdays + duration.
-- Calendar-driven runs: event summary matches a valve label, description holds minutes.
-- Manual run / stop from the sidebar panel or services.
+- **Cycles (zone sequencing)**: ordered list of (valve, duration) steps run in series, as a single program. Schedule and calendar can target a cycle just like a single valve.
+- Calendar-driven runs: event summary matches a valve **or cycle** label/name, description holds minutes (for valves).
+- Manual run / stop / **pause / resume** from the sidebar panel or services.
 - Auto-close after configured duration.
 - **Active runs persist across HA restarts** — re-arms remaining timers based on entity state.
+
+**Smart skipping & adjustment**
+- **Rain delay** button: skip all schedule + calendar runs for 24h / 48h / 7d (or custom hours).
+- **Rain skip**: optional weather/sensor entity; skip when state matches a list or numeric value crosses a threshold.
+- **Soil moisture skip**: optional moisture sensor; skip when soil already wet.
+- **Seasonal adjustment** (temperature-scaled): scales schedule and calendar durations between low/high temperature thresholds, clamped to min/max percentages. Manual runs are not scaled.
+- **Cycle overlap protection**: schedule/calendar cycles skip while another cycle runs (off by default; opt-in `allow_concurrent_cycles`).
+
+**Reliability**
+- **Master valve / pump support**: a central valve auto-opens before any zone, auto-closes after the last zone closes. Optional pre-open delay for pump pressurization.
+- **Fail-to-open detection**: verifies the valve actually went on within N seconds; logs error, fires `valve_failed_to_open` event, sends notification if not.
+
+**Visibility**
+- Sidebar panel with five editable tabs: Dashboard, Valves, Cycles, Schedules, Settings (Basic / Advanced split — beginners only see what they need).
+- Lovelace card (`custom:schedule-wizard-card`) with active-run progress and Quick Run.
+- Per-valve **last run / 7-day stats / next opening** on the Dashboard, Valves tab, and Lovelace card.
+- **Recent activity** groups cycle runs with each valve opening indented under the parent cycle.
 - Two sensors: `active_runs` (with per-run details) and `next_schedule`.
-- Sidebar panel with editable tabs: Dashboard, Valves, Schedules, Settings.
+- 7 events fired on the HA event bus, ready as automation triggers.
+
+**Triggers**
+- Webhook (per-entry auto-generated URL): fire valve runs from external systems.
+- Notifications: pick any `notify.*` service(s); choose which events trigger pushes.
+
+**i18n**
+- 17 languages (config flow + service descriptions): English, Hebrew, Spanish, German, French, Italian, Dutch, Portuguese, Russian, Arabic, Polish, Simplified Chinese, Ukrainian, Swedish, Danish, Norwegian, Finnish.
+
+**Platform**
 - Single-instance config flow + options flow for HA-native configuration.
 - Domain-aware: `switch`, `valve`, `cover`, `input_boolean`, `light` (cover/valve use `open_*` / `close_*`, others use `turn_on` / `turn_off`).
 - Persistent storage via HA's `Store` helper (no SQLite, no external DB).
@@ -101,15 +129,25 @@ Options flow (Settings → Devices & Services → Schedule Wizard → Configure)
 
 ## Services
 
-| Service                           | Purpose                                                                   |
-| --------------------------------- | ------------------------------------------------------------------------- |
-| `schedule_wizard.run_valve`       | Open an entity for `duration_minutes`. Auto-closes when done.             |
-| `schedule_wizard.stop_valve`      | Close an entity now. Cancels any active timer.                            |
-| `schedule_wizard.add_valve`       | Register a valve (entity_id + label + default duration).                  |
-| `schedule_wizard.remove_valve`    | Unregister a valve and delete its schedules.                              |
-| `schedule_wizard.add_schedule`    | Add a recurring schedule (time + days + duration). Returns new schedule.  |
-| `schedule_wizard.remove_schedule` | Delete a schedule by id.                                                  |
-| `schedule_wizard.list_config`     | Return valves, schedules, active runs, recent history (response service). |
+| Service                           | Purpose                                                                                       |
+| --------------------------------- | --------------------------------------------------------------------------------------------- |
+| `schedule_wizard.run_valve`       | Open an entity for `duration_minutes`. Auto-closes when done.                                 |
+| `schedule_wizard.stop_valve`      | Close an entity now. Cancels any active timer.                                                |
+| `schedule_wizard.add_valve`       | Register a valve (entity_id + label + default duration).                                      |
+| `schedule_wizard.remove_valve`    | Unregister a valve and delete its schedules.                                                  |
+| `schedule_wizard.add_schedule`    | Add a recurring schedule (time + days + duration; targets valve or cycle). Returns new id.    |
+| `schedule_wizard.update_schedule` | Patch an existing schedule by id.                                                             |
+| `schedule_wizard.remove_schedule` | Delete a schedule by id.                                                                      |
+| `schedule_wizard.add_cycle`       | Create a cycle: ordered list of `{entity_id, duration_minutes}` steps.                        |
+| `schedule_wizard.update_cycle`    | Patch an existing cycle.                                                                      |
+| `schedule_wizard.remove_cycle`    | Delete a cycle. Also removes schedules pointing to it.                                        |
+| `schedule_wizard.run_cycle`       | Start a cycle now; valves run sequentially.                                                   |
+| `schedule_wizard.stop_cycle`      | Cancel a running cycle.                                                                       |
+| `schedule_wizard.pause_cycle`     | Pause an in-progress cycle. Current valve closes; remaining steps wait for resume.            |
+| `schedule_wizard.resume_cycle`    | Resume a paused cycle from where it left off.                                                 |
+| `schedule_wizard.set_rain_delay`  | Skip all schedule and calendar runs for the next N hours.                                     |
+| `schedule_wizard.clear_rain_delay`| Resume schedule and calendar runs immediately.                                                |
+| `schedule_wizard.list_config`     | Return valves, schedules, cycles, active runs, active cycles, recent history (response).     |
 
 All services are visible under **Developer Tools → Actions** with full selectors.
 
@@ -220,6 +258,39 @@ Settings → **Soil moisture skip**:
 Fires event `schedule_wizard_moisture_skipped` with `target`, `kind`, `schedule_id`, `source`.
 
 Manual runs and cycles are not affected.
+
+## Rain delay
+
+One-tap pause for everything automated.
+
+Dashboard top → **Rain delay** card with `24h` / `48h` / `7d` buttons. Pick one — schedule and calendar runs are skipped until the timer expires. Manual runs still work.
+
+When active, the card shows the remaining time and a **Clear** button.
+
+Services: `set_rain_delay` (with `hours`) and `clear_rain_delay`.
+
+## Master valve / pump
+
+Optional in Settings → Advanced → **Master valve / pump**. Pick a switch entity and a pre-open delay (seconds).
+
+- Auto-opens before any zone runs (sequence: master ON → wait `pre_open_sec` → zone ON).
+- Auto-closes once all active zones AND active cycles are done.
+- Skipped if no master entity is configured.
+
+## Fail-to-open detection
+
+Optional in Settings → Advanced → **Fail-to-open detection**. After issuing `turn_on` to a valve, polls the entity for up to N seconds (default 5). If it never reaches an "on" state:
+
+- Logs an error.
+- Fires `schedule_wizard_valve_failed_to_open` event.
+- Sends a notification (if `valve_failed` is in the notify-events list).
+- Records the run with `status: failed_to_open`.
+
+## Cycle pause / resume
+
+While a cycle is running, the Dashboard "Active cycles" row shows a **Pause** button next to Stop. Pause closes the current valve and holds remaining steps. Click **Resume** to pick up from the next step.
+
+Services: `pause_cycle` and `resume_cycle`.
 
 ## Cycle overlap protection
 

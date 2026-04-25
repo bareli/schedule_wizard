@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.2 — Reports tab + README sync + UI spacing
+
+- **New Reports tab** in the panel:
+  - 30-day total-minutes-per-day mini bar chart.
+  - Per-valve totals: 7d / 30d / lifetime runs and minutes.
+  - Per-cycle totals (last 30d): completed / cancelled / skipped / total.
+  - Skip reasons summary: rain / moisture / overlap / failed / cancelled.
+  - **Export CSV** button: full history download.
+- History capacity raised from 100 to 500 entries. Older entries still trimmed FIFO.
+- README updated with all v0.6 + v0.7 features (cycles, rain delay, master valve, fail detection, pause/resume, services, events).
+- Added bottom margin to header rows (`+ Add` buttons in Valves / Cycles / Schedules) so they don't touch the list below.
+
 ## 0.7.1 — fix get_state crash on rain_delay_until
 
 - Fixed `AttributeError: 'dict' object has no attribute 'options'` in the WebSocket `get_state` handler when reading `rain_delay_until`. Reads from the cached options dict instead of trying to access a non-existent `entry` variable.
