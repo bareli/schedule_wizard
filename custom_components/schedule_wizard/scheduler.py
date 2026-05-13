@@ -710,6 +710,9 @@ class Scheduler:
         if cycle_id in self._active_cycles:
             await self.async_stop_cycle(cycle_id, note="superseded")
 
+        if not self._active and not self._active_cycles:
+            await self._async_master_open()
+
         state = {
             "cycle_id": cycle_id,
             "cycle_name": cycle.get("name", ""),
