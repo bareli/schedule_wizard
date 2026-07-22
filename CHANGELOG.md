@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.4 — fix quick-run duration input resetting
+
+- Fixed the per-valve "minutes" box on the Dashboard resetting to the default duration while typing. The 5-second auto-refresh focus guard used `document.activeElement`, which returns the shadow host inside Home Assistant's panel, so the guard never matched and every refresh re-rendered the input. It now walks the shadow-root chain to find the real focused element.
+- Quick-run durations are now remembered per valve for the session, so a re-render (after running or stopping a valve) no longer discards the typed value.
+
 ## 0.7.3 — fresh README screenshots
 
 - Refreshed all panel screenshots in the README to reflect the new tabs (Cycles, Reports), rain delay button, advanced toggle, and per-valve stats.

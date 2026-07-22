@@ -211,6 +211,14 @@ function maskFromDays(days) {
   return mask;
 }
 
+function deepActiveElement() {
+  let node = document.activeElement;
+  while (node && node.shadowRoot && node.shadowRoot.activeElement) {
+    node = node.shadowRoot.activeElement;
+  }
+  return node;
+}
+
 function daysFromMaskNames(mask) {
   return DAYS.filter((_, i) => mask & DAY_BITS[i]);
 }
@@ -223,6 +231,8 @@ class ScheduleWizardPanel extends HTMLElement {
     this._tab = "dashboard";
     this._refreshTimer = null;
     this._modalRoot = null;
+    this._quickDur = {};
+    this._editing = false;
   }
 
   set hass(hass) {
@@ -253,6 +263,11 @@ class ScheduleWizardPanel extends HTMLElement {
     this.appendChild(app);
     this._modalRoot = el("div", { id: "modal-root" });
     this.appendChild(this._modalRoot);
+    this.addEventListener("focusin", (ev) => {
+      const t = ev.target;
+      this._editing = !!(t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT"));
+    });
+    this.addEventListener("focusout", () => { this._editing = false; });
     this._refresh();
     this._refreshTimer = setInterval(() => this._refresh(), 5000);
   }
@@ -261,8 +276,10 @@ class ScheduleWizardPanel extends HTMLElement {
     try {
       this._state = await this._hass.callWS({ type: "schedule_wizard/get_state" });
       if (this._tab === "settings") return;
-      const focused = document.activeElement;
-      if (focused && (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA" || focused.tagName === "SELECT") && this.contains(focused)) {
+      const focused = deepActiveElement();
+      const focusedHere = focused && this.contains(focused) &&
+        (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA" || focused.tagName === "SELECT");
+      if (this._editing || focusedHere || this.querySelector("input:focus, textarea:focus, select:focus")) {
         this._updateInPlace();
         return;
       }
@@ -531,9 +548,10 @@ class ScheduleWizardPanel extends HTMLElement {
     const now = this._state.now;
     const minsInput = el("input", {
       type: "number", min: "1", max: "1440",
-      value: String(v.default_duration_min),
+      value: String(this._quickDur[v.entity_id] ?? v.default_duration_min),
       style: "width:70px;",
     });
+    minsInput.addEventListener("input", () => { this._quickDur[v.entity_id] = minsInput.value; });
     const meta = el("div", {}, [
       el("div", { class: "name" }, v.label + (active ? "  ●" : "")),
       el("div", { class: "sub" },
