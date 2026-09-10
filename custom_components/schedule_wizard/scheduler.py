@@ -46,6 +46,7 @@ class Scheduler:
         self._active: dict[str, dict] = {}
         self._active_cycles: dict[str, dict] = {}
         self._known_calendar_events: set[str] = set()
+        self._master_open: bool = False
 
     @property
     def active(self) -> dict[str, dict]:
@@ -607,7 +608,7 @@ class Scheduler:
                 unsub()
             self._active.pop(entity_id, None)
 
-        if not self._active and not self._active_cycles:
+        if not self._master_open:
             await self._async_master_open()
 
         await self._call_service_on(entity_id)
@@ -920,6 +921,7 @@ class Scheduler:
             return
         try:
             await self._call_service_on(master)
+            self._master_open = True
             pre = int(self.options.get("master_valve_pre_open_sec") or 0)
             if pre > 0:
                 await asyncio.sleep(pre)
@@ -934,6 +936,7 @@ class Scheduler:
             return
         try:
             await self._call_service_off(master)
+            self._master_open = False
         except Exception as e:
             LOG.warning("master valve close failed: %s", e)
 
