@@ -24,6 +24,12 @@ const STYLES = `
   margin-bottom: 12px;
 }
 .topbar h1 { margin: 0; font-size: 22px; font-weight: 500; }
+.icon-btn {
+  background: transparent; border: none; cursor: pointer;
+  font-size: 22px; line-height: 1; padding: 6px; margin-right: 4px;
+  color: var(--sw-text); border-radius: 50%;
+}
+.icon-btn:active { background: var(--sw-border); }
 .pill {
   padding: 4px 10px;
   border-radius: 999px;
@@ -239,7 +245,11 @@ class ScheduleWizardPanel extends HTMLElement {
     this._hass = hass;
     if (!this._initialized) this._init();
   }
-  set narrow(v) { this._narrow = v; }
+  set narrow(v) {
+    const changed = this._narrow !== v;
+    this._narrow = v;
+    if (changed && this._initialized) this._render();
+  }
   set route(v) { this._route = v; }
   set panel(v) { this._panel = v; }
 
@@ -358,6 +368,13 @@ class ScheduleWizardPanel extends HTMLElement {
     app.innerHTML = "";
 
     const top = el("div", { class: "topbar" }, [
+      this._narrow ? el("button", {
+        class: "icon-btn",
+        "aria-label": "Menu",
+        onClick: () => {
+          this.dispatchEvent(new CustomEvent("hass-toggle-menu", { bubbles: true, composed: true }));
+        },
+      }, "☰") : null,
       el("h1", {}, "Schedule Wizard"),
       el("span", { class: "pill " + (this._state.active.length ? "ok" : "") },
         `${this._state.valves.length} valves, ${this._state.active.length} active`),
