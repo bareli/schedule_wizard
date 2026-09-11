@@ -104,6 +104,13 @@ const STYLES = `
   color: var(--sw-text);
   font: inherit;
 }
+.field input[type="checkbox"], .field input[type="radio"] {
+  width: auto;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+}
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 @media (max-width: 540px) {
   .field-row { grid-template-columns: 1fr; }
