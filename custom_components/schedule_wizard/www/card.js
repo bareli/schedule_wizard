@@ -1,3 +1,5 @@
+const I18N = await import(new URL("./i18n.js" + new URL(import.meta.url).search, import.meta.url).href);
+
 const CARD_STYLES = `
 :host { display: block; }
 .card {
@@ -68,6 +70,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .empty { color: var(--secondary-text-color); font-style: italic; font-size: 13px; padding: 6px 0; }
 .active-runs { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--divider-color); }
 .active-runs .name { color: var(--primary-color); }
+bdi { unicode-bidi: isolate; }
 .error-msg {
   margin-top: 8px; padding: 6px 10px; border-radius: 6px; font-size: 12px;
   background: rgba(220,38,38,0.12); color: var(--error-color, #dc2626);
@@ -97,6 +100,21 @@ function deepActiveElement() {
     node = node.shadowRoot.activeElement;
   }
   return node;
+}
+
+function ltr(text) {
+  return el("bdi", { dir: "ltr" }, String(text == null ? "" : text));
+}
+
+function iso(text) {
+  return el("bdi", {}, String(text == null ? "" : text));
+}
+
+function fmtIn(t, secs) {
+  const m = Math.max(0, Math.round(secs / 60));
+  return m < 60 ? t("time.in_m", { n: m })
+    : m < 1440 ? t("time.in_h", { n: Math.round(m / 60) })
+      : t("time.in_d", { n: Math.round(m / 1440) });
 }
 
 function fmtRemaining(s) {
@@ -136,7 +154,54 @@ class ScheduleWizardCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    const langChanged = this._applyLang();
     if (!this._initialized) this._init();
+    else if (langChanged && this._state) this._render();
+  }
+
+  _applyLang() {
+    const h = this._hass;
+    const lang = I18N.resolveLang(h);
+    const rtl = I18N.isRtl(h, lang);
+    const loc = h && h.locale ? [h.locale.language, h.locale.time_format, h.locale.time_zone].join("|") : (h && h.language) || "";
+    const key = `${lang}|${rtl}|${loc}`;
+    if (key === this._langKey) return false;
+    const first = this._langKey === undefined;
+    this._langKey = key;
+    this._lang = lang;
+    this._rtl = rtl;
+    this._t = I18N.makeT(lang);
+    return !first;
+  }
+
+  _tn(key, vars) {
+    return I18N.tnodes(this._t(key), vars);
+  }
+
+  _applyDir(node) {
+    if (!node) return;
+    node.setAttribute("dir", this._rtl ? "rtl" : "ltr");
+    node.setAttribute("lang", this._lang);
+  }
+
+  _sourceLabel(code) {
+    const c = String(code || "");
+    if (c.startsWith("cycle:")) {
+      const id = c.slice(6).split("|")[0];
+      const cycle = ((this._state && this._state.cycles) || []).find(x => x.id === id);
+      return this._t("source.cycle", { name: cycle ? cycle.name : id });
+    }
+    return c && this._t.has("source." + c) ? this._t("source." + c) : c;
+  }
+
+  _nextRunLine(nr) {
+    let when = nr.time_label || "";
+    const ts = parseInt(nr.fires_at, 10);
+    if (ts) {
+      const fo = { hass: this._hass };
+      when = `${I18N.fmtDate(ts, this._lang, Object.assign({ weekday: "short" }, fo))} ${I18N.fmtTime(ts, this._lang, fo)}`;
+    }
+    return this._t("run.next", { when, in: fmtIn(this._t, nr.in_seconds || 0) });
   }
 
   connectedCallback() {
@@ -193,25 +258,27 @@ class ScheduleWizardCard extends HTMLElement {
       const pct = Math.min(100, ((total - remaining) / total) * 100);
       b.style.width = `${pct}%`;
     });
-    this._root.querySelectorAll(".row[data-soak] .soak-line").forEach(line => {
-      const entity = line.closest(".row").getAttribute("data-soak");
+    this._root.querySelectorAll(".row[data-soak] .soak-left").forEach(span => {
+      const entity = span.closest(".row").getAttribute("data-soak");
       const s = (this._state.soaking || []).find(x => x.entity_id === entity && x.phase === "soaking");
       if (!s) return;
       const left = Math.max(0, (parseInt(s.resume_at, 10) || 0) - this._state.now);
-      line.textContent = line.textContent.replace(/resumes in \d+:\d{2}/, `resumes in ${fmtRemaining(left)}`);
+      span.textContent = fmtRemaining(left);
     });
   }
 
   _renderError(e) {
+    this._applyDir(this._root);
     this._root.innerHTML = "";
     this._root.appendChild(el("div", { class: "card" }, [
       el("div", { class: "title" }, this._config.title || "Schedule Wizard"),
-      el("div", { class: "empty" }, "Failed to load: " + (e.message || "unknown")),
+      el("div", { class: "empty" }, this._t("app.load_failed", { error: e.message || this._t("common.unknown") })),
     ]));
   }
 
   _render() {
     if (!this._state || !this._root) return;
+    this._applyDir(this._root);
     this._root.innerHTML = "";
 
     const allowedEntities = Array.isArray(this._config.valves) ? new Set(this._config.valves) : null;
@@ -223,7 +290,7 @@ class ScheduleWizardCard extends HTMLElement {
     card.appendChild(el("div", { class: "title" }, [
       el("span", {}, this._config.title || "Schedule Wizard"),
       el("span", { class: "pill " + (this._state.active.length ? "ok" : "") },
-        this._state.active.length ? `${this._state.active.length} running` : "idle"),
+        this._state.active.length ? this._t("card.running", { n: this._state.active.length }) : this._t("card.idle")),
     ]));
 
     const soakingIdle = (this._state.soaking || []).filter(s => s.phase === "soaking" &&
@@ -240,7 +307,7 @@ class ScheduleWizardCard extends HTMLElement {
 
     if (this._config.show_quick_run !== false) {
       if (!filteredValves.length) {
-        card.appendChild(el("div", { class: "empty" }, "No valves configured."));
+        card.appendChild(el("div", { class: "empty" }, this._t("card.no_valves")));
       } else {
         filteredValves.forEach(v => card.appendChild(this._valveRow(v)));
       }
@@ -260,15 +327,15 @@ class ScheduleWizardCard extends HTMLElement {
     const label = valve ? valve.label : r.entity_id;
     return el("div", { class: "row", "data-entity": r.entity_id }, [
       el("div", {}, [
-        el("div", { class: "name" }, `● ${label}`),
-        el("div", { class: "sub" }, `${fmtRemaining(remaining)} remaining · ${r.source}`),
+        el("div", { class: "name" }, ["● ", iso(label)]),
+        el("div", { class: "sub" }, `${this._t("run.remaining", { time: fmtRemaining(remaining) })} · ${this._sourceLabel(r.source)}`),
       ]),
       el("div"),
       el("div"),
       el("button", {
         class: "stop",
         onClick: () => this._callService("stop_valve", { entity_id: r.entity_id }),
-      }, "Stop"),
+      }, this._t("common.stop")),
       el("div", { class: "progress-wrap" }, el("div", { class: "progress-bar", style: `width:${pct}%` })),
     ]);
   }
@@ -279,8 +346,10 @@ class ScheduleWizardCard extends HTMLElement {
     const left = Math.max(0, (parseInt(s.resume_at, 10) || 0) - this._state.now);
     return el("div", { class: "row", "data-soak": s.entity_id }, [
       el("div", {}, [
-        el("div", { class: "name" }, `💧 ${label}`),
-        el("div", { class: "sub soak-line" }, `soaking, resumes in ${fmtRemaining(left)} · chunk ${s.chunk}/${s.chunks}`),
+        el("div", { class: "name" }, ["💧 ", iso(label)]),
+        el("div", { class: "sub soak-line" }, this._tn("card.soaking", {
+          time: el("span", { class: "soak-left" }, fmtRemaining(left)), chunk: s.chunk, chunks: s.chunks,
+        })),
       ]),
       el("div"),
       el("div"),
@@ -289,7 +358,7 @@ class ScheduleWizardCard extends HTMLElement {
         : el("button", {
             class: "stop",
             onClick: () => this._callService("stop_valve", { entity_id: s.entity_id }),
-          }, "Stop"),
+          }, this._t("common.stop")),
     ]);
   }
 
@@ -303,17 +372,15 @@ class ScheduleWizardCard extends HTMLElement {
     minsInput.addEventListener("input", () => { this._quickDur[v.entity_id] = minsInput.value; });
     const subLines = [
       active
-        ? `${fmtRemaining(Math.max(0, active.ends_at - now))} remaining`
-        : `default ${v.default_duration_min}min`,
+        ? this._t("run.remaining", { time: fmtRemaining(Math.max(0, active.ends_at - now)) })
+        : this._t("run.default_dur", { n: v.default_duration_min }),
     ];
     const delayUntil = parseInt((v && v.rain_delay_until) || 0, 10) || 0;
-    if (delayUntil > now) subLines[0] += " · rain delay";
+    if (delayUntil > now) subLines[0] += " · " + this._t("card.rain_delay");
     if (!active && v.next_run) {
-      const inMin = Math.max(0, Math.round(v.next_run.in_seconds / 60));
-      const inLabel = inMin < 60 ? `in ${inMin}m` : inMin < 1440 ? `in ${Math.round(inMin / 60)}h` : `in ${Math.round(inMin / 1440)}d`;
-      subLines.push(`Next: ${v.next_run.time_label} (${inLabel})`);
+      subLines.push(this._nextRunLine(v.next_run));
     }
-    const metaInner = [el("div", { class: "name" }, v.label + (active ? " ●" : ""))];
+    const metaInner = [el("div", { class: "name" }, [iso(v.label), active ? " ●" : ""])];
     subLines.forEach(s => metaInner.push(el("div", { class: "sub" }, s)));
     const children = [
       el("div", {}, metaInner),
@@ -325,11 +392,11 @@ class ScheduleWizardCard extends HTMLElement {
           entity_id: v.entity_id,
           duration_minutes: parseInt(minsInput.value, 10) || v.default_duration_min,
         }),
-      }, "Run"),
+      }, this._t("common.run")),
       el("button", {
         class: "stop",
         onClick: () => this._callService("stop_valve", { entity_id: v.entity_id }),
-      }, "Stop"),
+      }, this._t("common.stop")),
     ];
     if (active) {
       const total = Math.max(1, active.ends_at - active.started_at);
@@ -347,7 +414,7 @@ class ScheduleWizardCard extends HTMLElement {
       await this._hass.callService("schedule_wizard", service, data);
       setTimeout(() => this._refresh(), 300);
     } catch (e) {
-      this._showError(`${service} failed: ${(e && (e.message || e.code)) || "unknown error"}`);
+      this._showError(this._t("card.failed", { service, error: (e && (e.message || e.code)) || this._t("common.unknown") }));
     }
   }
 
@@ -369,7 +436,7 @@ if (!customElements.get("schedule-wizard-card")) {
   window.customCards.push({
     type: "schedule-wizard-card",
     name: "Schedule Wizard",
-    description: "Dashboard card for Schedule Wizard — active runs + quick run.",
+    description: "Dashboard card for Schedule Wizard: active runs + quick run.",
     preview: false,
   });
 }
