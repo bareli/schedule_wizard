@@ -7,8 +7,10 @@ from typing import Any
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, SIGNAL_STATE_CHANGED
 
@@ -25,6 +27,15 @@ async def async_setup_entry(
     ])
 
 
+def _device_info(entry_id: str) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, entry_id)},
+        name="Schedule Wizard",
+        manufacturer="Schedule Wizard",
+        entry_type=DeviceEntryType.SERVICE,
+    )
+
+
 class ActiveRunsSensor(SensorEntity):
     _attr_has_entity_name = True
     _attr_name = "Active runs"
@@ -35,6 +46,7 @@ class ActiveRunsSensor(SensorEntity):
         self._scheduler = scheduler
         self._store = store
         self._attr_unique_id = f"{DOMAIN}_{entry_id}_active_runs"
+        self._attr_device_info = _device_info(entry_id)
         self._unsub = None
 
     @property
@@ -83,6 +95,7 @@ class NextScheduleSensor(SensorEntity):
     def __init__(self, entry_id: str, store):
         self._store = store
         self._attr_unique_id = f"{DOMAIN}_{entry_id}_next_schedule"
+        self._attr_device_info = _device_info(entry_id)
 
     @property
     def native_value(self) -> str | None:
@@ -94,14 +107,15 @@ class NextScheduleSensor(SensorEntity):
         nxt = self._compute_next() or {}
         return {
             "valve_entity_id": nxt.get("valve_entity_id", ""),
+            "cycle_id": nxt.get("cycle_id", ""),
             "schedule_id": nxt.get("schedule_id", ""),
             "duration_min": nxt.get("duration_min", 0),
             "fires_in_minutes": nxt.get("fires_in_minutes", -1),
         }
 
     def _compute_next(self) -> dict | None:
-        from datetime import datetime, timedelta
-        now = datetime.now()
+        from datetime import timedelta
+        now = dt_util.now()
         best = None
         best_delta = None
         for s in self._store.schedules:
@@ -124,7 +138,8 @@ class NextScheduleSensor(SensorEntity):
                 if best_delta is None or delta < best_delta:
                     best_delta = delta
                     best = {
-                        "valve_entity_id": s["valve_entity_id"],
+                        "valve_entity_id": s.get("valve_entity_id", ""),
+                        "cycle_id": s.get("cycle_id", ""),
                         "schedule_id": s["id"],
                         "duration_min": s["duration_min"],
                         "fires_in_minutes": int(delta.total_seconds() // 60),

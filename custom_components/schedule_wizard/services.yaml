@@ -82,6 +82,49 @@ add_valve:
       selector:
         boolean:
 
+    soak_run_minutes:
+      name: Soak - max run (minutes)
+      description: Split long runs into chunks of at most this many minutes. 0 disables cycle-and-soak.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 1440
+          step: 1
+          unit_of_measurement: min
+    soak_pause_minutes:
+      name: Soak - pause (minutes)
+      description: Pause between chunks so water soaks in. 0 disables cycle-and-soak.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 1440
+          step: 1
+          unit_of_measurement: min
+    moisture_entity:
+      name: Moisture sensor
+      description: Per-valve soil moisture sensor. Overrides the global moisture sensor for this valve.
+      required: false
+      selector:
+        entity:
+          domain: sensor
+    moisture_attribute:
+      name: Moisture attribute
+      description: Read this attribute instead of the state (optional).
+      required: false
+      selector:
+        text:
+    moisture_threshold:
+      name: Moisture skip threshold
+      description: Skip this valve when moisture is at or above this value.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 0.1
+
 remove_valve:
   name: Remove valve
   description: Unregister a valve and delete its schedules.
@@ -155,6 +198,16 @@ add_schedule:
       selector:
         boolean:
 
+    conditions:
+      name: Conditions
+      description: >-
+        Run only when all conditions hold. List of {entity_id, attribute (optional),
+        operator (above | below | equals | not_equals), value}. An unavailable entity fails its condition.
+      required: false
+      example: '[{"entity_id": "binary_sensor.pool_cover", "operator": "equals", "value": "off"}]'
+      selector:
+        object:
+
 update_schedule:
   name: Update schedule
   description: Patch an existing schedule by id. Any omitted field is left unchanged.
@@ -203,6 +256,16 @@ update_schedule:
       required: false
       selector:
         boolean:
+
+    conditions:
+      name: Conditions
+      description: >-
+        Run only when all conditions hold. List of {entity_id, attribute (optional),
+        operator (above | below | equals | not_equals), value}. An unavailable entity fails its condition.
+      required: false
+      example: '[{"entity_id": "binary_sensor.pool_cover", "operator": "equals", "value": "off"}]'
+      selector:
+        object:
 
 remove_schedule:
   name: Remove schedule
@@ -334,3 +397,7 @@ resume_cycle:
 list_config:
   name: List config
   description: Returns the registered valves, schedules, cycles, active runs, active cycles, and recent history.
+
+stop_all:
+  name: Stop all
+  description: Stop every running valve, soak sequence and cycle, then close the master valve.

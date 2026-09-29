@@ -58,6 +58,10 @@
     "list_config": {
       "name": "List config",
       "description": "Returns valves, schedules, active runs, and recent history."
+    },
+    "stop_all": {
+      "name": "Stop all",
+      "description": "Stop every running valve, soak sequence and cycle, then close the master valve."
     }
   }
 }

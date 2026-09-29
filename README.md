@@ -30,21 +30,25 @@ Schedule Wizard handles all of the above in one integration with its own sidebar
 **Smart skipping & adjustment**
 - **Rain delay** button: skip all schedule + calendar runs for 24h / 48h / 7d (or custom hours).
 - **Rain skip**: optional weather/sensor entity; skip when state matches a list or numeric value crosses a threshold.
-- **Soil moisture skip**: optional moisture sensor; skip when soil already wet.
+- **Soil moisture skip**: optional global moisture sensor, plus an optional **per-valve** sensor that overrides it for that zone (also checked per step inside cycles).
+- **Schedule conditions**: attach up to 10 entity conditions to a schedule (`above` / `below` / `equals` / `not_equals`, state or attribute). The run is skipped unless all hold.
+- **Cycle & soak**: per valve, split long runs into chunks with soak pauses so water sinks in instead of running off (slopes, clay).
 - **Seasonal adjustment** (temperature-scaled): scales schedule and calendar durations between low/high temperature thresholds, clamped to min/max percentages. Manual runs are not scaled.
 - **Cycle overlap protection**: schedule/calendar cycles skip while another cycle runs (off by default; opt-in `allow_concurrent_cycles`).
 
 **Reliability**
 - **Master valve / pump support**: a central valve auto-opens before any zone, auto-closes after the last zone closes. Optional pre-open delay for pump pressurization.
 - **Fail-to-open detection**: verifies the valve actually went on within N seconds; logs error, fires `valve_failed_to_open` event, sends notification if not.
+- **Flow sensor leak detection**: alerts on flow while nothing is watering (leak) or above a max while watering (burst pipe); optionally stops everything and closes the master valve.
+- **Stop all** button and service for an instant shutdown of every valve, soak sequence and cycle.
 
 **Visibility**
-- Sidebar panel with five editable tabs: Dashboard, Valves, Cycles, Schedules, Settings (Basic / Advanced split — beginners only see what they need).
+- Sidebar panel with six tabs: Dashboard, Valves, Cycles, Schedules, Reports, Settings (Basic / Advanced split, so beginners only see what they need).
 - Lovelace card (`custom:schedule-wizard-card`) with active-run progress and Quick Run.
 - Per-valve **last run / 7-day stats / next opening** on the Dashboard, Valves tab, and Lovelace card.
 - **Recent activity** groups cycle runs with each valve opening indented under the parent cycle.
 - Two sensors: `active_runs` (with per-run details) and `next_schedule`.
-- 7 events fired on the HA event bus, ready as automation triggers.
+- 14 events fired on the HA event bus, ready as automation triggers.
 
 **Triggers**
 - Webhook (per-entry auto-generated URL): fire valve runs from external systems.
@@ -128,7 +132,14 @@ Options flow (Settings → Devices & Services → Schedule Wizard → Configure)
 | `rain_entity`             | (none)                                     | Weather / sensor / binary_sensor entity for rain.    |
 | `rain_skip_states`        | `rainy,pouring,snowy,lightning-rainy`      | Skip when entity state matches any of these.         |
 | `rain_attribute`          | (none)                                     | Optional attribute to read instead of state.         |
-| `rain_threshold`          | (none)                                     | Numeric threshold (mm, %, etc). Skip when ≥ this.    |
+| `rain_threshold`          | (none)                                     | Numeric threshold (mm, %, etc). Skip when ≥ this. Blank or 0 = off. |
+| `flow_entity`             | (none)                                     | Flow sensor (e.g. L/min) for leak detection.         |
+| `flow_leak_threshold`     | 0                                          | Leak alert when flow is above this with no valve on. 0 = off. |
+| `flow_max_running`        | 0                                          | High-flow alert above this while watering. 0 = off.  |
+| `flow_delay_sec`          | 60                                         | Condition must persist this long before alerting.   |
+| `flow_stop_all`           | false                                      | On alert, stop all watering and close master valve.  |
+
+The HA **Configure** dialog only edits the basic options; it no longer wipes the advanced settings made in the panel. Saving settings is applied live: running cycles are not interrupted.
 
 ## Calendar event format
 
@@ -136,8 +147,10 @@ Options flow (Settings → Devices & Services → Schedule Wizard → Configure)
   - `Front lawn` ✓
   - `Front Lawn morning cycle` ✓
   - `Garden zone 1` ✗
-- **Description**: minutes to run. First integer wins. Falls back to event duration (end − start), then to the valve's default duration.
-- **Start time** triggers the run. Events within the lookahead window are caught on the next poll.
+- **Description**: minutes to run, written as `15 min` / `15 minutes` / `15 דקות`, or the description is just the number (`15`). Other numbers (like "Zone 2") are ignored. Falls back to event duration (end − start), then to the valve's default duration.
+- **Start time** triggers the run. Events within the lookahead window are caught on the next poll. Rain delay, rain skip, moisture skip and seasonal adjustment are evaluated when the event fires.
+- **All-day events are ignored** (they would otherwise run a valve for 24 hours).
+- Deleting or moving an event in the calendar cancels its pending run.
 
 ## Services
 
@@ -145,9 +158,9 @@ Options flow (Settings → Devices & Services → Schedule Wizard → Configure)
 | --------------------------------- | --------------------------------------------------------------------------------------------- |
 | `schedule_wizard.run_valve`       | Open an entity for `duration_minutes`. Auto-closes when done.                                 |
 | `schedule_wizard.stop_valve`      | Close an entity now. Cancels any active timer.                                                |
-| `schedule_wizard.add_valve`       | Register a valve (entity_id + label + default duration).                                      |
+| `schedule_wizard.add_valve`       | Register or update a valve (entity_id + label + default duration; optional soak and per-valve moisture fields). |
 | `schedule_wizard.remove_valve`    | Unregister a valve and delete its schedules.                                                  |
-| `schedule_wizard.add_schedule`    | Add a recurring schedule (time + days + duration; targets valve or cycle). Returns new id.    |
+| `schedule_wizard.add_schedule`    | Add a recurring schedule (time + days + duration; targets a registered valve or a cycle; optional `conditions`). Returns new id. |
 | `schedule_wizard.update_schedule` | Patch an existing schedule by id.                                                             |
 | `schedule_wizard.remove_schedule` | Delete a schedule by id.                                                                      |
 | `schedule_wizard.add_cycle`       | Create a cycle: ordered list of `{entity_id, duration_minutes}` steps.                        |
@@ -159,6 +172,7 @@ Options flow (Settings → Devices & Services → Schedule Wizard → Configure)
 | `schedule_wizard.resume_cycle`    | Resume a paused cycle from where it left off.                                                 |
 | `schedule_wizard.set_rain_delay`  | Skip all schedule and calendar runs for the next N hours.                                     |
 | `schedule_wizard.clear_rain_delay`| Resume schedule and calendar runs immediately.                                                |
+| `schedule_wizard.stop_all`        | Stop every running valve, soak sequence and cycle, then close the master valve.               |
 | `schedule_wizard.list_config`     | Return valves, schedules, cycles, active runs, active cycles, recent history (response).     |
 
 All services are visible under **Developer Tools → Actions** with full selectors.
@@ -241,7 +255,7 @@ Trigger a cycle from:
 **Notes:**
 - Only one run of a cycle at a time; starting it again while already running restarts from step 1.
 - Stopping a cycle closes the currently open valve and cancels remaining steps.
-- Cycle schedules respect rain-skip (whole cycle is skipped if rain condition active).
+- Cycle schedules respect rain, moisture and schedule conditions (whole cycle is skipped); each step also checks its own valve's moisture sensor.
 - Cycles persist in storage but in-progress cycle state does not survive HA restart (the currently open valve auto-closes per its own timer, but remaining steps won't fire).
 
 ## Seasonal adjustment
@@ -269,7 +283,18 @@ Settings → **Soil moisture skip**:
 
 Fires event `schedule_wizard_moisture_skipped` with `target`, `kind`, `schedule_id`, `source`.
 
-Manual runs and cycles are not affected.
+**Per-valve sensor:** in the valve editor (Valves tab → Advanced), set a moisture sensor, optional attribute and threshold for that zone. It overrides the global sensor for that valve, and inside a cycle each step checks its own valve's sensor (a wet zone is skipped, the cycle continues).
+
+```yaml
+service: schedule_wizard.add_valve
+data:
+  entity_id: switch.zone_flower_bed
+  label: Flower bed
+  moisture_entity: sensor.flower_bed_moisture
+  moisture_threshold: 45
+```
+
+Manual runs are not affected.
 
 ## Rain delay
 
@@ -297,6 +322,65 @@ Optional in Settings → Advanced → **Fail-to-open detection**. After issuing 
 - Fires `schedule_wizard_valve_failed_to_open` event.
 - Sends a notification (if `valve_failed` is in the notify-events list).
 - Records the run with `status: failed_to_open`.
+
+## Cycle & soak
+
+Short runs with pauses let water soak in instead of running off. Set per valve (Valves tab → Advanced, or `add_valve`):
+
+- **Max run (min)**: longest continuous chunk.
+- **Soak pause (min)**: wait between chunks.
+
+A 10-minute schedule with max run 4 and pause 3 runs 4 → pause 3 → 3 → pause 3 → 3 (chunks are balanced). Applies to schedule, calendar and cycle runs; manual runs are not split. While soaking, the Dashboard shows a countdown and the master valve closes. Fires `schedule_wizard_valve_soaking` at each pause. `stop_valve` cancels the rest of the sequence.
+
+```yaml
+service: schedule_wizard.add_valve
+data:
+  entity_id: switch.zone_slope
+  label: Slope
+  default_duration_minutes: 12
+  soak_run_minutes: 4
+  soak_pause_minutes: 10
+```
+
+## Schedule conditions
+
+Each schedule can carry conditions that must **all** be true when it fires. Otherwise the run is skipped (`skipped_condition` in history, `schedule_wizard_condition_skipped` event, `skipped_condition` notification).
+
+| Field       | Meaning                                                             |
+| ----------- | ------------------------------------------------------------------- |
+| `entity_id` | Any entity.                                                         |
+| `attribute` | Optional; compare an attribute instead of the state.                |
+| `operator`  | `above`, `below` (numeric), `equals`, `not_equals` (numeric or case-insensitive text). |
+| `value`     | Value to compare against.                                           |
+
+An unavailable or missing entity fails its condition (the run is skipped).
+
+```yaml
+service: schedule_wizard.add_schedule
+data:
+  valve_entity_id: switch.zone_lawn
+  time: "05:30"
+  days: [mon, wed, fri]
+  duration_minutes: 20
+  conditions:
+    - entity_id: sensor.outdoor_temperature
+      operator: above
+      value: 12
+    - entity_id: input_boolean.vacation_mode
+      operator: equals
+      value: "off"
+```
+
+## Flow sensor / leak detection
+
+Settings → Advanced → **Flow sensor / leak detection**. Pick a flow sensor (any numeric sensor, e.g. L/min).
+
+- **Leak threshold**: flow above this while no valve is running raises a `leak` alert.
+- **Max flow while running**: flow above this while watering raises a `high_flow` alert (burst pipe, broken head).
+- **Delay**: the condition must last this many seconds (default 60), so the drain-down after a valve closes doesn't false-alarm.
+- **Stop all on alert**: stops every valve, soak sequence and cycle, and closes the master valve.
+
+On alert: `schedule_wizard_leak_detected` event (`kind`, `flow_entity`, `value`, `running`, `stopped_all`), history entry, `leak_detected` notification, red banner on the Dashboard. The alert clears when flow returns to normal.
 
 ## Cycle pause / resume
 
@@ -326,8 +410,13 @@ The integration fires events on the HA event bus. Use them as triggers for any a
 | `schedule_wizard_valve_ended`            | A valve closes                                       | `entity_id`, `label`, `status` (`completed`/`cancelled`), `source`, `duration_min`, `note` |
 | `schedule_wizard_cycle_started`          | A cycle begins                                       | `cycle_id`, `name`, `source`, `total_steps`, `started_at`, `note` |
 | `schedule_wizard_cycle_ended`            | A cycle finishes or is cancelled                     | `cycle_id`, `name`, `status` (`completed`/`cancelled`), `source` |
-| `schedule_wizard_rain_skipped`           | A cron schedule was skipped due to rain              | `target`, `kind` (`valve`/`cycle`), `label`/`name`, `source`, `schedule_id` |
-| `schedule_wizard_moisture_skipped`       | A cron schedule was skipped due to wet soil          | `target`, `kind`, `label`/`name`, `source`, `schedule_id`        |
+| `schedule_wizard_rain_skipped`           | A schedule or calendar run was skipped due to rain   | `target`, `kind` (`valve`/`cycle`), `label`/`name`, `source`, `schedule_id` |
+| `schedule_wizard_moisture_skipped`       | A schedule, calendar or cycle-step run skipped (wet soil) | `target`, `kind`, `label`/`name`, `source`, `schedule_id`   |
+| `schedule_wizard_condition_skipped`      | A schedule's conditions were not met                 | `target`, `kind`, `label`/`name`, `source`, `schedule_id`        |
+| `schedule_wizard_valve_soaking`          | A cycle-and-soak run paused between chunks           | `entity_id`, `label`, `chunk`, `chunks`, `resume_at`, `source`   |
+| `schedule_wizard_leak_detected`          | Flow sensor alert                                    | `kind` (`leak`/`high_flow`), `flow_entity`, `value`, `running`, `stopped_all` |
+| `schedule_wizard_valve_failed_to_open`   | Fail-to-open detection triggered                     | `entity_id`, `label`, `source`, `duration_min`                   |
+| `schedule_wizard_rain_delay_set`         | Rain delay set or cleared                            | `until`, `hours`                                                 |
 | `schedule_wizard_cycle_skipped_overlap`  | A schedule/calendar cycle skipped while another ran  | `cycle_id`, `name`, `source`, `schedule_id`, `busy_with`         |
 
 **Schedule vs. calendar vs. manual:** the `source` field tells you how the run was triggered (`schedule`, `calendar`, `manual`, `service`, `webhook`, `cycle:<id>`). Filter on it in automation conditions.
@@ -373,6 +462,10 @@ Push events to any `notify.*` service (HA Companion app, Telegram, Pushover, ema
    - `cycle_start` — a cycle starts
    - `cycle_end` — a cycle finishes or is cancelled
    - `skipped_rain` — a scheduled run or cycle was skipped due to rain
+   - `skipped_moisture` / `skipped_condition`: skipped due to wet soil / unmet schedule conditions
+   - `valve_failed`: fail-to-open detection triggered
+   - `rain_delay`: rain delay set or cleared
+   - `leak_detected`: flow sensor leak or high-flow alert
 3. Save.
 
 **On phone:** install the Home Assistant Companion app, it auto-creates `notify.mobile_app_<device>` services. Those appear in the target list automatically.
@@ -383,15 +476,15 @@ Push events to any `notify.*` service (HA Companion app, Telegram, Pushover, ema
 
 ## Rain skip
 
-When a rain entity is configured, cron schedules consult it before firing.
+When a rain entity is configured, schedule and calendar runs consult it when they fire.
 
-Three modes, checked in this order:
+Three modes, checked in this order (a threshold of 0 or blank disables the numeric modes):
 
 1. **Attribute + threshold** — reads `attribute` off the entity, compares numerically to `threshold`. Skip if ≥.
 2. **Threshold only** — parses the entity's state as a number, compares to `threshold`. Skip if ≥.
 3. **Skip states** — compares entity state to comma-separated list in `rain_skip_states`. Skip if match.
 
-Skipped schedules log `skipped_rain` in history. Manual runs and calendar-triggered runs are **not** affected by rain skip.
+Skipped runs log `skipped_rain` in history. Manual runs are **not** affected by rain skip.
 
 Example configs:
 
@@ -459,7 +552,9 @@ Translations for Hebrew (`he`) are included in `translations/he.json`. HA picks 
 ## Sensors
 
 - `sensor.schedule_wizard_active_runs` — integer count of currently running valves; attributes include a `runs` array with `entity_id`, `source`, `started_at`, `ends_at`, `remaining_seconds`, `duration_min`.
-- `sensor.schedule_wizard_next_schedule` — friendly label of the next scheduled run (e.g. `"Mon 06:30"`); attributes include `valve_entity_id`, `schedule_id`, `duration_min`, `fires_in_minutes`.
+- `sensor.schedule_wizard_next_schedule`: friendly label of the next scheduled run (e.g. `"Mon 06:30"`, in HA's time zone); attributes include `valve_entity_id`, `cycle_id`, `schedule_id`, `duration_min`, `fires_in_minutes`.
+
+Both sensors belong to a "Schedule Wizard" service device. Installs from before v0.8.0 keep their existing entity IDs (possibly `sensor.active_runs` / `sensor.next_schedule`); rename them in Settings → Entities if you want the IDs above.
 
 Use them to build custom Lovelace cards or drive automations that react to scheduler state.
 
@@ -577,12 +672,9 @@ A: Delete the integration (Settings → Devices & Services → Schedule Wizard �
 
 Not committed dates; directional.
 
-- Lovelace card bundled with the integration (embed dashboard widget, not only sidebar panel).
-- Weather-aware rules (rain forecast skip, temp threshold) without external automations.
-- Soil moisture integration hook (skip when wet).
-- Zone sequencing primitive (multi-valve cycle as a first-class object).
-- Webhook trigger (external cron/HTTP service can fire runs).
-- Translations (strings already extracted; add Hebrew, Spanish, German).
+- 7-day schedule preview calendar.
+- Dashboard tag filter, schedule presets.
+- Panel UI translation (Hebrew / RTL first).
 - Per-valve max runs per day / cooldown.
 
 Want one of these soon? Open an issue.
@@ -596,6 +688,8 @@ On HA restart, the scheduler re-reads active runs from storage and checks each e
 | ON / open       | > 0 seconds     | Re-arm auto-close for remaining time.   |
 | ON / open       | ≤ 0 seconds     | Close immediately, log as expired.      |
 | OFF / closed    | any             | Drop run, log as cancelled.             |
+
+Cycles and soak sequences are not resumed after a restart: the valve open at shutdown finishes its own remaining time, the rest of the sequence is dropped. Changing settings does **not** restart the integration, so it never interrupts a running cycle.
 
 ## Troubleshooting
 

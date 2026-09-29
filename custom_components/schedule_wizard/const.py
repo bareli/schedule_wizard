@@ -42,7 +42,49 @@ CONF_FAIL_DETECTION_ENABLED = "fail_detection_enabled"
 CONF_FAIL_DETECTION_SECONDS = "fail_detection_seconds"
 CONF_RAIN_DELAY_UNTIL = "rain_delay_until"
 
+CONF_FLOW_ENTITY = "flow_entity"
+CONF_FLOW_ATTRIBUTE = "flow_attribute"
+CONF_FLOW_LEAK_THRESHOLD = "flow_leak_threshold"
+CONF_FLOW_MAX_RUNNING = "flow_max_running"
+CONF_FLOW_DELAY_SEC = "flow_delay_sec"
+CONF_FLOW_STOP_ALL = "flow_stop_all"
+
 DEFAULT_RAIN_SKIP_STATES = "rainy,pouring,snowy,lightning-rainy"
+
+DEFAULT_OPTIONS = {
+    CONF_CALENDAR_ENTITY: "",
+    CONF_CALENDAR_LOOKAHEAD: DEFAULT_CALENDAR_LOOKAHEAD,
+    CONF_POLL_INTERVAL: DEFAULT_CALENDAR_POLL_SECONDS,
+    CONF_DEFAULT_DURATION: DEFAULT_DURATION,
+    CONF_RAIN_ENTITY: "",
+    CONF_RAIN_SKIP_STATES: DEFAULT_RAIN_SKIP_STATES,
+    CONF_RAIN_ATTRIBUTE: "",
+    CONF_RAIN_THRESHOLD: None,
+    CONF_NOTIFY_TARGETS: [],
+    CONF_NOTIFY_EVENTS: [],
+    CONF_SEASONAL_ENABLED: False,
+    CONF_SEASONAL_TEMP_ENTITY: "",
+    CONF_SEASONAL_TEMP_ATTRIBUTE: "",
+    CONF_SEASONAL_TEMP_LOW: 10,
+    CONF_SEASONAL_TEMP_HIGH: 30,
+    CONF_SEASONAL_MIN_PCT: 50,
+    CONF_SEASONAL_MAX_PCT: 120,
+    CONF_ALLOW_CONCURRENT_CYCLES: False,
+    CONF_MOISTURE_ENTITY: "",
+    CONF_MOISTURE_ATTRIBUTE: "",
+    CONF_MOISTURE_THRESHOLD_SKIP_ABOVE: None,
+    CONF_MASTER_VALVE_ENTITY: "",
+    CONF_MASTER_VALVE_PRE_OPEN_SEC: 0,
+    CONF_FAIL_DETECTION_ENABLED: False,
+    CONF_FAIL_DETECTION_SECONDS: 5,
+    CONF_RAIN_DELAY_UNTIL: 0,
+    CONF_FLOW_ENTITY: "",
+    CONF_FLOW_ATTRIBUTE: "",
+    CONF_FLOW_LEAK_THRESHOLD: 0,
+    CONF_FLOW_MAX_RUNNING: 0,
+    CONF_FLOW_DELAY_SEC: 60,
+    CONF_FLOW_STOP_ALL: False,
+}
 
 NOTIFY_EVENTS = (
     "valve_start",
@@ -50,9 +92,16 @@ NOTIFY_EVENTS = (
     "cycle_start",
     "cycle_end",
     "skipped_rain",
+    "skipped_moisture",
+    "skipped_condition",
     "valve_failed",
     "rain_delay",
+    "leak_detected",
 )
+
+CONDITION_OPERATORS = ("above", "below", "equals", "not_equals")
+
+MAX_RUN_MINUTES = 1440
 
 SUPPORTED_DOMAINS = ("switch", "valve", "cover", "input_boolean", "light")
 
@@ -68,11 +117,10 @@ EVENT_VALVE_FAILED = f"{DOMAIN}_valve_failed_to_open"
 EVENT_RAIN_DELAY_SET = f"{DOMAIN}_rain_delay_set"
 EVENT_CYCLE_PAUSED = f"{DOMAIN}_cycle_paused"
 EVENT_CYCLE_RESUMED = f"{DOMAIN}_cycle_resumed"
-
-NOTIFY_EVENTS_EXTRA = (
-    "valve_failed",
-    "rain_delay",
-)
+EVENT_MOISTURE_SKIPPED = f"{DOMAIN}_moisture_skipped"
+EVENT_CONDITION_SKIPPED = f"{DOMAIN}_condition_skipped"
+EVENT_VALVE_SOAKING = f"{DOMAIN}_valve_soaking"
+EVENT_LEAK_DETECTED = f"{DOMAIN}_leak_detected"
 
 DAY_BITS = {0: 1, 1: 2, 2: 4, 3: 8, 4: 16, 5: 32, 6: 64}
 
@@ -88,6 +136,7 @@ SERVICE_UPDATE_CYCLE = "update_cycle"
 SERVICE_REMOVE_CYCLE = "remove_cycle"
 SERVICE_RUN_CYCLE = "run_cycle"
 SERVICE_STOP_CYCLE = "stop_cycle"
+SERVICE_STOP_ALL = "stop_all"
 SERVICE_LIST = "list_config"
 SERVICE_RAIN_DELAY = "set_rain_delay"
 SERVICE_CLEAR_RAIN_DELAY = "clear_rain_delay"
