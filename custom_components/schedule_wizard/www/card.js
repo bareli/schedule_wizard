@@ -306,6 +306,8 @@ class ScheduleWizardCard extends HTMLElement {
         ? `${fmtRemaining(Math.max(0, active.ends_at - now))} remaining`
         : `default ${v.default_duration_min}min`,
     ];
+    const delayUntil = parseInt((v && v.rain_delay_until) || 0, 10) || 0;
+    if (delayUntil > now) subLines[0] += " · rain delay";
     if (!active && v.next_run) {
       const inMin = Math.max(0, Math.round(v.next_run.in_seconds / 60));
       const inLabel = inMin < 60 ? `in ${inMin}m` : inMin < 1440 ? `in ${Math.round(inMin / 60)}h` : `in ${Math.round(inMin / 1440)}d`;

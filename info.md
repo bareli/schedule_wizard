@@ -10,7 +10,7 @@ Calendar and time-driven scheduler for irrigation valves, switches, lights, and 
 - Auto-close after configured duration
 - Cycles (zone sequencing) with pause / resume
 - Cycle & soak per valve (split long runs into chunks with soak pauses)
-- Rain delay, rain skip, global and per-valve soil moisture skip, schedule conditions
+- Rain delay (all valves or per valve, indoor valves exempt), rain skip, global and per-valve soil moisture skip, schedule conditions
 - Seasonal (temperature-based) duration scaling
 - Master valve / pump, fail-to-open detection, flow sensor leak detection, stop all
 - Sidebar panel + Lovelace card, notifications, webhook, CSV export

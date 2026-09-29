@@ -124,6 +124,12 @@ add_valve:
           min: 0
           max: 100
           step: 0.1
+    rain_exempt:
+      name: Indoor (ignore rain)
+      description: Global rain delay and rain skip don't apply to this valve. A per-valve rain delay still does.
+      required: false
+      selector:
+        boolean:
 
 remove_valve:
   name: Remove valve
@@ -369,10 +375,37 @@ set_rain_delay:
           max: 720
           step: 0.5
           unit_of_measurement: h
+    entity_id:
+      name: Valves (optional)
+      description: Delay only these valves. Leave empty to delay all valves.
+      required: false
+      selector:
+        entity:
+          multiple: true
+          domain:
+            - switch
+            - valve
+            - cover
+            - input_boolean
+            - light
 
 clear_rain_delay:
   name: Clear rain delay
   description: Resume schedule and calendar runs immediately.
+  fields:
+    entity_id:
+      name: Valves (optional)
+      description: Clear only these valves' delay. Leave empty to clear the global delay.
+      required: false
+      selector:
+        entity:
+          multiple: true
+          domain:
+            - switch
+            - valve
+            - cover
+            - input_boolean
+            - light
 
 pause_cycle:
   name: Pause cycle

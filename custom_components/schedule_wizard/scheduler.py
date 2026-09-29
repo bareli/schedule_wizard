@@ -47,11 +47,13 @@ UNAVAILABLE_STATES = {"unavailable", "unknown", ""}
 
 SKIP_EVENTS = {
     "rain": EVENT_RAIN_SKIPPED,
+    "rain_delay": EVENT_RAIN_SKIPPED,
     "moisture": EVENT_MOISTURE_SKIPPED,
     "condition": EVENT_CONDITION_SKIPPED,
 }
 SKIP_TEXT = {
     "rain": "rain active",
+    "rain_delay": "rain delay active",
     "moisture": "soil moisture above threshold",
     "condition": "schedule condition not met",
 }
@@ -223,8 +225,7 @@ class Scheduler:
 
     @callback
     def _on_minute(self, now: datetime) -> None:
-        if self._is_rain_delay_active():
-            return
+        # Global rain delay is checked per trigger: indoor (rain-exempt) valves still run.
         local = dt_util.as_local(now)
         bit = DAY_BITS[local.weekday()]
         hhmm = local.strftime("%H:%M")
@@ -259,15 +260,16 @@ class Scheduler:
     ) -> None:
         """Gate and start a scheduled/calendar valve run. All checks happen at fire time."""
         try:
-            if self._is_rain_delay_active():
-                return
             valve = self.store.get_valve(entity_id)
             if not valve or not valve.get("enabled"):
                 return
             if self._is_valve_busy(entity_id):
                 LOG.debug("skip %s: valve %s already running", ref, entity_id)
                 return
-            reason = self._skip_reason(sched, valve=valve)
+            weather = self._valve_weather_reason(valve)
+            if weather == "rain_delay_global":
+                return
+            reason = weather or self._skip_reason(sched, valve=valve)
             if reason:
                 self._record_skip(reason, "valve", entity_id, self._entity_label(entity_id),
                                   source, ref, base_min, sched)
@@ -288,10 +290,16 @@ class Scheduler:
         self, cycle_id: str, source: str, ref: str, sched: Optional[dict] = None,
     ) -> None:
         try:
-            if self._is_rain_delay_active():
-                return
             cycle = self.store.get_cycle(cycle_id)
             if not cycle or not cycle.get("enabled"):
+                return
+            # Indoor (rain-exempt) steps keep a cycle alive under global rain delay / rain;
+            # the outdoor steps are then skipped one by one in _run_cycle_task.
+            any_exempt = any(
+                self._is_rain_exempt(self.store.get_valve(st.get("entity_id") or ""))
+                for st in cycle.get("steps") or []
+            )
+            if self._is_rain_delay_active() and not any_exempt:
                 return
             if cycle_id in self._active_cycles:
                 LOG.debug("skip %s: cycle %s already running", ref, cycle_id)
@@ -311,7 +319,7 @@ class Scheduler:
                     "busy_with": running.get("cycle_id"),
                 })
                 return
-            reason = self._skip_reason(sched)
+            reason = self._skip_reason(sched, check_rain=not any_exempt)
             if reason:
                 self._record_skip(reason, "cycle", cycle_id, cycle.get("name", cycle_id),
                                   source, ref, 0, sched)
@@ -324,8 +332,34 @@ class Scheduler:
         except Exception as e:
             LOG.warning("%s run of cycle %s failed: %s", source, cycle_id, e)
 
-    def _skip_reason(self, sched: Optional[dict], valve: Optional[dict] = None) -> Optional[str]:
+    @staticmethod
+    def _is_rain_exempt(valve: Optional[dict]) -> bool:
+        return bool(valve and valve.get("rain_exempt"))
+
+    @staticmethod
+    def _valve_rain_delay_until(valve: Optional[dict]) -> int:
+        try:
+            until = int((valve or {}).get("rain_delay_until") or 0)
+        except (TypeError, ValueError):
+            return 0
+        return until if until > int(time.time()) else 0
+
+    def _valve_weather_reason(self, valve: Optional[dict]) -> Optional[str]:
+        """Rain gating for one valve: its own delay always; global delay and rain skip unless indoor."""
+        if self._valve_rain_delay_until(valve):
+            return "rain_delay"
+        if self._is_rain_exempt(valve):
+            return None
+        if self._is_rain_delay_active():
+            return "rain_delay_global"
         if self._should_skip_for_rain():
+            return "rain"
+        return None
+
+    def _skip_reason(
+        self, sched: Optional[dict], valve: Optional[dict] = None, check_rain: bool = True,
+    ) -> Optional[str]:
+        if check_rain and valve is None and self._should_skip_for_rain():
             return "rain"
         per_valve = self._valve_moisture_skip(valve) if valve else None
         if per_valve is True or (per_valve is None and self._should_skip_for_moisture()):
@@ -347,12 +381,14 @@ class Scheduler:
             "kind": kind,
             "source": source,
             "schedule_id": sched["id"] if sched else "",
+            "reason": reason,
         }
         payload["name" if kind == "cycle" else "label"] = name
         self.hass.bus.async_fire(SKIP_EVENTS[reason], payload)
         what = f"cycle {name}" if kind == "cycle" else name
+        notify_event = "skipped_rain" if reason == "rain_delay" else f"skipped_{reason}"
         self.hass.async_create_task(self._notify(
-            f"skipped_{reason}", "Schedule Wizard", f"Skipped {what}: {SKIP_TEXT[reason]}",
+            notify_event, "Schedule Wizard", f"Skipped {what}: {SKIP_TEXT[reason]}",
         ))
 
     # ------------------------------------------------------------------ calendar
@@ -974,6 +1010,7 @@ class Scheduler:
         factor = float(state.get("duration_factor", 1.0))
         offset = int(state.get("start_offset", 0))
         source = f"cycle:{cycle_id}"
+        automated = state.get("source") in ("schedule", "calendar")
         try:
             for i, step in enumerate(steps):
                 if self._active_cycles.get(cycle_id) is not state:
@@ -992,10 +1029,17 @@ class Scheduler:
                 state["current_entity"] = entity_id
                 async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
                 step_note = f"{state.get('note', '')}|step{step_no}"
-                if self._valve_moisture_skip(self.store.get_valve(entity_id)):
-                    self._record_skip("moisture", "valve", entity_id, self._entity_label(entity_id),
-                                      source, step_note, duration, None)
-                    continue
+                if automated:
+                    valve = self.store.get_valve(entity_id)
+                    reason = self._valve_weather_reason(valve)
+                    if reason == "rain_delay_global":
+                        reason = "rain_delay"
+                    if not reason and self._valve_moisture_skip(valve):
+                        reason = "moisture"
+                    if reason:
+                        self._record_skip(reason, "valve", entity_id, self._entity_label(entity_id),
+                                          source, step_note, duration, None)
+                        continue
                 try:
                     await self._async_run_sequence(entity_id, duration, source, step_note, owner="cycle")
                 except asyncio.CancelledError:

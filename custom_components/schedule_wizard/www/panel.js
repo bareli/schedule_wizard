@@ -24,6 +24,14 @@ const STYLES = `
   margin-bottom: 12px;
 }
 .topbar h1 { margin: 0; font-size: 22px; font-weight: 500; }
+.title-wrap { display: flex; align-items: center; gap: 4px; }
+.menu-btn {
+  background: transparent; border: none; padding: 8px; margin-left: -8px;
+  cursor: pointer; color: var(--sw-text); border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.menu-btn:hover { background: var(--sw-border); }
+.menu-btn svg { width: 24px; height: 24px; fill: currentColor; }
 .pill {
   padding: 4px 10px;
   border-radius: 999px;
@@ -213,6 +221,15 @@ function fmtRemaining(secs) {
   return `${m}:${s}`;
 }
 
+function fmtDelayLeft(left) {
+  return left < 3600 ? `${Math.round(left / 60)}m` : left < 86400 ? `${Math.round(left / 3600)}h` : `${Math.round(left / 86400)}d`;
+}
+
+function valveDelayUntil(v, now) {
+  const until = parseInt((v && v.rain_delay_until) || 0, 10) || 0;
+  return until > (now || 0) ? until : 0;
+}
+
 function daysFromMask(mask) {
   return DAY_LABELS.filter((_, i) => mask & DAY_BITS[i]).join(",") || "—";
 }
@@ -253,13 +270,48 @@ class ScheduleWizardPanel extends HTMLElement {
     this._modalRoot = null;
     this._quickDur = {};
     this._editing = false;
+    this._narrow = false;
+    this._rainTarget = "";
   }
 
   set hass(hass) {
     this._hass = hass;
     if (!this._initialized) this._init();
+    else this._syncMenuButton();
   }
-  set narrow(v) { this._narrow = v; }
+  set narrow(v) {
+    this._narrow = !!v;
+    if (this._initialized) this._syncMenuButton();
+  }
+
+  _showMenuButton() {
+    return !!this._narrow || !!(this._hass && this._hass.dockedSidebar === "always_hidden");
+  }
+
+  _syncMenuButton() {
+    const btn = this.querySelector(".menu-btn");
+    if (btn) btn.style.display = this._showMenuButton() ? "" : "none";
+  }
+
+  _menuButton() {
+    const btn = el("button", {
+      class: "menu-btn",
+      type: "button",
+      "aria-label": "Menu",
+      title: "Menu",
+      style: this._showMenuButton() ? null : "display:none;",
+      onClick: () => this.dispatchEvent(new Event("hass-toggle-menu", { bubbles: true, composed: true })),
+    });
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS(ns, "path");
+    path.setAttribute("d", "M3,6H21V8H3V6M3,11H21V13H3V11M3,16H21V18H3V16Z");
+    svg.appendChild(path);
+    btn.appendChild(svg);
+    return btn;
+  }
   set route(v) { this._route = v; }
   set panel(v) { this._panel = v; }
 
@@ -391,7 +443,7 @@ class ScheduleWizardPanel extends HTMLElement {
     app.innerHTML = "";
 
     const top = el("div", { class: "topbar" }, [
-      el("h1", {}, "Schedule Wizard"),
+      el("div", { class: "title-wrap" }, [this._menuButton(), el("h1", {}, "Schedule Wizard")]),
       el("span", { class: "pill " + (this._state.active.length ? "ok" : "") },
         `${this._state.valves.length} valves, ${this._state.active.length} active`),
     ]);
@@ -461,8 +513,7 @@ class ScheduleWizardPanel extends HTMLElement {
 
     const rainCard = el("div", { class: "card" });
     if (rainUntil > now) {
-      const left = rainUntil - now;
-      const lbl = left < 3600 ? `${Math.round(left / 60)}m` : left < 86400 ? `${Math.round(left / 3600)}h` : `${Math.round(left / 86400)}d`;
+      const lbl = fmtDelayLeft(rainUntil - now);
       rainCard.appendChild(el("div", { class: "row-between" }, [
         el("h2", { style: "margin:0;color:var(--sw-warn);" }, `🌧 Rain delay active — ${lbl} left`),
         el("button", {
@@ -473,14 +524,58 @@ class ScheduleWizardPanel extends HTMLElement {
     } else {
       rainCard.appendChild(el("div", { class: "row-between" }, [
         el("h2", { style: "margin:0;" }, "Rain delay"),
-        el("div", { class: "actions" }, [
-          el("button", { class: "btn small", onClick: () => this._callService("set_rain_delay", { hours: 24 }) }, "24h"),
-          el("button", { class: "btn small", onClick: () => this._callService("set_rain_delay", { hours: 48 }) }, "48h"),
-          el("button", { class: "btn small", onClick: () => this._callService("set_rain_delay", { hours: 168 }) }, "7d"),
-        ]),
       ]));
-      rainCard.appendChild(el("p", { class: "muted small", style: "margin:4px 0 0;" },
-        "Pause all schedule and calendar runs for the chosen duration. Manual runs still work."));
+    }
+    const valves = this._state.valves || [];
+    if (this._rainTarget && !valves.some(v => v.entity_id === this._rainTarget)) this._rainTarget = "";
+    const targetSel = el("select", { "aria-label": "Apply to", style: "max-width:220px;" });
+    targetSel.appendChild(el("option", { value: "" }, "All valves"));
+    valves.forEach((v) => {
+      const opt = el("option", { value: v.entity_id }, v.label || v.entity_id);
+      if (v.entity_id === this._rainTarget) opt.selected = true;
+      targetSel.appendChild(opt);
+    });
+    targetSel.value = this._rainTarget;
+    targetSel.addEventListener("change", () => { this._rainTarget = targetSel.value; });
+    const setDelay = (hours) => {
+      const target = this._rainTarget;
+      if (target && !(this._state.valves || []).some(v => v.entity_id === target)) {
+        this._rainTarget = "";
+        this._toast("Valve no longer exists", "error");
+        this._render();
+        return;
+      }
+      this._callService("set_rain_delay", target ? { hours, entity_id: [target] } : { hours });
+    };
+    rainCard.appendChild(el("div", { class: "row-between", style: "margin:10px 0 0;" }, [
+      el("label", { style: "display:flex;align-items:center;gap:6px;font-size:13px;" }, [
+        el("span", { class: "muted" }, "Apply to"),
+        targetSel,
+      ]),
+      el("div", { class: "actions" }, [
+        el("button", { class: "btn small", onClick: () => setDelay(24) }, "24h"),
+        el("button", { class: "btn small", onClick: () => setDelay(48) }, "48h"),
+        el("button", { class: "btn small", onClick: () => setDelay(168) }, "7d"),
+      ]),
+    ]));
+    rainCard.appendChild(el("p", { class: "muted small", style: "margin:4px 0 0;" },
+      "Pause schedule and calendar runs for all valves or one valve. Indoor valves ignore the global delay. Manual runs still work."));
+    const delayedValves = valves.filter(v => valveDelayUntil(v, now));
+    if (delayedValves.length) {
+      const dList = el("div", { class: "list", style: "margin-top:10px;" });
+      delayedValves.forEach((v) => {
+        const lbl = fmtDelayLeft(valveDelayUntil(v, now) - now);
+        dList.appendChild(el("div", { class: "item" }, [
+          el("div", { class: "sub" }, `${v.label || v.entity_id}: delayed, ${lbl} left`),
+          el("div", { class: "actions" }, [
+            el("button", {
+              class: "btn small",
+              onClick: () => this._callService("clear_rain_delay", { entity_id: [v.entity_id] }),
+            }, "Clear"),
+          ]),
+        ]));
+      });
+      rainCard.appendChild(dList);
     }
     root.appendChild(rainCard);
 
@@ -652,12 +747,14 @@ class ScheduleWizardPanel extends HTMLElement {
       style: "width:70px;",
     });
     minsInput.addEventListener("input", () => { this._quickDur[v.entity_id] = minsInput.value; });
+    const delayUntil = valveDelayUntil(v, now);
+    const delayLbl = delayUntil ? ` • ☂ delayed ${fmtDelayLeft(delayUntil - now)}` : "";
     const meta = el("div", {}, [
       el("div", { class: "name" }, v.label + (active ? "  ●" : "")),
       el("div", { class: "sub" },
-        active
+        (active
           ? `${v.entity_id} • ${fmtRemaining(Math.max(0, active.ends_at - now))} remaining (${active.source})`
-          : `${v.entity_id} • default ${v.default_duration_min}min`
+          : `${v.entity_id} • default ${v.default_duration_min}min`) + delayLbl
       ),
     ]);
     if (!active && v.next_run) {
@@ -743,6 +840,14 @@ class ScheduleWizardPanel extends HTMLElement {
     if (v.moisture_entity) {
       badges.push(el("span", { class: "badge", title: v.moisture_entity }, "moisture"));
     }
+    if (v.rain_exempt) {
+      badges.push(el("span", { class: "badge", title: "Global rain delay and rain skip don't apply" }, "indoor"));
+    }
+    const vDelay = valveDelayUntil(v, this._state.now);
+    if (vDelay) {
+      const until = new Date(vDelay * 1000).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
+      badges.push(el("span", { class: "badge", title: "Per-valve rain delay" }, `rain delay until ${until}`));
+    }
     const metaChildren = [
       el("div", { class: "name" }, [v.label + (v.enabled ? "" : " (disabled)"), ...badges]),
       el("div", { class: "sub" }, `${v.entity_id} • ${v.default_duration_min}m default`),
@@ -785,6 +890,9 @@ class ScheduleWizardPanel extends HTMLElement {
     const enabledInput = el("input", { type: "checkbox" });
     enabledInput.checked = enabled;
     enabledInput.addEventListener("change", () => { enabled = enabledInput.checked; });
+
+    const rainExemptInput = el("input", { type: "checkbox" });
+    rainExemptInput.checked = !!(existing && existing.rain_exempt);
 
     const search = el("input", { type: "text", placeholder: "Search entity..." });
     const picker = el("div", { class: "entity-picker" });
@@ -851,6 +959,7 @@ class ScheduleWizardPanel extends HTMLElement {
         el("label", { class: "field" }, [el("span", {}, "Default duration (min)"), durInput]),
         el("label", { class: "field" }, [el("span", {}, "Enabled"), enabledInput]),
       ]),
+      el("label", { class: "field" }, [el("span", {}, "Indoor (ignore global rain delay and rain skip)"), rainExemptInput]),
       el("div", { class: "field", style: "padding-top:10px;border-top:1px solid var(--sw-border);" }, [advToggle]),
       advBody,
     ];
@@ -866,6 +975,7 @@ class ScheduleWizardPanel extends HTMLElement {
         label: label.trim(),
         default_duration_minutes: duration,
         enabled,
+        rain_exempt: rainExemptInput.checked,
         soak_run_minutes: clampMin(soakRunInput),
         soak_pause_minutes: clampMin(soakPauseInput),
         moisture_entity: vMoistEntity.value.trim(),

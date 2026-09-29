@@ -136,6 +136,7 @@ SCHEMA_ADD_VALVE = vol.Schema({
     vol.Optional("moisture_entity"): vol.Any(cv.entity_id, ""),
     vol.Optional("moisture_attribute"): cv.string,
     vol.Optional("moisture_threshold"): vol.Any(vol.Coerce(float), None),
+    vol.Optional("rain_exempt"): cv.boolean,
 })
 
 VALVE_FIELD_MAP = {
@@ -144,6 +145,7 @@ VALVE_FIELD_MAP = {
     "moisture_entity": "moisture_entity",
     "moisture_attribute": "moisture_attribute",
     "moisture_threshold": "moisture_threshold",
+    "rain_exempt": "rain_exempt",
 }
 
 SCHEMA_CONDITIONS = vol.All(cv.ensure_list, [vol.Schema({
@@ -209,6 +211,11 @@ SCHEMA_STOP_CYCLE = vol.Schema({
 
 SCHEMA_RAIN_DELAY = vol.Schema({
     vol.Required("hours"): vol.All(vol.Any(int, float), vol.Range(min=0.5, max=720)),
+    vol.Optional("entity_id"): vol.All(cv.ensure_list, [_entity_in_supported_domain]),
+})
+
+SCHEMA_CLEAR_RAIN_DELAY = vol.Schema({
+    vol.Optional("entity_id"): vol.All(cv.ensure_list, [_entity_in_supported_domain]),
 })
 
 SCHEMA_NO_ARGS = vol.Schema({})
@@ -688,13 +695,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def _svc_rain_delay(call: ServiceCall) -> None:
         hours = float(call.data["hours"])
         until_ts = int(time.time()) + int(hours * 3600)
+        entity_ids = call.data.get("entity_id")
+        if entity_ids:
+            await _async_valve_rain_delay(entity_ids, until_ts, hours)
+            return
         new_options = dict(entry.options)
         new_options[CONF_RAIN_DELAY_UNTIL] = until_ts
         hass.config_entries.async_update_entry(entry, options=new_options)
         hass.bus.async_fire(EVENT_RAIN_DELAY_SET, {"until": until_ts, "hours": hours})
         await scheduler._notify("rain_delay", "Schedule Wizard", f"Rain delay set for {hours}h")
 
+    async def _async_valve_rain_delay(entity_ids: list[str], until_ts: int, hours: float) -> None:
+        missing = [e for e in entity_ids if not store.get_valve(e)]
+        if missing:
+            raise HomeAssistantError(f"valve not registered: {', '.join(missing)}")
+        await store.async_set_valves_rain_delay(entity_ids, until_ts)
+        hass.bus.async_fire(EVENT_RAIN_DELAY_SET, {"until": until_ts, "hours": hours, "entity_ids": entity_ids})
+        labels = ", ".join(scheduler._entity_label(e) for e in entity_ids)
+        text = f"Rain delay set for {hours}h: {labels}" if until_ts else f"Rain delay cleared: {labels}"
+        await scheduler._notify("rain_delay", "Schedule Wizard", text)
+
     async def _svc_clear_rain_delay(call: ServiceCall) -> None:
+        entity_ids = call.data.get("entity_id")
+        if entity_ids:
+            await _async_valve_rain_delay(entity_ids, 0, 0)
+            return
         new_options = dict(entry.options)
         new_options[CONF_RAIN_DELAY_UNTIL] = 0
         hass.config_entries.async_update_entry(entry, options=new_options)
@@ -778,7 +803,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(DOMAIN, SERVICE_STOP_CYCLE, _svc_stop_cycle, schema=SCHEMA_STOP_CYCLE)
     hass.services.async_register(DOMAIN, SERVICE_STOP_ALL, _svc_stop_all, schema=SCHEMA_NO_ARGS)
     hass.services.async_register(DOMAIN, SERVICE_RAIN_DELAY, _svc_rain_delay, schema=SCHEMA_RAIN_DELAY)
-    hass.services.async_register(DOMAIN, SERVICE_CLEAR_RAIN_DELAY, _svc_clear_rain_delay, schema=SCHEMA_NO_ARGS)
+    hass.services.async_register(DOMAIN, SERVICE_CLEAR_RAIN_DELAY, _svc_clear_rain_delay, schema=SCHEMA_CLEAR_RAIN_DELAY)
     hass.services.async_register(DOMAIN, SERVICE_PAUSE_CYCLE, _svc_pause_cycle, schema=SCHEMA_PAUSE_RESUME_CYCLE)
     hass.services.async_register(DOMAIN, SERVICE_RESUME_CYCLE, _svc_resume_cycle, schema=SCHEMA_PAUSE_RESUME_CYCLE)
     hass.services.async_register(

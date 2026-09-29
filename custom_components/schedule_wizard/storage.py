@@ -18,6 +18,7 @@ VALVE_EXTRA_FIELDS = (
     "moisture_entity",
     "moisture_attribute",
     "moisture_threshold",
+    "rain_exempt",
 )
 
 
@@ -31,6 +32,8 @@ def _clean_valve_extra(extra: dict[str, Any]) -> dict[str, Any]:
             out[k] = max(0, int(v or 0))
         elif k == "moisture_threshold":
             out[k] = None if v is None or v == "" else float(v)
+        elif k == "rain_exempt":
+            out[k] = bool(v)
         else:
             out[k] = (v or "").strip()
     return out
@@ -130,12 +133,26 @@ class WizardStore:
             "moisture_entity": "",
             "moisture_attribute": "",
             "moisture_threshold": None,
+            "rain_exempt": False,
+            "rain_delay_until": 0,
             **_clean_valve_extra(extra),
             "created_at": int(time.time()),
         }
         self._data["valves"].append(valve)
         await self.async_save()
         return valve
+
+    async def async_set_valves_rain_delay(self, entity_ids: list[str], until: int) -> list[str]:
+        """Set (or clear with 0) a per-valve rain delay. Returns the entity_ids that were updated."""
+        updated = []
+        for entity_id in entity_ids:
+            valve = self.get_valve(entity_id)
+            if valve is not None:
+                valve["rain_delay_until"] = int(until)
+                updated.append(entity_id)
+        if updated:
+            await self.async_save()
+        return updated
 
     async def async_remove_valve(self, entity_id: str) -> bool:
         before = len(self._data["valves"])
