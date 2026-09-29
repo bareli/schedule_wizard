@@ -56,7 +56,8 @@ Schedule Wizard handles all of the above in one integration with its own sidebar
 - Notifications: pick any `notify.*` service(s); choose which events trigger pushes.
 
 **i18n**
-- 17 languages (config flow + service descriptions): English, Hebrew, Spanish, German, French, Italian, Dutch, Portuguese, Russian, Arabic, Polish, Simplified Chinese, Ukrainian, Swedish, Danish, Norwegian, Finnish.
+- Sidebar panel and Lovelace card in **English, German and Hebrew** (full right-to-left layout), following your HA profile language. Dates, times and weekdays use your locale and HA time zone.
+- 17 languages for the config flow and service descriptions: English, Hebrew, Spanish, German, French, Italian, Dutch, Portuguese, Russian, Arabic, Polish, Simplified Chinese, Ukrainian, Swedish, Danish, Norwegian, Finnish.
 
 **Platform**
 - Single-instance config flow + options flow for HA-native configuration.
@@ -557,9 +558,13 @@ Options:
 - `show_quick_run` — show quick run/stop rows. Default `true`.
 - `valves` — optional list of entity_ids to filter. If omitted, all valves are shown.
 
-## Hebrew
+## Languages
 
-Translations for Hebrew (`he`) are included in `translations/he.json`. HA picks the right one based on your user language preference.
+The panel and card follow the language set in your HA profile (Profile → Language): English, German (Deutsch) and Hebrew (עברית). Hebrew switches the whole panel and card to right-to-left. Other languages fall back to English.
+
+Config flow and service descriptions are translated into 17 languages via `translations/*.json`.
+
+**Adding a panel language:** copy the `"en"` block in `custom_components/schedule_wizard/www/i18n.js`, translate the values, and open a PR. `tests/test_i18n.py` checks that every key and placeholder is present. Right-to-left languages (Arabic, Persian, Urdu) get RTL layout automatically.
 
 ## Sensors
 
@@ -686,7 +691,7 @@ Not committed dates; directional.
 
 - 7-day schedule preview calendar.
 - Dashboard tag filter, schedule presets.
-- Panel UI translation (Hebrew / RTL first).
+- More panel languages (contributions welcome, see Languages).
 - Per-valve max runs per day / cooldown.
 
 Want one of these soon? Open an issue.

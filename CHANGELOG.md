@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.10.0: panel and card in German and Hebrew, right-to-left layout
+
+- **Panel and Lovelace card translated** into German and Hebrew (#3). The language follows your HA profile; unknown languages fall back to English.
+- **Right-to-left layout** for Hebrew: the whole panel and card mirror, entity IDs and times stay readable inside Hebrew text.
+- Dates, times and weekdays are formatted in your locale and HA time zone (12/24h per your profile), including the next-run labels.
+- Settings save message no longer claims the integration reloads (options apply live since 0.8.0).
+- Translation completeness test (`tests/test_i18n.py`).
+
 ## 0.9.0: per-valve rain delay, indoor valves, panel menu button
 
 - **Per-valve rain delay** (#4): `set_rain_delay` / `clear_rain_delay` take an optional `entity_id` list. The Dashboard rain delay card has an "Apply to" picker and lists delayed valves with their own Clear button.
