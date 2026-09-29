@@ -19,6 +19,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_CALENDAR_ENTITY,
@@ -47,11 +48,18 @@ from .const import (
     CONF_SEASONAL_TEMP_ENTITY,
     CONF_SEASONAL_TEMP_HIGH,
     CONF_SEASONAL_TEMP_LOW,
-    DEFAULT_CALENDAR_LOOKAHEAD,
-    DEFAULT_CALENDAR_POLL_SECONDS,
+    CONF_FLOW_ATTRIBUTE,
+    CONF_FLOW_DELAY_SEC,
+    CONF_FLOW_ENTITY,
+    CONF_FLOW_LEAK_THRESHOLD,
+    CONF_FLOW_MAX_RUNNING,
+    CONF_FLOW_STOP_ALL,
+    CONDITION_OPERATORS,
     DEFAULT_DURATION,
-    DEFAULT_RAIN_SKIP_STATES,
+    DEFAULT_OPTIONS,
     DOMAIN,
+    EVENT_RAIN_DELAY_SET,
+    MAX_RUN_MINUTES,
     NOTIFY_EVENTS,
     SERVICE_ADD_CYCLE,
     SERVICE_ADD_SCHEDULE,
@@ -66,6 +74,7 @@ from .const import (
     SERVICE_RESUME_CYCLE,
     SERVICE_RUN_CYCLE,
     SERVICE_RUN_VALVE,
+    SERVICE_STOP_ALL,
     SERVICE_STOP_CYCLE,
     SERVICE_STOP_VALVE,
     SERVICE_UPDATE_CYCLE,
@@ -122,7 +131,27 @@ SCHEMA_ADD_VALVE = vol.Schema({
     vol.Required("label"): cv.string,
     vol.Optional("default_duration_minutes", default=DEFAULT_DURATION): vol.All(int, vol.Range(min=1, max=1440)),
     vol.Optional("enabled", default=True): cv.boolean,
+    vol.Optional("soak_run_minutes"): vol.All(int, vol.Range(min=0, max=1440)),
+    vol.Optional("soak_pause_minutes"): vol.All(int, vol.Range(min=0, max=1440)),
+    vol.Optional("moisture_entity"): vol.Any(cv.entity_id, ""),
+    vol.Optional("moisture_attribute"): cv.string,
+    vol.Optional("moisture_threshold"): vol.Any(vol.Coerce(float), None),
 })
+
+VALVE_FIELD_MAP = {
+    "soak_run_minutes": "soak_run_min",
+    "soak_pause_minutes": "soak_pause_min",
+    "moisture_entity": "moisture_entity",
+    "moisture_attribute": "moisture_attribute",
+    "moisture_threshold": "moisture_threshold",
+}
+
+SCHEMA_CONDITIONS = vol.All(cv.ensure_list, [vol.Schema({
+    vol.Required("entity_id"): cv.entity_id,
+    vol.Optional("attribute", default=""): cv.string,
+    vol.Optional("operator", default="equals"): vol.In(CONDITION_OPERATORS),
+    vol.Required("value"): vol.Any(cv.string, vol.Coerce(float)),
+})], vol.Length(max=10))
 
 SCHEMA_REMOVE_VALVE = vol.Schema({
     vol.Required("entity_id"): _entity_in_supported_domain,
@@ -136,6 +165,7 @@ SCHEMA_ADD_SCHEDULE = vol.Schema({
     vol.Required("days"): vol.All(cv.ensure_list, [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])]),
     vol.Optional("name", default=""): cv.string,
     vol.Optional("enabled", default=True): cv.boolean,
+    vol.Optional("conditions"): SCHEMA_CONDITIONS,
 })
 
 SCHEMA_ADD_CYCLE = vol.Schema({
@@ -198,9 +228,16 @@ SCHEMA_UPDATE_SCHEDULE = vol.Schema({
     vol.Optional("duration_minutes"): vol.All(int, vol.Range(min=1, max=1440)),
     vol.Optional("days"): vol.All(cv.ensure_list, [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])]),
     vol.Optional("enabled"): cv.boolean,
+    vol.Optional("conditions"): SCHEMA_CONDITIONS,
 })
 
 DAY_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+OPTION_KEYS = tuple(k for k in DEFAULT_OPTIONS if k != CONF_RAIN_DELAY_UNTIL)
+
+
+def _build_options(entry: ConfigEntry) -> dict[str, Any]:
+    return {k: entry.options.get(k, default) for k, default in DEFAULT_OPTIONS.items()}
 
 
 def _days_to_mask(days: list[str]) -> int:
@@ -353,11 +390,11 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
                 s["runs_7d"] += 1
                 s["total_min_7d"] += int(h.get("duration_min", 0))
 
-        from datetime import datetime, timedelta as _td
+        from datetime import timedelta as _td
         schedules_snapshot = store.schedules
         cycles_snapshot = store.cycles
         cycles_by_id = {c["id"]: c for c in cycles_snapshot}
-        now_dt = datetime.now()
+        now_dt = dt_util.now()
 
         def _next_run_for(valve_id: str) -> dict | None:
             best = None
@@ -421,6 +458,8 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "cycles": store.cycles,
             "active": active,
             "active_cycles": active_cycles,
+            "soaking": scheduler.soaking,
+            "flow": scheduler.flow_status,
             "history": store.history[:500],
             "options": options,
             "controllable": controllable,
@@ -428,7 +467,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "notify_services": notify_services,
             "notify_events": list(NOTIFY_EVENTS),
             "temperature_unit": temp_unit,
-            "rain_delay_until": options.get(CONF_RAIN_DELAY_UNTIL, options.get("rain_delay_until", 0)),
+            "rain_delay_until": options.get(CONF_RAIN_DELAY_UNTIL, 0),
             "webhook_id": data.get("webhook_id", ""),
             "now": int(time.time()),
         })
@@ -460,7 +499,14 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         vol.Optional(CONF_MASTER_VALVE_PRE_OPEN_SEC): vol.All(int, vol.Range(min=0, max=600)),
         vol.Optional(CONF_FAIL_DETECTION_ENABLED): cv.boolean,
         vol.Optional(CONF_FAIL_DETECTION_SECONDS): vol.All(int, vol.Range(min=1, max=120)),
+        vol.Optional(CONF_FLOW_ENTITY): vol.Any(str, None),
+        vol.Optional(CONF_FLOW_ATTRIBUTE): vol.Any(str, None),
+        vol.Optional(CONF_FLOW_LEAK_THRESHOLD): vol.Any(float, int, None),
+        vol.Optional(CONF_FLOW_MAX_RUNNING): vol.Any(float, int, None),
+        vol.Optional(CONF_FLOW_DELAY_SEC): vol.All(int, vol.Range(min=5, max=3600)),
+        vol.Optional(CONF_FLOW_STOP_ALL): cv.boolean,
     })
+    @websocket_api.require_admin
     @websocket_api.async_response
     async def _ws_update_options(hass_inner, connection, msg):
         domain_data = hass_inner.data.get(DOMAIN, {})
@@ -473,18 +519,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             connection.send_error(msg["id"], "no_entry", "entry not found")
             return
         new_options = dict(entry.options)
-        for key in (
-            CONF_CALENDAR_ENTITY, CONF_CALENDAR_LOOKAHEAD, CONF_POLL_INTERVAL, CONF_DEFAULT_DURATION,
-            CONF_RAIN_ENTITY, CONF_RAIN_SKIP_STATES, CONF_RAIN_ATTRIBUTE, CONF_RAIN_THRESHOLD,
-            CONF_NOTIFY_TARGETS, CONF_NOTIFY_EVENTS,
-            CONF_SEASONAL_ENABLED, CONF_SEASONAL_TEMP_ENTITY, CONF_SEASONAL_TEMP_ATTRIBUTE,
-            CONF_SEASONAL_TEMP_LOW, CONF_SEASONAL_TEMP_HIGH,
-            CONF_SEASONAL_MIN_PCT, CONF_SEASONAL_MAX_PCT,
-            CONF_ALLOW_CONCURRENT_CYCLES,
-            CONF_MOISTURE_ENTITY, CONF_MOISTURE_ATTRIBUTE, CONF_MOISTURE_THRESHOLD_SKIP_ABOVE,
-            CONF_MASTER_VALVE_ENTITY, CONF_MASTER_VALVE_PRE_OPEN_SEC,
-            CONF_FAIL_DETECTION_ENABLED, CONF_FAIL_DETECTION_SECONDS,
-        ):
+        for key in OPTION_KEYS:
             if key in msg:
                 new_options[key] = msg[key]
         hass_inner.config_entries.async_update_entry(entry, options=new_options)
@@ -499,60 +534,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     store = WizardStore(hass)
     await store.async_load()
 
-    options = {
-        CONF_CALENDAR_ENTITY: entry.options.get(CONF_CALENDAR_ENTITY, ""),
-        CONF_CALENDAR_LOOKAHEAD: entry.options.get(CONF_CALENDAR_LOOKAHEAD, DEFAULT_CALENDAR_LOOKAHEAD),
-        CONF_POLL_INTERVAL: entry.options.get(CONF_POLL_INTERVAL, DEFAULT_CALENDAR_POLL_SECONDS),
-        CONF_DEFAULT_DURATION: entry.options.get(CONF_DEFAULT_DURATION, DEFAULT_DURATION),
-        CONF_RAIN_ENTITY: entry.options.get(CONF_RAIN_ENTITY, ""),
-        CONF_RAIN_SKIP_STATES: entry.options.get(CONF_RAIN_SKIP_STATES, DEFAULT_RAIN_SKIP_STATES),
-        CONF_RAIN_ATTRIBUTE: entry.options.get(CONF_RAIN_ATTRIBUTE, ""),
-        CONF_RAIN_THRESHOLD: entry.options.get(CONF_RAIN_THRESHOLD, None),
-        CONF_NOTIFY_TARGETS: entry.options.get(CONF_NOTIFY_TARGETS, []),
-        CONF_NOTIFY_EVENTS: entry.options.get(CONF_NOTIFY_EVENTS, []),
-        CONF_SEASONAL_ENABLED: entry.options.get(CONF_SEASONAL_ENABLED, False),
-        CONF_SEASONAL_TEMP_ENTITY: entry.options.get(CONF_SEASONAL_TEMP_ENTITY, ""),
-        CONF_SEASONAL_TEMP_ATTRIBUTE: entry.options.get(CONF_SEASONAL_TEMP_ATTRIBUTE, ""),
-        CONF_SEASONAL_TEMP_LOW: entry.options.get(CONF_SEASONAL_TEMP_LOW, 10),
-        CONF_SEASONAL_TEMP_HIGH: entry.options.get(CONF_SEASONAL_TEMP_HIGH, 30),
-        CONF_SEASONAL_MIN_PCT: entry.options.get(CONF_SEASONAL_MIN_PCT, 50),
-        CONF_SEASONAL_MAX_PCT: entry.options.get(CONF_SEASONAL_MAX_PCT, 120),
-        CONF_ALLOW_CONCURRENT_CYCLES: entry.options.get(CONF_ALLOW_CONCURRENT_CYCLES, False),
-        CONF_MOISTURE_ENTITY: entry.options.get(CONF_MOISTURE_ENTITY, ""),
-        CONF_MOISTURE_ATTRIBUTE: entry.options.get(CONF_MOISTURE_ATTRIBUTE, ""),
-        CONF_MOISTURE_THRESHOLD_SKIP_ABOVE: entry.options.get(CONF_MOISTURE_THRESHOLD_SKIP_ABOVE, None),
-        CONF_MASTER_VALVE_ENTITY: entry.options.get(CONF_MASTER_VALVE_ENTITY, ""),
-        CONF_MASTER_VALVE_PRE_OPEN_SEC: entry.options.get(CONF_MASTER_VALVE_PRE_OPEN_SEC, 0),
-        CONF_FAIL_DETECTION_ENABLED: entry.options.get(CONF_FAIL_DETECTION_ENABLED, False),
-        CONF_FAIL_DETECTION_SECONDS: entry.options.get(CONF_FAIL_DETECTION_SECONDS, 5),
-        CONF_RAIN_DELAY_UNTIL: entry.options.get(CONF_RAIN_DELAY_UNTIL, 0),
-        "calendar_entity": entry.options.get(CONF_CALENDAR_ENTITY, ""),
-        "calendar_lookahead_min": entry.options.get(CONF_CALENDAR_LOOKAHEAD, DEFAULT_CALENDAR_LOOKAHEAD),
-        "poll_interval": entry.options.get(CONF_POLL_INTERVAL, DEFAULT_CALENDAR_POLL_SECONDS),
-        "default_duration": entry.options.get(CONF_DEFAULT_DURATION, DEFAULT_DURATION),
-        "rain_entity": entry.options.get(CONF_RAIN_ENTITY, ""),
-        "rain_skip_states": entry.options.get(CONF_RAIN_SKIP_STATES, DEFAULT_RAIN_SKIP_STATES),
-        "rain_attribute": entry.options.get(CONF_RAIN_ATTRIBUTE, ""),
-        "rain_threshold": entry.options.get(CONF_RAIN_THRESHOLD, None),
-        "notify_targets": entry.options.get(CONF_NOTIFY_TARGETS, []),
-        "notify_events": entry.options.get(CONF_NOTIFY_EVENTS, []),
-        "seasonal_enabled": entry.options.get(CONF_SEASONAL_ENABLED, False),
-        "seasonal_temp_entity": entry.options.get(CONF_SEASONAL_TEMP_ENTITY, ""),
-        "seasonal_temp_attribute": entry.options.get(CONF_SEASONAL_TEMP_ATTRIBUTE, ""),
-        "seasonal_temp_low": entry.options.get(CONF_SEASONAL_TEMP_LOW, 10),
-        "seasonal_temp_high": entry.options.get(CONF_SEASONAL_TEMP_HIGH, 30),
-        "seasonal_min_pct": entry.options.get(CONF_SEASONAL_MIN_PCT, 50),
-        "seasonal_max_pct": entry.options.get(CONF_SEASONAL_MAX_PCT, 120),
-        "allow_concurrent_cycles": entry.options.get(CONF_ALLOW_CONCURRENT_CYCLES, False),
-        "moisture_entity": entry.options.get(CONF_MOISTURE_ENTITY, ""),
-        "moisture_attribute": entry.options.get(CONF_MOISTURE_ATTRIBUTE, ""),
-        "moisture_threshold_skip_above": entry.options.get(CONF_MOISTURE_THRESHOLD_SKIP_ABOVE, None),
-        "master_valve_entity": entry.options.get(CONF_MASTER_VALVE_ENTITY, ""),
-        "master_valve_pre_open_sec": entry.options.get(CONF_MASTER_VALVE_PRE_OPEN_SEC, 0),
-        "fail_detection_enabled": entry.options.get(CONF_FAIL_DETECTION_ENABLED, False),
-        "fail_detection_seconds": entry.options.get(CONF_FAIL_DETECTION_SECONDS, 5),
-        "rain_delay_until": entry.options.get(CONF_RAIN_DELAY_UNTIL, 0),
-    }
+    options = _build_options(entry)
 
     scheduler = Scheduler(hass, store, options)
     await scheduler.async_start()
@@ -564,17 +546,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def _webhook_handler(hass_inner: HomeAssistant, wh_id: str, request: web.Request) -> web.Response:
         try:
-            if request.method == "POST":
-                try:
-                    payload = await request.json()
-                except Exception:
-                    payload = dict(await request.post())
-            else:
-                payload = dict(request.query)
+            try:
+                payload = await request.json()
+            except Exception:
+                payload = dict(await request.post())
             action = (payload.get("action") or "run").strip().lower()
             entity_id = payload.get("entity_id")
             if not entity_id:
                 return web.json_response({"error": "entity_id required"}, status=400)
+            try:
+                entity_id = _entity_in_supported_domain(entity_id)
+            except vol.Invalid as e:
+                return web.json_response({"error": str(e)}, status=400)
             if action == "stop":
                 await scheduler.async_stop_valve(entity_id)
                 return web.json_response({"ok": True, "action": "stop", "entity_id": entity_id})
@@ -582,8 +565,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if duration is None:
                 valve = store.get_valve(entity_id)
                 duration = valve["default_duration_min"] if valve else int(options[CONF_DEFAULT_DURATION])
-            await scheduler.async_run_valve(entity_id, int(duration), source="webhook")
-            return web.json_response({"ok": True, "action": "run", "entity_id": entity_id, "duration_minutes": int(duration)})
+            try:
+                duration = max(1, min(MAX_RUN_MINUTES, int(duration)))
+            except (TypeError, ValueError):
+                return web.json_response({"error": "duration_minutes must be an integer"}, status=400)
+            await scheduler.async_run_valve(entity_id, duration, source="webhook")
+            return web.json_response({"ok": True, "action": "run", "entity_id": entity_id, "duration_minutes": duration})
         except Exception as e:
             LOG.exception("webhook handler failed: %s", e)
             return web.json_response({"error": str(e)}, status=500)
@@ -616,11 +603,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await scheduler.async_stop_valve(call.data["entity_id"])
 
     async def _svc_add_valve(call: ServiceCall) -> None:
+        extra = {dst: call.data[src] for src, dst in VALVE_FIELD_MAP.items() if src in call.data}
         await store.async_upsert_valve(
             call.data["entity_id"],
             call.data["label"],
             int(call.data.get("default_duration_minutes", DEFAULT_DURATION)),
             bool(call.data.get("enabled", True)),
+            **extra,
         )
 
     async def _svc_remove_valve(call: ServiceCall) -> None:
@@ -636,6 +625,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             raise HomeAssistantError("provide exactly one of valve_entity_id or cycle_id")
         if cycle_id and not store.get_cycle(cycle_id):
             raise HomeAssistantError("cycle not found")
+        if valve_entity_id and not store.get_valve(valve_entity_id):
+            raise HomeAssistantError("valve not registered: add it with add_valve first")
         mask = _days_to_mask(call.data["days"])
         sched = await store.async_add_schedule(
             valve_entity_id=valve_entity_id or None,
@@ -645,6 +636,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             duration_min=int(call.data.get("duration_minutes", 1)),
             name=call.data.get("name", ""),
             enabled=bool(call.data.get("enabled", True)),
+            conditions=call.data.get("conditions"),
         )
         return {"schedule": sched}
 
@@ -690,20 +682,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def _svc_stop_cycle(call: ServiceCall) -> None:
         await scheduler.async_stop_cycle(call.data["cycle_id"])
 
+    async def _svc_stop_all(call: ServiceCall) -> None:
+        await scheduler.async_stop_all()
+
     async def _svc_rain_delay(call: ServiceCall) -> None:
         hours = float(call.data["hours"])
         until_ts = int(time.time()) + int(hours * 3600)
         new_options = dict(entry.options)
         new_options[CONF_RAIN_DELAY_UNTIL] = until_ts
         hass.config_entries.async_update_entry(entry, options=new_options)
-        hass.bus.async_fire("schedule_wizard_rain_delay_set", {"until": until_ts, "hours": hours})
+        hass.bus.async_fire(EVENT_RAIN_DELAY_SET, {"until": until_ts, "hours": hours})
         await scheduler._notify("rain_delay", "Schedule Wizard", f"Rain delay set for {hours}h")
 
     async def _svc_clear_rain_delay(call: ServiceCall) -> None:
         new_options = dict(entry.options)
         new_options[CONF_RAIN_DELAY_UNTIL] = 0
         hass.config_entries.async_update_entry(entry, options=new_options)
-        hass.bus.async_fire("schedule_wizard_rain_delay_set", {"until": 0, "hours": 0})
+        hass.bus.async_fire(EVENT_RAIN_DELAY_SET, {"until": 0, "hours": 0})
         await scheduler._notify("rain_delay", "Schedule Wizard", "Rain delay cleared")
 
     async def _svc_pause_cycle(call: ServiceCall) -> None:
@@ -727,6 +722,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             fields["days_mask"] = _days_to_mask(call.data["days"])
         if "enabled" in call.data:
             fields["enabled"] = bool(call.data["enabled"])
+        if "conditions" in call.data:
+            fields["conditions"] = call.data["conditions"]
         sched = await store.async_update_schedule(call.data["schedule_id"], **fields)
         if sched is None:
             raise HomeAssistantError("schedule not found")
@@ -745,6 +742,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 {k: v for k, v in r.items() if k != "task"}
                 for r in scheduler.active_cycles.values()
             ],
+            "soaking": scheduler.soaking,
+            "flow": scheduler.flow_status,
             "history": store.history[:20],
             "options": options,
         }
@@ -777,6 +776,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(DOMAIN, SERVICE_REMOVE_CYCLE, _svc_remove_cycle, schema=SCHEMA_REMOVE_CYCLE)
     hass.services.async_register(DOMAIN, SERVICE_RUN_CYCLE, _svc_run_cycle, schema=SCHEMA_RUN_CYCLE)
     hass.services.async_register(DOMAIN, SERVICE_STOP_CYCLE, _svc_stop_cycle, schema=SCHEMA_STOP_CYCLE)
+    hass.services.async_register(DOMAIN, SERVICE_STOP_ALL, _svc_stop_all, schema=SCHEMA_NO_ARGS)
     hass.services.async_register(DOMAIN, SERVICE_RAIN_DELAY, _svc_rain_delay, schema=SCHEMA_RAIN_DELAY)
     hass.services.async_register(DOMAIN, SERVICE_CLEAR_RAIN_DELAY, _svc_clear_rain_delay, schema=SCHEMA_NO_ARGS)
     hass.services.async_register(DOMAIN, SERVICE_PAUSE_CYCLE, _svc_pause_cycle, schema=SCHEMA_PAUSE_RESUME_CYCLE)
@@ -795,7 +795,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    await hass.config_entries.async_reload(entry.entry_id)
+    """Apply option changes in place. A reload would cancel running cycles."""
+    data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if not data:
+        return
+    data["options"].clear()
+    data["options"].update(_build_options(entry))
+    data["scheduler"].async_options_updated()
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -827,6 +833,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             SERVICE_REMOVE_CYCLE,
             SERVICE_RUN_CYCLE,
             SERVICE_STOP_CYCLE,
+            SERVICE_STOP_ALL,
             SERVICE_RAIN_DELAY,
             SERVICE_CLEAR_RAIN_DELAY,
             SERVICE_PAUSE_CYCLE,

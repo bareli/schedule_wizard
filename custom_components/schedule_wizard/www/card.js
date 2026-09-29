@@ -68,6 +68,10 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .empty { color: var(--secondary-text-color); font-style: italic; font-size: 13px; padding: 6px 0; }
 .active-runs { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--divider-color); }
 .active-runs .name { color: var(--primary-color); }
+.error-msg {
+  margin-top: 8px; padding: 6px 10px; border-radius: 6px; font-size: 12px;
+  background: rgba(220,38,38,0.12); color: var(--error-color, #dc2626);
+}
 `;
 
 function el(tag, attrs = {}, children = []) {
@@ -87,6 +91,14 @@ function el(tag, attrs = {}, children = []) {
   return n;
 }
 
+function deepActiveElement() {
+  let node = document.activeElement;
+  while (node && node.shadowRoot && node.shadowRoot.activeElement) {
+    node = node.shadowRoot.activeElement;
+  }
+  return node;
+}
+
 function fmtRemaining(s) {
   if (s <= 0) return "0:00";
   const m = Math.floor(s / 60);
@@ -101,6 +113,9 @@ class ScheduleWizardCard extends HTMLElement {
     this._state = null;
     this._timer = null;
     this._initialized = false;
+    this._quickDur = {};
+    this._error = null;
+    this._errorTimer = null;
   }
 
   setConfig(config) {
@@ -125,7 +140,12 @@ class ScheduleWizardCard extends HTMLElement {
   }
 
   connectedCallback() {
-    if (this._hass && !this._initialized) this._init();
+    if (this._hass && !this._initialized) {
+      this._init();
+    } else if (this._initialized && !this._timer) {
+      this._refresh();
+      this._timer = setInterval(() => this._refresh(), 5000);
+    }
   }
 
   disconnectedCallback() {
@@ -146,8 +166,10 @@ class ScheduleWizardCard extends HTMLElement {
   async _refresh() {
     try {
       this._state = await this._hass.callWS({ type: "schedule_wizard/get_state" });
-      const focused = this.shadowRoot && this.shadowRoot.activeElement;
-      if (focused && (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA")) {
+      const focused = deepActiveElement();
+      const focusedHere = focused && this.shadowRoot.contains(focused) &&
+        (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA" || focused.tagName === "SELECT");
+      if (focusedHere) {
         this._updateInPlace();
         return;
       }
@@ -161,20 +183,22 @@ class ScheduleWizardCard extends HTMLElement {
     if (!this._root) return;
     const bars = this._root.querySelectorAll(".progress-bar");
     bars.forEach(b => {
-      const row = b.closest(".row");
+      const row = b.closest(".row[data-entity]");
       if (!row) return;
-      const name = row.querySelector(".name");
-      if (!name) return;
-      const label = name.textContent.replace(/\s*●\s*$/, "").trim();
-      const active = this._state.active.find(r => {
-        const valve = this._state.valves.find(v => v.entity_id === r.entity_id);
-        return (valve ? valve.label : r.entity_id) === label;
-      });
+      const entity = row.getAttribute("data-entity");
+      const active = this._state.active.find(r => r.entity_id === entity);
       if (!active) return;
       const total = Math.max(1, active.ends_at - active.started_at);
       const remaining = Math.max(0, active.ends_at - this._state.now);
       const pct = Math.min(100, ((total - remaining) / total) * 100);
       b.style.width = `${pct}%`;
+    });
+    this._root.querySelectorAll(".row[data-soak] .soak-line").forEach(line => {
+      const entity = line.closest(".row").getAttribute("data-soak");
+      const s = (this._state.soaking || []).find(x => x.entity_id === entity && x.phase === "soaking");
+      if (!s) return;
+      const left = Math.max(0, (parseInt(s.resume_at, 10) || 0) - this._state.now);
+      line.textContent = line.textContent.replace(/resumes in \d+:\d{2}/, `resumes in ${fmtRemaining(left)}`);
     });
   }
 
@@ -202,11 +226,15 @@ class ScheduleWizardCard extends HTMLElement {
         this._state.active.length ? `${this._state.active.length} running` : "idle"),
     ]));
 
-    if (this._config.show_active !== false && this._state.active.length) {
+    const soakingIdle = (this._state.soaking || []).filter(s => s.phase === "soaking" &&
+      !this._state.active.some(r => r.entity_id === s.entity_id) &&
+      (!allowedEntities || allowedEntities.has(s.entity_id)));
+    if (this._config.show_active !== false && (this._state.active.length || soakingIdle.length)) {
       const activeDiv = el("div", { class: "active-runs" });
       this._state.active
         .filter(r => !allowedEntities || allowedEntities.has(r.entity_id))
         .forEach(r => activeDiv.appendChild(this._activeRow(r)));
+      soakingIdle.forEach(s => activeDiv.appendChild(this._soakRow(s)));
       card.appendChild(activeDiv);
     }
 
@@ -218,6 +246,8 @@ class ScheduleWizardCard extends HTMLElement {
       }
     }
 
+    if (this._error) card.appendChild(el("div", { class: "error-msg" }, this._error));
+
     this._root.appendChild(card);
   }
 
@@ -228,7 +258,7 @@ class ScheduleWizardCard extends HTMLElement {
     const pct = Math.min(100, ((total - remaining) / total) * 100);
     const valve = this._state.valves.find(v => v.entity_id === r.entity_id);
     const label = valve ? valve.label : r.entity_id;
-    return el("div", { class: "row" }, [
+    return el("div", { class: "row", "data-entity": r.entity_id }, [
       el("div", {}, [
         el("div", { class: "name" }, `● ${label}`),
         el("div", { class: "sub" }, `${fmtRemaining(remaining)} remaining · ${r.source}`),
@@ -243,10 +273,34 @@ class ScheduleWizardCard extends HTMLElement {
     ]);
   }
 
+  _soakRow(s) {
+    const valve = this._state.valves.find(v => v.entity_id === s.entity_id);
+    const label = valve ? valve.label : s.entity_id;
+    const left = Math.max(0, (parseInt(s.resume_at, 10) || 0) - this._state.now);
+    return el("div", { class: "row", "data-soak": s.entity_id }, [
+      el("div", {}, [
+        el("div", { class: "name" }, `💧 ${label}`),
+        el("div", { class: "sub soak-line" }, `soaking, resumes in ${fmtRemaining(left)} · chunk ${s.chunk}/${s.chunks}`),
+      ]),
+      el("div"),
+      el("div"),
+      s.owner === "cycle"
+        ? el("div")
+        : el("button", {
+            class: "stop",
+            onClick: () => this._callService("stop_valve", { entity_id: s.entity_id }),
+          }, "Stop"),
+    ]);
+  }
+
   _valveRow(v) {
     const active = this._state.active.find(r => r.entity_id === v.entity_id);
     const now = this._state.now;
-    const minsInput = el("input", { type: "number", min: "1", max: "1440", value: String(v.default_duration_min) });
+    const minsInput = el("input", {
+      type: "number", min: "1", max: "1440",
+      value: String(this._quickDur[v.entity_id] ?? v.default_duration_min),
+    });
+    minsInput.addEventListener("input", () => { this._quickDur[v.entity_id] = minsInput.value; });
     const subLines = [
       active
         ? `${fmtRemaining(Math.max(0, active.ends_at - now))} remaining`
@@ -283,7 +337,7 @@ class ScheduleWizardCard extends HTMLElement {
         el("div", { class: "progress-bar", style: `width:${pct}%` })
       ));
     }
-    return el("div", { class: "row" }, children);
+    return el("div", { class: "row", "data-entity": v.entity_id }, children);
   }
 
   async _callService(service, data) {
@@ -291,8 +345,19 @@ class ScheduleWizardCard extends HTMLElement {
       await this._hass.callService("schedule_wizard", service, data);
       setTimeout(() => this._refresh(), 300);
     } catch (e) {
-      console.error("schedule_wizard card:", e);
+      this._showError(`${service} failed: ${(e && (e.message || e.code)) || "unknown error"}`);
     }
+  }
+
+  _showError(msg) {
+    this._error = msg;
+    if (this._errorTimer) clearTimeout(this._errorTimer);
+    this._errorTimer = setTimeout(() => {
+      this._error = null;
+      this._errorTimer = null;
+      this._render();
+    }, 5000);
+    this._render();
   }
 }
 

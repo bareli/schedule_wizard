@@ -45,19 +45,41 @@ class ScheduleWizardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return ScheduleWizardOptionsFlow(config_entry)
 
 
+FORM_EMPTY = {
+    CONF_CALENDAR_ENTITY: "",
+    CONF_RAIN_ENTITY: "",
+    CONF_RAIN_SKIP_STATES: "",
+    CONF_RAIN_ATTRIBUTE: "",
+    CONF_RAIN_THRESHOLD: None,
+    CONF_NOTIFY_TARGETS: [],
+    CONF_NOTIFY_EVENTS: [],
+}
+
+
+def _suggested(value: Any) -> dict[str, Any]:
+    return {"suggested_value": value}
+
+
 class ScheduleWizardOptionsFlow(config_entries.OptionsFlow):
     def __init__(self, config_entry: config_entries.ConfigEntry):
         self._entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
-        if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
-
         opts = self._entry.options
+        if user_input is not None:
+            # Merge: this form only covers the basic options; keep everything set in the panel.
+            new_options = dict(opts)
+            for key, empty in FORM_EMPTY.items():
+                new_options[key] = user_input.get(key, empty)
+            for key in (CONF_CALENDAR_LOOKAHEAD, CONF_POLL_INTERVAL, CONF_DEFAULT_DURATION):
+                if key in user_input:
+                    new_options[key] = int(user_input[key])
+            return self.async_create_entry(title="", data=new_options)
+
         schema = vol.Schema({
             vol.Optional(
                 CONF_CALENDAR_ENTITY,
-                default=opts.get(CONF_CALENDAR_ENTITY, ""),
+                description=_suggested(opts.get(CONF_CALENDAR_ENTITY) or None),
             ): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain="calendar")
             ),
@@ -81,33 +103,33 @@ class ScheduleWizardOptionsFlow(config_entries.OptionsFlow):
             ),
             vol.Optional(
                 CONF_RAIN_ENTITY,
-                default=opts.get(CONF_RAIN_ENTITY, ""),
+                description=_suggested(opts.get(CONF_RAIN_ENTITY) or None),
             ): selector.EntitySelector(
                 selector.EntitySelectorConfig(domain=["weather", "sensor", "binary_sensor"])
             ),
             vol.Optional(
                 CONF_RAIN_SKIP_STATES,
-                default=opts.get(CONF_RAIN_SKIP_STATES, DEFAULT_RAIN_SKIP_STATES),
+                description=_suggested(opts.get(CONF_RAIN_SKIP_STATES, DEFAULT_RAIN_SKIP_STATES)),
             ): selector.TextSelector(),
             vol.Optional(
                 CONF_RAIN_ATTRIBUTE,
-                default=opts.get(CONF_RAIN_ATTRIBUTE, ""),
+                description=_suggested(opts.get(CONF_RAIN_ATTRIBUTE) or None),
             ): selector.TextSelector(),
             vol.Optional(
                 CONF_RAIN_THRESHOLD,
-                default=opts.get(CONF_RAIN_THRESHOLD, 0),
+                description=_suggested(opts.get(CONF_RAIN_THRESHOLD)),
             ): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=100, step=0.1)
+                selector.NumberSelectorConfig(min=0, max=100, step=0.1, mode=selector.NumberSelectorMode.BOX)
             ),
             vol.Optional(
                 CONF_NOTIFY_TARGETS,
-                default=opts.get(CONF_NOTIFY_TARGETS, []),
+                description=_suggested(opts.get(CONF_NOTIFY_TARGETS) or []),
             ): selector.TextSelector(
                 selector.TextSelectorConfig(multiple=True)
             ),
             vol.Optional(
                 CONF_NOTIFY_EVENTS,
-                default=opts.get(CONF_NOTIFY_EVENTS, []),
+                description=_suggested(opts.get(CONF_NOTIFY_EVENTS) or []),
             ): selector.SelectSelector(
                 selector.SelectSelectorConfig(
                     options=list(NOTIFY_EVENTS),

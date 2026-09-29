@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.8.0: cycle & soak, per-valve moisture, schedule conditions, leak detection + 20 bug fixes
+
+### New
+- **Cycle & soak** per valve: split long schedule, calendar and cycle runs into chunks (max run) with soak pauses. Dashboard shows the soak countdown; the master valve closes while soaking. New event `schedule_wizard_valve_soaking`.
+- **Per-valve moisture sensor**: overrides the global moisture skip for that zone; checked per step inside cycles (wet zone skipped, cycle continues).
+- **Schedule conditions**: up to 10 entity/attribute conditions per schedule (`above`, `below`, `equals`, `not_equals`); the run is skipped unless all hold. New event `schedule_wizard_condition_skipped`, notify event `skipped_condition`.
+- **Flow sensor leak detection**: leak alert (flow with no valve running) and high-flow alert (above a max while watering), with a delay and optional stop-all + master close. New event `schedule_wizard_leak_detected`, notify event `leak_detected`, Dashboard banner.
+- **Stop all** service and Dashboard button.
+- Notify events `skipped_moisture` and `skipped_condition`.
+- Automated test suite (pytest-homeassistant-custom-component) running in CI.
+
+### Fixed
+- Master valve never opened for cycles (#6).
+- HA "Configure" dialog wiped all advanced settings made in the panel (#7).
+- Rain threshold of 0 made numeric rain sensors skip every schedule; 0 now means "off" as the UI says (#8).
+- Saving settings or setting/clearing a rain delay reloaded the integration and cancelled running and paused cycles; options now apply live (#9).
+- Stopping a cycle during fail-detection or master pre-open left the valve open forever (#10).
+- Paused cycle held the master valve open; stopping a paused cycle never closed it or logged it (#11).
+- Calendar events found ahead of time skipped seasonal adjustment, rain skip, moisture skip, fire-time rain delay and overlap checks (#12). Behaviour change: rain and moisture skip now apply to calendar runs too.
+- Pending calendar triggers were never cancelled: deleted/moved events still fired (#13).
+- All-day calendar events could run a valve for 24 hours; they are now ignored (#14).
+- The same valve could be started twice by two triggers in the same minute (#15).
+- Next-run times used the server time zone instead of HA's (#16).
+- Calendar events could be missed when the poll interval exceeded the lookahead (#17).
+- Sensors now belong to a "Schedule Wizard" device, so new installs get `sensor.schedule_wizard_active_runs` / `sensor.schedule_wizard_next_schedule` as documented (#18).
+- Panel/card auto-refresh stopped after the element was re-attached (#19).
+- A failed refresh on the Settings tab left a permanent error screen (#20).
+- Editing a valve's entity deleted the old valve even when adding the new one failed; schedules are now migrated to the new entity (#21).
+- Reports 30-day chart bucketed by UTC day (#22).
+- Card quick-run minutes reset every 5 seconds (#23).
+- Backend minor (#24): webhook `stop` accepted any domain and unbounded durations; dead GET branch removed; `update_options` now requires admin; calendar description parsing only takes minutes (`15 min`, `15 דקות`, or a bare number) instead of the first number; superseded runs are logged; step numbers after resume are correct; `add_schedule` rejects unregistered valves; options-flow entity pickers accept empty values.
+- Frontend minor (#25): CSV notes double-escaped and no UTF-8 BOM (Hebrew garbled in Excel); clearing a seasonal field silently disabled seasonal; cycle steps pointing at deleted valves; card errors only in the console; in-place row updates matched by label; seasonal preview requested all states on each keystroke.
+- A valve that fails to open is now turned off again.
+
 ## 0.7.4 — fix quick-run duration input resetting
 
 - Fixed the per-valve "minutes" box on the Dashboard resetting to the default duration while typing. The 5-second auto-refresh focus guard used `document.activeElement`, which returns the shadow host inside Home Assistant's panel, so the guard never matched and every refresh re-rendered the input. It now walks the shadow-root chain to find the real focused element.

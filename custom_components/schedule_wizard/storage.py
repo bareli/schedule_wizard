@@ -12,6 +12,44 @@ from .const import STORAGE_KEY, STORAGE_VERSION
 
 MAX_HISTORY = 500
 
+VALVE_EXTRA_FIELDS = (
+    "soak_run_min",
+    "soak_pause_min",
+    "moisture_entity",
+    "moisture_attribute",
+    "moisture_threshold",
+)
+
+
+def _clean_valve_extra(extra: dict[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for k in VALVE_EXTRA_FIELDS:
+        if k not in extra:
+            continue
+        v = extra[k]
+        if k in ("soak_run_min", "soak_pause_min"):
+            out[k] = max(0, int(v or 0))
+        elif k == "moisture_threshold":
+            out[k] = None if v is None or v == "" else float(v)
+        else:
+            out[k] = (v or "").strip()
+    return out
+
+
+def _clean_conditions(conditions: Optional[list[dict]]) -> list[dict]:
+    out = []
+    for c in conditions or []:
+        entity_id = (c.get("entity_id") or "").strip()
+        if not entity_id:
+            continue
+        out.append({
+            "entity_id": entity_id,
+            "attribute": (c.get("attribute") or "").strip(),
+            "operator": c.get("operator") or "equals",
+            "value": "" if c.get("value") is None else str(c.get("value")),
+        })
+    return out
+
 
 class WizardStore:
     def __init__(self, hass: HomeAssistant):
@@ -70,6 +108,7 @@ class WizardStore:
         label: str,
         default_duration_min: int,
         enabled: bool = True,
+        **extra: Any,
     ) -> dict:
         existing = self.get_valve(entity_id)
         if existing:
@@ -77,6 +116,7 @@ class WizardStore:
                 "label": label,
                 "default_duration_min": int(default_duration_min),
                 "enabled": bool(enabled),
+                **_clean_valve_extra(extra),
             })
             await self.async_save()
             return existing
@@ -85,6 +125,12 @@ class WizardStore:
             "label": label,
             "default_duration_min": int(default_duration_min),
             "enabled": bool(enabled),
+            "soak_run_min": 0,
+            "soak_pause_min": 0,
+            "moisture_entity": "",
+            "moisture_attribute": "",
+            "moisture_threshold": None,
+            **_clean_valve_extra(extra),
             "created_at": int(time.time()),
         }
         self._data["valves"].append(valve)
@@ -115,6 +161,7 @@ class WizardStore:
         enabled: bool = True,
         valve_entity_id: Optional[str] = None,
         cycle_id: Optional[str] = None,
+        conditions: Optional[list[dict]] = None,
     ) -> dict:
         sched = {
             "id": uuid.uuid4().hex[:12],
@@ -125,6 +172,7 @@ class WizardStore:
             "time_hhmm": time_hhmm,
             "duration_min": int(duration_min),
             "enabled": bool(enabled),
+            "conditions": _clean_conditions(conditions),
             "created_at": int(time.time()),
         }
         self._data["schedules"].append(sched)
@@ -143,6 +191,8 @@ class WizardStore:
                     sched[k] = bool(fields[k])
                 else:
                     sched[k] = fields[k]
+        if fields.get("conditions") is not None:
+            sched["conditions"] = _clean_conditions(fields["conditions"])
         await self.async_save()
         return sched
 

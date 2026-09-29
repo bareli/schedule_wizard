@@ -147,6 +147,21 @@ const STYLES = `
   color: #fff; text-transform: uppercase; white-space: nowrap;
 }
 .muted { color: var(--sw-muted); }
+.badge {
+  display: inline-block; margin-left: 6px; padding: 1px 6px;
+  border-radius: 4px; font-size: 11px; font-weight: 500;
+  background: var(--sw-border); color: var(--sw-muted); vertical-align: middle;
+}
+.alert-banner {
+  padding: 12px 14px; margin-bottom: 14px; border-radius: 10px;
+  background: var(--sw-danger); color: #fff; font-weight: 600;
+}
+.cond-row { display: grid; grid-template-columns: 1.4fr 1fr 0.9fr 0.8fr auto; gap: 6px; align-items: center; padding: 4px 0; }
+.cond-row input, .cond-row select {
+  width: 100%; padding: 6px 8px; border: 1px solid var(--sw-border); border-radius: 6px;
+  background: var(--sw-card); color: var(--sw-text); font: inherit; font-size: 13px;
+}
+@media (max-width: 540px) { .cond-row { grid-template-columns: 1fr 1fr; } }
 .toast {
   position: fixed; bottom: 20px; left: 50%;
   transform: translateX(-50%);
@@ -219,6 +234,11 @@ function deepActiveElement() {
   return node;
 }
 
+function localDayKey(ts) {
+  const d = new Date(ts * 1000);
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
 function daysFromMaskNames(mask) {
   return DAYS.filter((_, i) => mask & DAY_BITS[i]);
 }
@@ -244,7 +264,12 @@ class ScheduleWizardPanel extends HTMLElement {
   set panel(v) { this._panel = v; }
 
   connectedCallback() {
-    if (this._hass && !this._initialized) this._init();
+    if (this._hass && !this._initialized) {
+      this._init();
+    } else if (this._initialized && !this._refreshTimer) {
+      this._refresh();
+      this._refreshTimer = setInterval(() => this._refresh(), 5000);
+    }
   }
 
   disconnectedCallback() {
@@ -275,6 +300,11 @@ class ScheduleWizardPanel extends HTMLElement {
   async _refresh() {
     try {
       this._state = await this._hass.callWS({ type: "schedule_wizard/get_state" });
+      if (this._hadError) {
+        this._hadError = false;
+        this._render();
+        return;
+      }
       if (this._tab === "settings") return;
       const focused = deepActiveElement();
       const focusedHere = focused && this.contains(focused) &&
@@ -285,6 +315,7 @@ class ScheduleWizardPanel extends HTMLElement {
       }
       this._render();
     } catch (e) {
+      this._hadError = true;
       this._renderError(e);
     }
   }
@@ -297,20 +328,22 @@ class ScheduleWizardPanel extends HTMLElement {
     }
     const bars = this.querySelectorAll(".progress-bar");
     bars.forEach(b => {
-      const row = b.closest(".item");
+      const row = b.closest(".item[data-entity]");
       if (!row) return;
-      const name = row.querySelector(".name");
-      if (!name) return;
-      const label = name.textContent.replace(/\s*●\s*$/, "").trim();
-      const active = this._state.active.find(r => {
-        const valve = this._state.valves.find(v => v.entity_id === r.entity_id);
-        return (valve ? valve.label : r.entity_id) === label;
-      });
+      const entity = row.getAttribute("data-entity");
+      const active = this._state.active.find(r => r.entity_id === entity);
       if (!active) return;
       const total = Math.max(1, active.ends_at - active.started_at);
       const remaining = Math.max(0, active.ends_at - this._state.now);
       const pct = Math.min(100, ((total - remaining) / total) * 100);
       b.style.width = `${pct}%`;
+    });
+    this.querySelectorAll(".item[data-soak] .soak-line").forEach(line => {
+      const entity = line.closest(".item").getAttribute("data-soak");
+      const s = (this._state.soaking || []).find(x => x.entity_id === entity && x.phase === "soaking");
+      if (!s) return;
+      const left = Math.max(0, (parseInt(s.resume_at, 10) || 0) - this._state.now);
+      line.textContent = line.textContent.replace(/resumes in \d+:\d{2}/, `resumes in ${fmtRemaining(left)}`);
     });
   }
 
@@ -391,6 +424,41 @@ class ScheduleWizardPanel extends HTMLElement {
   _renderDashboard(root) {
     const rainUntil = parseInt(this._state.rain_delay_until || 0, 10);
     const now = this._state.now;
+    const soaking = this._state.soaking || [];
+    const flow = this._state.flow || {};
+
+    if (flow.alert) {
+      root.appendChild(el("div", { class: "alert-banner" },
+        flow.alert === "leak"
+          ? "⚠ Possible leak: flow detected with no valve running"
+          : flow.alert === "high_flow"
+            ? "⚠ High flow while watering"
+            : `⚠ Flow alert: ${flow.alert}`
+      ));
+    }
+
+    const anythingRunning = this._state.active.length > 0 ||
+      (this._state.active_cycles || []).length > 0 || soaking.length > 0;
+    if (flow.entity_id || anythingRunning) {
+      const headerChildren = [];
+      if (flow.entity_id) {
+        const flowVal = (flow.value === null || flow.value === undefined) ? "unavailable" : String(flow.value);
+        headerChildren.push(el("span", { class: "pill", title: flow.entity_id }, `Flow: ${flowVal}`));
+      } else {
+        headerChildren.push(el("span"));
+      }
+      if (anythingRunning) {
+        headerChildren.push(el("button", {
+          class: "btn danger small",
+          onClick: () => {
+            if (!confirm("Stop all watering? This stops every running valve, cycle and soak.")) return;
+            this._callService("stop_all", {});
+          },
+        }, "Stop all"));
+      }
+      root.appendChild(el("div", { class: "row-between" }, headerChildren));
+    }
+
     const rainCard = el("div", { class: "card" });
     if (rainUntil > now) {
       const left = rainUntil - now;
@@ -427,10 +495,13 @@ class ScheduleWizardPanel extends HTMLElement {
 
     const active = el("div", { class: "card" }, [el("h2", {}, "Active runs")]);
     const list = el("div", { class: "list" });
-    if (!this._state.active.length) {
+    const soakingIdle = soaking.filter(s => s.phase === "soaking" &&
+      !this._state.active.some(r => r.entity_id === s.entity_id));
+    if (!this._state.active.length && !soakingIdle.length) {
       list.appendChild(el("div", { class: "empty" }, "No active runs."));
     } else {
       this._state.active.forEach((r) => list.appendChild(this._activeRunRow(r)));
+      soakingIdle.forEach((s) => list.appendChild(this._soakingRow(s)));
     }
     active.appendChild(list);
     root.appendChild(active);
@@ -527,11 +598,13 @@ class ScheduleWizardPanel extends HTMLElement {
     const pct = Math.min(100, ((total - remaining) / total) * 100);
     const valve = this._state.valves.find((v) => v.entity_id === r.entity_id);
     const label = valve ? valve.label : r.entity_id;
+    const soak = (this._state.soaking || []).find(s => s.entity_id === r.entity_id && s.phase === "running");
+    const chunkLbl = soak && soak.chunks > 1 ? ` (chunk ${soak.chunk}/${soak.chunks})` : "";
 
-    return el("div", { class: "item" }, [
+    return el("div", { class: "item", "data-entity": r.entity_id }, [
       el("div", {}, [
         el("div", { class: "name" }, label),
-        el("div", { class: "sub" }, `${r.entity_id} • ${r.source} • ${fmtRemaining(remaining)} left`),
+        el("div", { class: "sub" }, `${r.entity_id} • ${r.source} • ${fmtRemaining(remaining)} left${chunkLbl}`),
         el("div", { class: "progress-wrap" }, el("div", { class: "progress-bar", style: `width:${pct}%` })),
       ]),
       el("div", { class: "actions" }, [
@@ -540,6 +613,33 @@ class ScheduleWizardPanel extends HTMLElement {
           onClick: () => this._callService("stop_valve", { entity_id: r.entity_id }),
         }, "Stop"),
       ]),
+    ]);
+  }
+
+  _soakingRow(s) {
+    const valve = this._state.valves.find((v) => v.entity_id === s.entity_id);
+    const label = valve ? valve.label : s.entity_id;
+    const left = Math.max(0, (parseInt(s.resume_at, 10) || 0) - this._state.now);
+    const ownerCycle = s.owner === "cycle"
+      ? (this._state.active_cycles || []).find(c => c.current_entity === s.entity_id)
+      : null;
+    const ownerLbl = s.owner === "cycle" ? " • part of cycle" : "";
+    const stopBtn = ownerCycle
+      ? el("button", {
+          class: "btn danger small",
+          onClick: () => this._callService("stop_cycle", { cycle_id: ownerCycle.cycle_id }),
+        }, "Stop cycle")
+      : el("button", {
+          class: "btn danger small",
+          onClick: () => this._callService("stop_valve", { entity_id: s.entity_id }),
+        }, "Stop");
+    return el("div", { class: "item", "data-soak": s.entity_id }, [
+      el("div", {}, [
+        el("div", { class: "name" }, `💧 ${label}`),
+        el("div", { class: "sub soak-line" },
+          `Soaking: chunk ${s.chunk}/${s.chunks}, resumes in ${fmtRemaining(left)} • ${s.source}${ownerLbl}`),
+      ]),
+      el("div", { class: "actions" }, [stopBtn]),
     ]);
   }
 
@@ -575,7 +675,7 @@ class ScheduleWizardPanel extends HTMLElement {
         el("div", { class: "progress-bar", style: `width:${pct}%` })
       ));
     }
-    return el("div", { class: "item" }, [
+    return el("div", { class: "item", "data-entity": v.entity_id }, [
       meta,
       el("div", { class: "actions" }, [
         minsInput,
@@ -636,8 +736,15 @@ class ScheduleWizardPanel extends HTMLElement {
     const week = stats.runs_7d
       ? `${stats.runs_7d} runs / ${stats.total_min_7d}m last 7 days`
       : "no runs last 7 days";
+    const badges = [];
+    if ((v.soak_run_min || 0) > 0 && (v.soak_pause_min || 0) > 0) {
+      badges.push(el("span", { class: "badge", title: "Cycle & soak: max run / soak pause (min)" }, `soak ${v.soak_run_min}/${v.soak_pause_min}`));
+    }
+    if (v.moisture_entity) {
+      badges.push(el("span", { class: "badge", title: v.moisture_entity }, "moisture"));
+    }
     const metaChildren = [
-      el("div", { class: "name" }, v.label + (v.enabled ? "" : " (disabled)")),
+      el("div", { class: "name" }, [v.label + (v.enabled ? "" : " (disabled)"), ...badges]),
       el("div", { class: "sub" }, `${v.entity_id} • ${v.default_duration_min}m default`),
       el("div", { class: "sub", style: "margin-top:2px;" }, lastLine + " • " + week),
     ];
@@ -709,6 +816,34 @@ class ScheduleWizardPanel extends HTMLElement {
     search.addEventListener("input", renderPicker);
     renderPicker();
 
+    const soakRunInput = el("input", { type: "number", min: "0", max: "1440", value: String(existing ? (existing.soak_run_min || 0) : 0) });
+    const soakPauseInput = el("input", { type: "number", min: "0", max: "1440", value: String(existing ? (existing.soak_pause_min || 0) : 0) });
+    const vMoistEntity = el("input", { type: "text", placeholder: "sensor.zone_moisture", value: String((existing && existing.moisture_entity) || "") });
+    const vMoistAttr = el("input", { type: "text", placeholder: "moisture (optional attribute)", value: String((existing && existing.moisture_attribute) || "") });
+    const vMoistThrRaw = (existing && existing.moisture_threshold !== null && existing.moisture_threshold !== undefined) ? String(existing.moisture_threshold) : "";
+    const vMoistThreshold = el("input", { type: "number", min: "0", max: "100", step: "0.5", value: vMoistThrRaw });
+
+    const hasAdvanced = !!(existing && ((existing.soak_run_min || 0) > 0 || (existing.soak_pause_min || 0) > 0 || existing.moisture_entity));
+    const advBody = el("div", { style: hasAdvanced ? "" : "display:none;" }, [
+      el("div", { class: "field-row" }, [
+        el("label", { class: "field" }, [el("span", {}, "Cycle & soak: max run (min)"), soakRunInput]),
+        el("label", { class: "field" }, [el("span", {}, "Soak pause (min)"), soakPauseInput]),
+      ]),
+      el("p", { class: "muted", style: "font-size:12px;margin:-6px 0 12px;" },
+        "Splits long scheduled/calendar/cycle runs into chunks with soak pauses. Manual runs are not split. 0 = off."),
+      el("label", { class: "field" }, [el("span", {}, "Per-valve moisture sensor"), vMoistEntity]),
+      el("div", { class: "field-row" }, [
+        el("label", { class: "field" }, [el("span", {}, "Attribute (optional)"), vMoistAttr]),
+        el("label", { class: "field" }, [el("span", {}, "Skip when ≥ (blank = off)"), vMoistThreshold]),
+      ]),
+    ]);
+    const advToggle = el("button", { class: "btn small", type: "button" }, hasAdvanced ? "Hide advanced" : "Show advanced");
+    advToggle.addEventListener("click", () => {
+      const hidden = advBody.style.display === "none";
+      advBody.style.display = hidden ? "" : "none";
+      advToggle.textContent = hidden ? "Hide advanced" : "Show advanced";
+    });
+
     const fields = [
       el("label", { class: "field" }, [el("span", {}, "Search entity"), search, picker]),
       el("label", { class: "field" }, [el("span", {}, "Label (used for calendar matching)"), labelInput]),
@@ -716,18 +851,44 @@ class ScheduleWizardPanel extends HTMLElement {
         el("label", { class: "field" }, [el("span", {}, "Default duration (min)"), durInput]),
         el("label", { class: "field" }, [el("span", {}, "Enabled"), enabledInput]),
       ]),
+      el("div", { class: "field", style: "padding-top:10px;border-top:1px solid var(--sw-border);" }, [advToggle]),
+      advBody,
     ];
 
     this._showModal(existing ? "Edit valve" : "Add valve", fields, async () => {
       if (!chosen) { this._toast("Pick an entity", "error"); return false; }
       if (!label.trim()) { this._toast("Label required", "error"); return false; }
+      const clampMin = (input) => Math.min(1440, Math.max(0, parseInt(input.value, 10) || 0));
+      const thrRaw = vMoistThreshold.value.trim();
+      const thr = thrRaw === "" ? null : parseFloat(thrRaw);
       const ok = await this._callService("add_valve", {
         entity_id: chosen,
         label: label.trim(),
         default_duration_minutes: duration,
         enabled,
+        soak_run_minutes: clampMin(soakRunInput),
+        soak_pause_minutes: clampMin(soakPauseInput),
+        moisture_entity: vMoistEntity.value.trim(),
+        moisture_attribute: vMoistAttr.value.trim(),
+        moisture_threshold: (thr === null || isNaN(thr)) ? null : thr,
       });
-      if (existing && existing.entity_id !== chosen) {
+      if (ok && existing && existing.entity_id !== chosen) {
+        const oldSchedules = (this._state.schedules || []).filter(s => s.valve_entity_id === existing.entity_id);
+        for (const s of oldSchedules) {
+          const payload = {
+            valve_entity_id: chosen,
+            time: s.time_hhmm,
+            days: daysFromMaskNames(s.days_mask),
+            duration_minutes: s.duration_min,
+            name: s.name || "",
+            enabled: !!s.enabled,
+          };
+          if (Array.isArray(s.conditions)) payload.conditions = s.conditions;
+          if (!await this._callService("add_schedule", payload)) {
+            this._toast(`Schedule migration failed; old valve "${existing.label}" kept`, "error");
+            return false;
+          }
+        }
         await this._callService("remove_valve", { entity_id: existing.entity_id });
       }
       return ok;
@@ -852,6 +1013,11 @@ class ScheduleWizardPanel extends HTMLElement {
       stepsWrap.innerHTML = "";
       steps.forEach((s, idx) => {
         const sel = el("select", {});
+        if (s.entity_id && !this._state.valves.some(v => v.entity_id === s.entity_id)) {
+          const stale = el("option", { value: s.entity_id, style: "color:var(--sw-muted);font-style:italic;" }, `(missing) ${s.entity_id}`);
+          stale.selected = true;
+          sel.appendChild(stale);
+        }
         this._state.valves.forEach(v => {
           const opt = el("option", { value: v.entity_id }, `${v.label} (${v.entity_id})`);
           if (v.entity_id === s.entity_id) opt.selected = true;
@@ -953,9 +1119,13 @@ class ScheduleWizardPanel extends HTMLElement {
       targetName = valve ? valve.label : s.valve_entity_id;
       targetDuration = `${s.duration_min}m`;
     }
+    const condCount = Array.isArray(s.conditions) ? s.conditions.length : 0;
     return el("div", { class: "item" }, [
       el("div", {}, [
-        el("div", { class: "name" }, (s.name || `${targetName} @ ${s.time_hhmm}`) + (s.enabled ? "" : " (disabled)")),
+        el("div", { class: "name" }, [
+          (s.name || `${targetName} @ ${s.time_hhmm}`) + (s.enabled ? "" : " (disabled)"),
+          condCount ? el("span", { class: "badge" }, `${condCount} condition${condCount === 1 ? "" : "s"}`) : null,
+        ]),
         el("div", { class: "sub" }, `${targetName} • ${s.time_hhmm} • ${daysFromMask(s.days_mask)} • ${targetDuration}`),
       ]),
       el("div", { class: "actions" }, [
@@ -1056,17 +1226,74 @@ class ScheduleWizardPanel extends HTMLElement {
       days.appendChild(tog);
     });
 
+    const OPERATORS = [["above", "above"], ["below", "below"], ["equals", "equals"], ["not_equals", "not equals"]];
+    const conditions = (existing && Array.isArray(existing.conditions) ? existing.conditions : []).map(c => ({
+      entity_id: c.entity_id || "",
+      attribute: c.attribute || "",
+      operator: c.operator || "equals",
+      value: c.value === null || c.value === undefined ? "" : String(c.value),
+    }));
+    const condWrap = el("div");
+    const renderConditions = () => {
+      condWrap.innerHTML = "";
+      conditions.forEach((c, idx) => {
+        const entInput = el("input", { type: "text", placeholder: "sensor.example", value: c.entity_id });
+        entInput.addEventListener("input", () => { c.entity_id = entInput.value; });
+        const attrInput = el("input", { type: "text", placeholder: "attribute (optional)", value: c.attribute });
+        attrInput.addEventListener("input", () => { c.attribute = attrInput.value; });
+        const opSel = el("select", {});
+        OPERATORS.forEach(([val, lbl]) => {
+          const opt = el("option", { value: val }, lbl);
+          if (val === c.operator) opt.selected = true;
+          opSel.appendChild(opt);
+        });
+        opSel.addEventListener("change", () => { c.operator = opSel.value; });
+        const valInput = el("input", { type: "text", placeholder: "value", value: c.value });
+        valInput.addEventListener("input", () => { c.value = valInput.value; });
+        condWrap.appendChild(el("div", { class: "cond-row" }, [
+          entInput, attrInput, opSel, valInput,
+          el("button", {
+            class: "btn danger small",
+            type: "button",
+            onClick: () => { conditions.splice(idx, 1); renderConditions(); },
+          }, "✕"),
+        ]));
+      });
+      condWrap.appendChild(el("button", {
+        class: "btn small",
+        type: "button",
+        style: "margin-top:6px;",
+        disabled: conditions.length >= 10,
+        onClick: () => {
+          if (conditions.length >= 10) return;
+          conditions.push({ entity_id: "", attribute: "", operator: "above", value: "" });
+          renderConditions();
+        },
+      }, "+ Add condition"));
+    };
+    renderConditions();
+    const collectConditions = () => conditions
+      .filter(c => c.entity_id.trim())
+      .map(c => ({
+        entity_id: c.entity_id.trim(),
+        attribute: c.attribute.trim(),
+        operator: c.operator,
+        value: c.value.trim(),
+      }));
+
     const fields = [
       el("label", { class: "field" }, [el("span", {}, "Target"), targetSel]),
       targetFieldHost,
       durRow,
       el("label", { class: "field" }, [el("span", {}, "Name"), nameInput]),
       el("div", { class: "field" }, [el("span", {}, "Days"), days]),
+      el("div", { class: "field" }, [el("span", {}, "Conditions (all must be true)"), condWrap]),
       el("label", { class: "field" }, [el("span", {}, "Enabled"), enabledInput]),
     ];
 
     this._showModal(existing ? "Edit schedule" : "Add schedule", fields, async () => {
       if (!mask) { this._toast("Pick at least one day", "error"); return false; }
+      const conds = collectConditions();
       if (existing) {
         return await this._callService("update_schedule", {
           schedule_id: existing.id,
@@ -1075,6 +1302,7 @@ class ScheduleWizardPanel extends HTMLElement {
           duration_minutes: targetKind === "valve" ? duration : 1,
           days: daysFromMaskNames(mask),
           enabled,
+          conditions: conds,
         });
       }
       const base = {
@@ -1082,6 +1310,7 @@ class ScheduleWizardPanel extends HTMLElement {
         days: daysFromMaskNames(mask),
         name,
         enabled,
+        conditions: conds,
       };
       if (targetKind === "cycle") {
         return await this._callService("add_schedule", { ...base, cycle_id: cycleId, duration_minutes: 1 });
@@ -1125,7 +1354,7 @@ class ScheduleWizardPanel extends HTMLElement {
           s.runs_total++; s.min_total += dur;
           if (!s.last || h.ts > s.last.ts) s.last = h;
           if (inWindow(h.ts, 30)) {
-            const dayKey = Math.floor(h.ts / day);
+            const dayKey = localDayKey(h.ts);
             dailyMin[dayKey] = (dailyMin[dayKey] || 0) + dur;
           }
         }
@@ -1158,7 +1387,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const dayValues = [];
     for (let i = 29; i >= 0; i--) {
       const d = new Date((now - i * day) * 1000);
-      const key = Math.floor((now - i * day) / day);
+      const key = localDayKey(now - i * day);
       dayLabels.push(d.toLocaleDateString(undefined, { month: "numeric", day: "numeric" }));
       dayValues.push(dailyMin[key] || 0);
     }
@@ -1276,7 +1505,7 @@ class ScheduleWizardPanel extends HTMLElement {
         h.duration_min || 0,
         h.source || "",
         h.status || "",
-        (h.note || "").replace(/"/g, '""'),
+        h.note || "",
       ];
     });
     const escape = (v) => {
@@ -1284,7 +1513,7 @@ class ScheduleWizardPanel extends HTMLElement {
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const csv = [header.map(escape).join(","), ...rows.map(r => r.map(escape).join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -1343,7 +1572,7 @@ class ScheduleWizardPanel extends HTMLElement {
 
     if (!showAdvanced) {
       card.appendChild(el("p", { class: "muted small", style: "margin-top:8px;" },
-        "Click Show to configure rain skip, soil moisture, seasonal adjustment, master valve / pump, fail detection, notifications, and cycle overlap."
+        "Click Show to configure rain skip, soil moisture, seasonal adjustment, master valve / pump, fail detection, flow / leak detection, notifications, and cycle overlap."
       ));
     }
 
@@ -1352,7 +1581,7 @@ class ScheduleWizardPanel extends HTMLElement {
     });
     rainSection.appendChild(el("h3", { style: "margin:0 0 6px;font-size:14px;" }, "Rain skip"));
     rainSection.appendChild(el("p", { class: "muted", style: "font-size:12px;margin:0 0 10px;" },
-      "Optional. Skips cron schedules when the selected entity matches any skip state, or its numeric value exceeds the threshold. Calendar and manual runs are not affected."
+      "Optional. Skips cron schedules and calendar events when the selected entity matches any skip state, or its numeric value exceeds the threshold. Manual runs are never skipped."
     ));
     rainSection.appendChild(el("label", { class: "field" }, [
       el("span", {}, "Rain / weather entity"),
@@ -1416,6 +1645,9 @@ class ScheduleWizardPanel extends HTMLElement {
       cycle_start: "Cycle started",
       cycle_end: "Cycle ended",
       skipped_rain: "Skipped (rain)",
+      skipped_moisture: "Skipped (moisture)",
+      skipped_condition: "Skipped (condition)",
+      leak_detected: "Leak / high flow detected",
       valve_failed: "Valve failed to open",
       rain_delay: "Rain delay set",
     };
@@ -1464,13 +1696,23 @@ class ScheduleWizardPanel extends HTMLElement {
     const seasonalPreview = el("div", {
       style: "margin-top:8px;padding:8px 10px;border-radius:6px;background:var(--sw-bg);border:1px solid var(--sw-border);font-size:13px;",
     });
+    let previewSeq = 0;
+    let previewTimer = null;
     const computePreview = () => {
-      seasonalPreview.innerHTML = "";
+      const seq = ++previewSeq;
       const entityId = seasonalTempEntity.value.trim();
-      if (!entityId) { seasonalPreview.appendChild(el("span", { class: "muted" }, "Set a temperature entity to see a live preview.")); return; }
+      if (!entityId) {
+        seasonalPreview.innerHTML = "";
+        seasonalPreview.appendChild(el("span", { class: "muted" }, "Set a temperature entity to see a live preview."));
+        return;
+      }
       const attr = seasonalTempAttr.value.trim();
-      this._hass.callWS({ type: "get_states" }).then(states => {
-        const s = states.find(x => x.entity_id === entityId);
+      const lookup = this._hass && this._hass.states
+        ? Promise.resolve(this._hass.states[entityId] || null)
+        : this._hass.callWS({ type: "get_states" }).then(states => states.find(x => x.entity_id === entityId) || null);
+      lookup.then(s => {
+        if (seq !== previewSeq) return;
+        seasonalPreview.innerHTML = "";
         if (!s) { seasonalPreview.appendChild(el("span", { style: "color:var(--sw-danger)" }, `Entity ${entityId} not found.`)); return; }
         let temp = null;
         try { temp = parseFloat(attr ? s.attributes[attr] : s.state); } catch {}
@@ -1487,10 +1729,16 @@ class ScheduleWizardPanel extends HTMLElement {
         const example10 = Math.max(1, Math.round(10 * pct / 100));
         seasonalPreview.appendChild(el("span", {}, `Current: ${temp}${tempUnit} → factor ${pct.toFixed(0)}% → 10 min schedule would run ${example10} min`));
       }).catch(() => {
+        if (seq !== previewSeq) return;
+        seasonalPreview.innerHTML = "";
         seasonalPreview.appendChild(el("span", { class: "muted" }, "Could not read state."));
       });
     };
-    [seasonalTempEntity, seasonalTempAttr, seasonalLow, seasonalHigh, seasonalMin, seasonalMax].forEach(i => i.addEventListener("input", computePreview));
+    const schedulePreview = () => {
+      if (previewTimer) clearTimeout(previewTimer);
+      previewTimer = setTimeout(() => { previewTimer = null; computePreview(); }, 400);
+    };
+    [seasonalTempEntity, seasonalTempAttr, seasonalLow, seasonalHigh, seasonalMin, seasonalMax].forEach(i => i.addEventListener("input", schedulePreview));
     computePreview();
 
     seasonalSection.appendChild(el("label", { class: "field" }, [el("span", {}, "Enabled"), seasonalEnabledInput]));
@@ -1512,7 +1760,7 @@ class ScheduleWizardPanel extends HTMLElement {
     });
     moistureSection.appendChild(el("h3", { style: "margin:0 0 6px;font-size:14px;" }, "Soil moisture skip"));
     moistureSection.appendChild(el("p", { class: "muted", style: "font-size:12px;margin:0 0 10px;" },
-      "Skip cron/calendar triggers when soil moisture is above a threshold (soil already wet)."
+      "Skip cron schedules and calendar events when soil moisture is at or above the threshold (soil already wet). Manual runs are never skipped. Per-valve sensors can be set in each valve's advanced settings."
     ));
     const moistureEntity = el("input", { type: "text", placeholder: "sensor.garden_moisture", value: String(opts.moisture_entity || "") });
     const moistureAttr = el("input", { type: "text", placeholder: "moisture (optional attribute)", value: String(opts.moisture_attribute || "") });
@@ -1570,6 +1818,33 @@ class ScheduleWizardPanel extends HTMLElement {
     ]));
     card.appendChild(failSection);
 
+    const flowSection = el("div", {
+      style: "margin-top:16px;padding-top:12px;border-top:1px solid var(--sw-border);" + (showAdvanced ? "" : "display:none;"),
+    });
+    flowSection.appendChild(el("h3", { style: "margin:0 0 6px;font-size:14px;" }, "Flow sensor / leak detection"));
+    flowSection.appendChild(el("p", { class: "muted", style: "font-size:12px;margin:0 0 10px;" },
+      "Leak: flow above the threshold while no valve is running. High flow: above the max while watering (burst pipe). Alert fires after the delay. Optionally stop all watering and close the master valve."
+    ));
+    const numVal = (v) => (v === null || v === undefined) ? "" : String(v);
+    const flowEntity = el("input", { type: "text", placeholder: "sensor.water_flow", value: String(opts.flow_entity || "") });
+    const flowAttr = el("input", { type: "text", placeholder: "flow (optional attribute)", value: String(opts.flow_attribute || "") });
+    const flowLeak = el("input", { type: "number", min: "0", step: "0.1", value: numVal(opts.flow_leak_threshold ?? 0) });
+    const flowMax = el("input", { type: "number", min: "0", step: "0.1", value: numVal(opts.flow_max_running ?? 0) });
+    const flowDelay = el("input", { type: "number", min: "5", max: "3600", value: numVal(opts.flow_delay_sec ?? 60) });
+    const flowStopAll = el("input", { type: "checkbox" });
+    flowStopAll.checked = !!opts.flow_stop_all;
+    flowSection.appendChild(el("label", { class: "field" }, [el("span", {}, "Flow sensor entity"), flowEntity]));
+    flowSection.appendChild(el("label", { class: "field" }, [el("span", {}, "Attribute (optional)"), flowAttr]));
+    flowSection.appendChild(el("div", { class: "field-row" }, [
+      el("label", { class: "field" }, [el("span", {}, "Leak threshold, idle (0 = off)"), flowLeak]),
+      el("label", { class: "field" }, [el("span", {}, "Max flow while watering (0 = off)"), flowMax]),
+    ]));
+    flowSection.appendChild(el("div", { class: "field-row" }, [
+      el("label", { class: "field" }, [el("span", {}, "Alert delay (seconds, 5-3600)"), flowDelay]),
+      el("label", { class: "field" }, [el("span", {}, "Stop all watering on alert"), flowStopAll]),
+    ]));
+    card.appendChild(flowSection);
+
     const feedback = el("div", { class: "muted", style: "margin-top:8px;font-size:12px;" });
     const saveBtn = el("button", { class: "btn primary" }, "Save settings");
     saveBtn.addEventListener("click", async () => {
@@ -1578,6 +1853,23 @@ class ScheduleWizardPanel extends HTMLElement {
       saveBtn.textContent = "Saving...";
       const thresholdRaw = rainThresholdInput.value.trim();
       const threshold = thresholdRaw === "" ? null : parseFloat(thresholdRaw);
+      const seasonalNums = {};
+      [
+        ["seasonal_temp_low", seasonalLow],
+        ["seasonal_temp_high", seasonalHigh],
+        ["seasonal_min_pct", seasonalMin],
+        ["seasonal_max_pct", seasonalMax],
+      ].forEach(([key, input]) => {
+        const n = parseFloat(input.value);
+        if (input.value.trim() !== "" && !isNaN(n)) seasonalNums[key] = n;
+      });
+      const flowNums = {};
+      [["flow_leak_threshold", flowLeak], ["flow_max_running", flowMax]].forEach(([key, input]) => {
+        const n = parseFloat(input.value);
+        if (input.value.trim() !== "" && !isNaN(n)) flowNums[key] = Math.max(0, n);
+      });
+      const delayN = parseInt(flowDelay.value, 10);
+      if (flowDelay.value.trim() !== "" && !isNaN(delayN)) flowNums.flow_delay_sec = Math.min(3600, Math.max(5, delayN));
       try {
         const result = await this._hass.callWS({
           type: "schedule_wizard/update_options",
@@ -1594,10 +1886,7 @@ class ScheduleWizardPanel extends HTMLElement {
           seasonal_enabled: seasonalEnabledInput.checked,
           seasonal_temp_entity: seasonalTempEntity.value.trim(),
           seasonal_temp_attribute: seasonalTempAttr.value.trim(),
-          seasonal_temp_low: parseFloat(seasonalLow.value),
-          seasonal_temp_high: parseFloat(seasonalHigh.value),
-          seasonal_min_pct: parseFloat(seasonalMin.value),
-          seasonal_max_pct: parseFloat(seasonalMax.value),
+          ...seasonalNums,
           allow_concurrent_cycles: allowConcurrent.checked,
           moisture_entity: moistureEntity.value.trim(),
           moisture_attribute: moistureAttr.value.trim(),
@@ -1606,6 +1895,10 @@ class ScheduleWizardPanel extends HTMLElement {
           master_valve_pre_open_sec: parseInt(masterPreOpen.value, 10) || 0,
           fail_detection_enabled: failEnabled.checked,
           fail_detection_seconds: parseInt(failSeconds.value, 10) || 5,
+          flow_entity: flowEntity.value.trim(),
+          flow_attribute: flowAttr.value.trim(),
+          ...flowNums,
+          flow_stop_all: flowStopAll.checked,
         });
         feedback.textContent = "Saved at " + new Date().toLocaleTimeString() + ". Integration reloaded.";
         this._toast("Settings saved", "ok");
