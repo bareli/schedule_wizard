@@ -28,7 +28,8 @@ Schedule Wizard handles all of the above in one integration with its own sidebar
 - **Active runs persist across HA restarts** — re-arms remaining timers based on entity state.
 
 **Smart skipping & adjustment**
-- **Rain delay** button: skip all schedule + calendar runs for 24h / 48h / 7d (or custom hours).
+- **Rain delay** button: skip schedule + calendar runs for 24h / 48h / 7d (or custom hours), for all valves or a single valve.
+- **Indoor valves**: mark a valve as indoor so the global rain delay and rain skip don't apply to it (greenhouse, balcony, drip under cover).
 - **Rain skip**: optional weather/sensor entity; skip when state matches a list or numeric value crosses a threshold.
 - **Soil moisture skip**: optional global moisture sensor, plus an optional **per-valve** sensor that overrides it for that zone (also checked per step inside cycles).
 - **Schedule conditions**: attach up to 10 entity conditions to a schedule (`above` / `below` / `equals` / `not_equals`, state or attribute). The run is skipped unless all hold.
@@ -170,8 +171,8 @@ The HA **Configure** dialog only edits the basic options; it no longer wipes the
 | `schedule_wizard.stop_cycle`      | Cancel a running cycle.                                                                       |
 | `schedule_wizard.pause_cycle`     | Pause an in-progress cycle. Current valve closes; remaining steps wait for resume.            |
 | `schedule_wizard.resume_cycle`    | Resume a paused cycle from where it left off.                                                 |
-| `schedule_wizard.set_rain_delay`  | Skip all schedule and calendar runs for the next N hours.                                     |
-| `schedule_wizard.clear_rain_delay`| Resume schedule and calendar runs immediately.                                                |
+| `schedule_wizard.set_rain_delay`  | Skip schedule and calendar runs for the next N hours; all valves, or only `entity_id` valves. |
+| `schedule_wizard.clear_rain_delay`| Clear the global delay, or only the delay of `entity_id` valves.                              |
 | `schedule_wizard.stop_all`        | Stop every running valve, soak sequence and cycle, then close the master valve.               |
 | `schedule_wizard.list_config`     | Return valves, schedules, cycles, active runs, active cycles, recent history (response).     |
 
@@ -300,11 +301,22 @@ Manual runs are not affected.
 
 One-tap pause for everything automated.
 
-Dashboard top → **Rain delay** card with `24h` / `48h` / `7d` buttons. Pick one — schedule and calendar runs are skipped until the timer expires. Manual runs still work.
+Dashboard top → **Rain delay** card with `24h` / `48h` / `7d` buttons and an **Apply to** picker (all valves or one valve). Schedule and calendar runs are skipped until the timer expires. Manual runs still work.
 
-When active, the card shows the remaining time and a **Clear** button.
+When active, the card shows the remaining time and a **Clear** button, for the global delay and for each delayed valve.
 
-Services: `set_rain_delay` (with `hours`) and `clear_rain_delay`.
+**Indoor valves:** tick **Indoor** in the valve editor (or `rain_exempt: true` in `add_valve`). The global rain delay and rain skip don't apply to it; a delay set on that valve itself still does. A cycle that mixes indoor and outdoor valves still runs during a global delay: indoor steps water, outdoor steps are skipped (`skipped_rain_delay` in history).
+
+Services: `set_rain_delay` (with `hours`, optional `entity_id` list) and `clear_rain_delay` (optional `entity_id` list).
+
+```yaml
+service: schedule_wizard.set_rain_delay
+data:
+  hours: 48
+  entity_id:
+    - switch.zone_front_lawn
+    - switch.zone_back_lawn
+```
 
 ## Master valve / pump
 

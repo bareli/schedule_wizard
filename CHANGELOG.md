@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0: per-valve rain delay, indoor valves, panel menu button
+
+- **Per-valve rain delay** (#4): `set_rain_delay` / `clear_rain_delay` take an optional `entity_id` list. The Dashboard rain delay card has an "Apply to" picker and lists delayed valves with their own Clear button.
+- **Indoor valves** (#4): new valve option `rain_exempt`. The global rain delay and rain skip don't apply to indoor valves. Cycles mixing indoor and outdoor valves still run during a global delay, skipping only the outdoor steps (`skipped_rain_delay`).
+- **Menu button** in the panel header when the HA sidebar is hidden (narrow screens, desktop app), so you can get back to the rest of Home Assistant (#4).
+- Per-step rain and moisture skips inside a cycle now only apply to scheduled and calendar cycles; manually started cycles run every step, matching the docs.
+- `schedule_wizard_rain_skipped` and the other skip events now carry a `reason` field; `rain_delay_set` carries `entity_ids` for per-valve delays.
+
 ## 0.8.0: cycle & soak, per-valve moisture, schedule conditions, leak detection + 20 bug fixes
 
 ### New

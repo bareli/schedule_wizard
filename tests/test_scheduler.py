@@ -236,11 +236,21 @@ async def test_per_valve_moisture_skips_cycle_step(hass: HomeAssistant):
     await add_valve(hass, Z1, "Bed", moisture_entity="sensor.bed_moist", moisture_threshold=60)
     await add_valve(hass, Z2, "Lawn")
     cid = await add_cycle(hass, "Morning", [(Z1, 5), (Z2, 5)])
-    await hass.services.async_call(DOMAIN, "run_cycle", {"cycle_id": cid}, blocking=True)
-    await settle(hass)
+    fire_at = await _schedule_now(hass, cycle_id=cid)
+    await fire_minute(hass, fire_at)
     assert not is_on(hass, Z1)
     assert is_on(hass, Z2)
     assert "skipped_moisture" in statuses(hass, entry, Z1)
+
+
+async def test_manual_cycle_ignores_moisture(hass: HomeAssistant):
+    await setup_wizard(hass)
+    hass.states.async_set("sensor.bed_moist", "70")
+    await add_valve(hass, Z1, "Bed", moisture_entity="sensor.bed_moist", moisture_threshold=60)
+    cid = await add_cycle(hass, "Morning", [(Z1, 5)])
+    await hass.services.async_call(DOMAIN, "run_cycle", {"cycle_id": cid}, blocking=True)
+    await settle(hass)
+    assert is_on(hass, Z1)
 
 
 async def test_soak_splits_scheduled_run(hass: HomeAssistant):
@@ -452,3 +462,68 @@ async def test_restore_active_run_after_restart(hass: HomeAssistant, hass_storag
     await advance(hass, 121)
     assert not is_on(hass, Z1)
     assert statuses(hass, entry, Z1)[0] == "completed"
+
+
+async def test_per_valve_rain_delay(hass: HomeAssistant):
+    """#4: rain delay for individual valves."""
+    entry = await setup_wizard(hass)
+    await add_valve(hass, Z1, "Garden")
+    await add_valve(hass, Z2, "Greenhouse")
+    await hass.services.async_call(DOMAIN, "set_rain_delay", {"hours": 24, "entity_id": [Z1]}, blocking=True)
+    store = data(hass, entry)["store"]
+    assert store.get_valve(Z1)["rain_delay_until"] > 0
+    assert not data(hass, entry)["scheduler"]._is_rain_delay_active()
+    fire_at = await _schedule_now(hass, valve_entity_id=Z1, duration_minutes=5)
+    await _schedule_now(hass, valve_entity_id=Z2, duration_minutes=5)
+    await fire_minute(hass, fire_at)
+    assert not is_on(hass, Z1)
+    assert is_on(hass, Z2)
+    assert statuses(hass, entry, Z1)[0] == "skipped_rain_delay"
+    await hass.services.async_call(DOMAIN, "clear_rain_delay", {"entity_id": Z1}, blocking=True)
+    assert store.get_valve(Z1)["rain_delay_until"] == 0
+
+
+async def test_rain_delay_unregistered_valve_rejected(hass: HomeAssistant):
+    from homeassistant.exceptions import HomeAssistantError
+    await setup_wizard(hass)
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(DOMAIN, "set_rain_delay", {"hours": 24, "entity_id": [Z3]}, blocking=True)
+
+
+async def test_indoor_valve_ignores_global_delay_and_rain(hass: HomeAssistant):
+    """#4: indoor valves keep running under a global rain delay and rain skip."""
+    entry = await setup_wizard(hass, {"rain_entity": "weather.home"})
+    hass.states.async_set("weather.home", "rainy")
+    await add_valve(hass, Z1, "Garden")
+    await add_valve(hass, Z2, "Greenhouse", rain_exempt=True)
+    await hass.services.async_call(DOMAIN, "set_rain_delay", {"hours": 24}, blocking=True)
+    fire_at = await _schedule_now(hass, valve_entity_id=Z1, duration_minutes=5)
+    await _schedule_now(hass, valve_entity_id=Z2, duration_minutes=5)
+    await fire_minute(hass, fire_at)
+    assert not is_on(hass, Z1)
+    assert is_on(hass, Z2)
+
+
+async def test_mixed_cycle_under_global_delay(hass: HomeAssistant):
+    """#4: a cycle with indoor and outdoor steps runs only the indoor steps during a rain delay."""
+    entry = await setup_wizard(hass)
+    await add_valve(hass, Z1, "Garden")
+    await add_valve(hass, Z2, "Greenhouse", rain_exempt=True)
+    cid = await add_cycle(hass, "Morning", [(Z1, 5), (Z2, 5)])
+    await hass.services.async_call(DOMAIN, "set_rain_delay", {"hours": 24}, blocking=True)
+    fire_at = await _schedule_now(hass, cycle_id=cid)
+    await fire_minute(hass, fire_at)
+    assert not is_on(hass, Z1)
+    assert is_on(hass, Z2)
+    assert statuses(hass, entry, Z1)[0] == "skipped_rain_delay"
+
+
+async def test_outdoor_cycle_under_global_delay_skipped(hass: HomeAssistant):
+    entry = await setup_wizard(hass)
+    await add_valve(hass, Z1, "Garden")
+    cid = await add_cycle(hass, "Morning", [(Z1, 5)])
+    await hass.services.async_call(DOMAIN, "set_rain_delay", {"hours": 24}, blocking=True)
+    fire_at = await _schedule_now(hass, cycle_id=cid)
+    await fire_minute(hass, fire_at)
+    assert cid not in data(hass, entry)["scheduler"].active_cycles
+    assert not is_on(hass, Z1)
