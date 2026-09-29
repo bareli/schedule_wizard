@@ -83,45 +83,43 @@ Minimum HA version: **2024.7.0**.
 
 ## Using the panel
 
-After install, a **Schedule Wizard** entry appears in the sidebar (sprinkler icon). Six tabs:
+After install, a **Schedule Wizard** entry appears in the sidebar (sprinkler icon). Four tabs, written in plain words: a **zone** is one valve or switch, a **watering plan** is a set of zones that water on the same days and time.
 
-### Dashboard
+### Setup wizard
 
-Rain delay buttons, active runs and active cycles with live progress, quick run/stop per valve with inline progress bar and next-opening hint, grouped recent activity (cycles + child valves indented).
+First time you open the panel, **Start setup** walks you through five short steps: tick your switches, name the zones, pick days, start time and minutes, choose "one zone at a time" or "all together", then save. It creates the zones, the plan and its schedule for you. Run it again any time with **+ New watering plan**.
 
-![Dashboard tab](docs/screenshots/panel-dashboard.png)
+![Setup wizard](docs/screenshots/panel-wizard.png)
 
-### Valves
+### Home
 
-Add / edit / delete valves. Pick any supported HA entity, set its label (used for calendar matching) and default duration. Each row shows last run, 7-day stats, and the next scheduled opening.
+One status card at the top: watering now (with time left and Stop), paused for rain, or the next run. Below it, a card per zone with minutes and **Water now**. Pause for rain (all zones or one zone), stop everything, recent activity and **Reports** are all here.
 
-![Valves tab](docs/screenshots/panel-valves.png)
+![Home](docs/screenshots/panel-home.png)
 
-### Cycles
+### Zones
 
-Multi-valve programs (zone sequencing). Add an ordered list of `(valve, minutes)` steps. Run, pause, resume, edit, enable/disable, delete.
+Every zone with its schedule written out ("Mon, Thu at 06:00 · 10 min"). Edit a zone (name, minutes, indoor, split long runs, its own moisture sensor), add or change its times.
 
-![Cycles tab](docs/screenshots/panel-cycles.png)
+![Zones](docs/screenshots/panel-zones.png)
 
-### Schedules
+### Programs
 
-Recurring rules: pick a valve **or cycle**, time, days, duration. Edit / enable / disable / delete per row.
+Your watering plans: zones in order, the days and times they run, Run now / Pause / Stop, and Edit for the full step editor.
 
-![Schedules tab](docs/screenshots/panel-schedules.png)
+![Watering plans](docs/screenshots/panel-programs.png)
 
 ### Reports
 
-30-day daily-minutes mini chart. Per-valve totals (7d / 30d / lifetime). Per-cycle stats. Skip-reason summary. CSV export of the full history.
-
-![Reports tab](docs/screenshots/panel-reports.png)
+Opened from Home. 30-day daily-minutes chart, per-zone and per-plan totals, skip reasons, CSV export of the full history.
 
 ### Settings
 
-Calendar, polling, default duration, then a Show advanced toggle to access rain skip, soil moisture, seasonal adjustment, master valve / pump, fail detection, notifications, and cycle overlap.
+Three essentials: rain sensor, notifications, calendar. Everything else sits under **More options**, one group per feature with a one-line explanation: hot-weather adjustment, wet-soil skip, main valve or pump, leak alerts, open-check, plans at the same time, calendar fine-tuning, rain details, webhook.
 
-![Settings tab](docs/screenshots/panel-settings.png)
+![Settings](docs/screenshots/panel-settings.png)
 
-Options flow (Settings → Devices & Services → Schedule Wizard → Configure) writes the same values — use whichever you prefer.
+Options flow (Settings → Devices & Services → Schedule Wizard → Configure) edits the basic options too.
 
 ## Options
 

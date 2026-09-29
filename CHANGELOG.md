@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.0: simpler panel with a setup wizard
+
+- **Setup wizard**: pick your switches, name the zones, choose days, time and minutes, and the order. It creates the zones, the watering plan and its schedule in one go.
+- **New Home tab**: one status card (watering now, paused for rain, or next run), a card per zone with minutes and Water now, Pause for rain for all zones or one zone, Stop watering, recent activity folded away.
+- **Four tabs instead of six**: Home, Zones, Programs, Settings. Schedules now show inside their zone or plan; Reports opens from Home.
+- **Plain wording**: zones and watering plans instead of valves and cycles; entity IDs only in small print.
+- **Settings**: three essentials up front, every other feature in its own "More options" group with a one-line explanation and an On/Off indicator.
+- All new text in English, German and Hebrew (right-to-left).
+
 ## 0.10.0: panel and card in German and Hebrew, right-to-left layout
 
 - **Panel and Lovelace card translated** into German and Hebrew (#3). The language follows your HA profile; unknown languages fall back to English.
