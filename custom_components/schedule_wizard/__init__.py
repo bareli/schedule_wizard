@@ -59,6 +59,7 @@ from .const import (
     CONF_FORECAST_ENTITY,
     CONF_FORECAST_HOURS,
     CONF_FORECAST_SKIP_MM,
+    CONF_INTERLEAVE_SOAK,
     CONF_REMINDER_MINUTES,
     CONF_VOICE_ENABLED,
     CONDITION_OPERATORS,
@@ -153,6 +154,7 @@ SCHEMA_ADD_VALVE = vol.Schema({
     vol.Optional("moisture_attribute"): cv.string,
     vol.Optional("moisture_threshold"): vol.Any(vol.Coerce(float), None),
     vol.Optional("rain_exempt"): cv.boolean,
+    vol.Optional("flow_rate_lpm"): vol.Any(vol.All(vol.Coerce(float), vol.Range(min=0, max=10000)), None),
 })
 
 VALVE_FIELD_MAP = {
@@ -162,6 +164,7 @@ VALVE_FIELD_MAP = {
     "moisture_attribute": "moisture_attribute",
     "moisture_threshold": "moisture_threshold",
     "rain_exempt": "rain_exempt",
+    "flow_rate_lpm": "flow_rate_lpm",
 }
 
 SCHEMA_CONDITIONS = vol.All(cv.ensure_list, [vol.Schema({
@@ -497,6 +500,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "soaking": scheduler.soaking,
             "flow": scheduler.flow_status,
             "forecast": scheduler.forecast_status,
+            "water_total_l": store.water_total_l,
             "week": planner.occurrences(
                 store, options, dt_util.start_of_local_day(), dt_util.start_of_local_day() + _td(days=7),
             ),
@@ -551,6 +555,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         vol.Optional(CONF_FORECAST_ENTITY): vol.Any(str, None),
         vol.Optional(CONF_FORECAST_SKIP_MM): vol.Any(float, int, None),
         vol.Optional(CONF_FORECAST_HOURS): vol.All(int, vol.Range(min=1, max=72)),
+        vol.Optional(CONF_INTERLEAVE_SOAK): cv.boolean,
     })
     @websocket_api.require_admin
     @websocket_api.async_response

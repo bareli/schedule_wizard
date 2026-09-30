@@ -6,8 +6,8 @@ from typing import Any
 
 from datetime import timedelta
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
-from homeassistant.const import UnitOfTime
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
+from homeassistant.const import UnitOfTime, UnitOfVolume
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -30,7 +30,10 @@ async def async_setup_entry(
         ActiveRunsSensor(entry.entry_id, data["scheduler"], data["store"]),
         NextScheduleSensor(entry.entry_id, data["store"]),
     ])
-    track_zones(hass, entry, data, async_add_entities, lambda key, v: [ZoneTimeLeftSensor(data, entry.entry_id, key)])
+    async_add_entities([TotalWaterSensor(data, entry.entry_id)])
+    track_zones(hass, entry, data, async_add_entities, lambda key, v: [
+        ZoneTimeLeftSensor(data, entry.entry_id, key), ZoneWaterSensor(data, entry.entry_id, key),
+    ])
 
 
 def _device_info(entry_id: str):
@@ -72,6 +75,53 @@ class ZoneTimeLeftSensor(WizardEntity, SensorEntity):
             "soaking": bool(soak and soak.get("phase") == "soaking"),
             "resumes_at": soak.get("resume_at") if soak else None,
         }
+
+
+class ZoneWaterSensor(WizardEntity, SensorEntity):
+    """Litres used by a zone since it was added. Works in the Energy dashboard's water section."""
+
+    _attr_translation_key = "zone_water_used"
+    _attr_device_class = SensorDeviceClass.WATER
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_native_unit_of_measurement = UnitOfVolume.LITERS
+    _attr_suggested_display_precision = 0
+
+    def __init__(self, data: dict, entry_id: str, zone: str):
+        super().__init__(data, entry_id)
+        self._zone = zone
+        self._attr_unique_id = f"{entry_id}_zone_{zone}_water"
+        valve = self.store.get_valve(zone) or {"entity_id": zone}
+        self._attr_device_info = zone_device(entry_id, valve)
+
+    @property
+    def available(self) -> bool:
+        return self.store.get_valve(self._zone) is not None
+
+    @property
+    def native_value(self) -> float:
+        return round(float((self.store.get_valve(self._zone) or {}).get("water_total_l") or 0), 1)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        valve = self.store.get_valve(self._zone) or {}
+        return {"usual_flow_lpm": valve.get("avg_lpm"), "configured_flow_lpm": valve.get("flow_rate_lpm")}
+
+
+class TotalWaterSensor(WizardEntity, SensorEntity):
+    _attr_translation_key = "water_used"
+    _attr_device_class = SensorDeviceClass.WATER
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_native_unit_of_measurement = UnitOfVolume.LITERS
+    _attr_suggested_display_precision = 0
+
+    def __init__(self, data: dict, entry_id: str):
+        super().__init__(data, entry_id)
+        self._attr_unique_id = f"{entry_id}_water"
+        self._attr_device_info = hub_device(entry_id)
+
+    @property
+    def native_value(self) -> float:
+        return round(self.store.water_total_l, 1)
 
 
 class ActiveRunsSensor(SensorEntity):

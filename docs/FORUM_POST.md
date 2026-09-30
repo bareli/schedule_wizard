@@ -1,156 +1,132 @@
 # Forum & Reddit posts
 
-Ready-to-paste drafts for promoting Schedule Wizard. Pick whichever channel.
+Ready-to-paste drafts for announcing Schedule Wizard. Updated for v0.13.0. Attach `docs/demo.gif` and the screenshots in `docs/screenshots/`.
 
 ---
 
-## HA Community Forum — English
+## HA Community Forum: English
 
 **Category:** Third Party Integrations → Custom Integrations
 **URL:** https://community.home-assistant.io/c/third-party/custom-components/17
 
 **Title:**
 ```
-[Custom Integration] Schedule Wizard — calendar/time-driven scheduler for irrigation & more
+[Custom Integration] Schedule Wizard: irrigation scheduler with setup wizard, voice, rain forecast and water tracking
 ```
 
 **Body:**
 ```
 Hi all,
 
-Just released **Schedule Wizard**, a HACS-installable custom integration that handles cron-style and calendar-driven schedules for any switch/valve/light/cover, with auto-close after a configured duration.
+Schedule Wizard is a free, open-source (MIT) irrigation scheduler for Home Assistant. It works with any switch, valve, light, cover or input_boolean, and has its own sidebar panel, so you don't need to write automations.
 
-**Why:**
-Built-in automations can fire a valve on a schedule, but don't cleanly handle: auto-close after N minutes, a unified "what's running / next" view, per-calendar-event duration, or restart-recovery (leaving the valve open forever after a reboot). Schedule Wizard handles all of those in one integration with its own sidebar UI.
+**Getting started takes a minute:** a setup wizard asks which switches are your zones, what to call them, which days and time, and whether to water one zone at a time. Done.
 
-**What's in it:**
-- Recurring schedules (HH:MM + days of week + duration) per valve.
-- Calendar-driven runs (event summary contains the valve label, description holds minutes).
-- Auto-close, with timer recovery across HA restarts.
-- Rain skip (weather entity or numeric sensor threshold).
-- Webhook trigger for external systems.
-- Optional Lovelace card (`custom:schedule-wizard-card`) for dashboard embedding.
-- Two sensors: `active_runs` + `next_schedule`.
-- Sidebar panel with four editable tabs (Dashboard / Valves / Schedules / Settings).
-- Hebrew and English translations out of the box.
+**Watering**
+- Watering plans (zones one after another) and single-zone schedules, any days, any time
+- Calendar-driven runs from any HA calendar
+- Cycle & soak for slopes and clay: short bursts with pauses, and while one zone soaks the plan waters the next
+- Seasonal adjustment by outdoor temperature
+- Plans resume where they left off after an HA restart
 
-**Supported domains:** `switch`, `valve`, `cover`, `input_boolean`, `light` (cover/valve use the correct `open_*` / `close_*` services).
+**Skipping when it makes sense**
+- Rain sensor or weather state, and rain forecast (skip if N mm expected in the next hours)
+- Soil moisture, global or per zone
+- Rain delay for all zones or one zone; indoor zones (greenhouse, balcony) keep watering
+- Per-schedule conditions on any entity
 
-**Install (HACS custom repo, while awaiting default listing):**
-1. HACS → ⋮ → Custom repositories
-2. URL: `https://github.com/bareli/schedule_wizard`
-3. Type: Integration → Add
-4. Search "Schedule Wizard" in HACS → Download → restart HA
-5. Settings → Devices & Services → + Add Integration → Schedule Wizard
+**Safety and insight**
+- Main valve / pump support, check that zones really opened
+- Flow meter: leak alert when nothing should be watering, high flow while watering (burst pipe), low flow (clogged filter)
+- Water used per zone, in litres, ready for the Energy dashboard
+- Reports with 30-day chart and CSV export, Repairs warnings when an entity goes missing
+
+**Home Assistant native**
+- Entities per zone and plan: water/stop switch, time left, plan on/off, run button, calendar of upcoming runs
+- Voice through Assist in English, German and Hebrew: "water the front lawn for 10 minutes", "stop watering", "skip watering today"
+- Reminder notification with Skip today / Water now buttons
+- This week view with skip and undo per run
+- Panel in 17 languages, including right-to-left for Hebrew and Arabic
+
+**Install:** HACS → ⋮ → Custom repositories → `https://github.com/bareli/schedule_wizard` (Integration) → Download → restart → Settings → Devices & Services → Add Integration → Schedule Wizard.
 
 Repo, screenshots, docs: https://github.com/bareli/schedule_wizard
 
-Feedback and issues welcome. Cheers.
+Feedback and issues welcome. Native speakers: corrections to the panel translations are very welcome.
 ```
 
 ---
 
-## HA Community Forum — Hebrew
+## HA Community Forum: Hebrew
 
 **קטגוריה:** Third Party Integrations → Custom Integrations
 
 **כותרת:**
 ```
-[Custom Integration] Schedule Wizard – מתזמן השקיה/חשמל לפי זמן ויומן
+[Custom Integration] Schedule Wizard: מתזמן השקיה עם אשף הגדרה, שליטה קולית, תחזית גשם ומדידת מים
 ```
 
-**גוף ההודעה:**
+**גוף:**
 ```
-שלום לכולם,
+היי לכולם,
 
-שחררתי אינטגרציה חדשה בשם **Schedule Wizard** — מתזמן חוזר (שעה + ימי שבוע) + מופעל מאירועי יומן, עם סגירה אוטומטית לאחר משך קצוב. מותקן דרך HACS (כרגע custom repo, PR פתוח ל־default).
+Schedule Wizard הוא מתזמן השקיה חינמי וקוד פתוח ל־Home Assistant. עובד עם כל מתג, ברז, תאורה, תריס או input_boolean, ויש לו פאנל משלו בסרגל הצד, בלי לכתוב אוטומציות.
 
-**למה:**
-האוטומציות הרגילות ב-HA יכולות לפתוח שסתום בלוח זמנים, אבל אין טיפול נקי ב: סגירה אוטומטית לאחר N דקות, תצוגה מאוחדת "מה רץ / מה הבא", משך לאירוע מתוך תיאור אירוע היומן, והתאוששות מהפעלה מחדש (שסתום נשאר פתוח לנצח אחרי ריסטרט). Schedule Wizard מטפל בכל אלה באינטגרציה אחת עם פאנל ייעודי בסיידבר.
+**ההגדרה לוקחת דקה:** אשף שואל אילו מתגים הם אזורי ההשקיה, איך לקרוא להם, באילו ימים ובאיזו שעה, והאם להשקות אזור אחרי אזור. זהו.
 
-**מה יש בפנים:**
-- לוחות זמנים חוזרים לכל שסתום (שעה + ימי שבוע + משך).
-- הפעלה מיומן (סיכום האירוע מכיל את התווית של השסתום, התיאור מכיל מספר דקות).
-- סגירה אוטומטית, עם שחזור טיימרים אחרי ריסטרט של HA.
-- דילוג בגשם (דרך ישות מזג אוויר או סף מספרי מחיישן).
-- הפעלה דרך Webhook ממערכות חיצוניות.
-- כרטיס Lovelace (`custom:schedule-wizard-card`) להטמעה בדשבורד.
-- שני חיישנים: `active_runs` + `next_schedule`.
-- פאנל סיידבר עם ארבע לשוניות ניתנות לעריכה (דשבורד / שסתומים / לוחות זמנים / הגדרות).
-- תרגום לעברית מובנה.
+**השקיה**
+- תוכניות השקיה (אזורים ברצף) ותזמונים לאזור בודד, כל יום וכל שעה
+- הפעלה לפי לוח שנה של HA
+- השקיה וספיגה למדרונות ואדמה כבדה: פרצים קצרים עם הפסקות, ובזמן שאזור אחד סופג התוכנית משקה את הבא
+- התאמה עונתית לפי טמפרטורה
+- תוכנית שנקטעה באתחול של HA ממשיכה מאיפה שעצרה
 
-**דומיינים נתמכים:** `switch`, `valve`, `cover`, `input_boolean`, `light`.
+**דילוג כשצריך**
+- חיישן גשם או מצב מזג אוויר, וגם תחזית גשם (דילוג אם צפויים X מ״מ בשעות הקרובות)
+- לחות קרקע, כללית או לכל אזור
+- השהיית גשם לכל האזורים או לאזור אחד; אזורים פנימיים (חממה, מרפסת) ממשיכים להשקות
+- תנאים לכל תזמון על כל ישות
 
-**התקנה (כ-custom repo, עד שייכנס ל-HACS default):**
-1. HACS → ⋮ → Custom repositories
-2. URL: `https://github.com/bareli/schedule_wizard`
-3. Type: Integration → Add
-4. חיפוש "Schedule Wizard" בתוך HACS → Download → Restart HA
-5. Settings → Devices & Services → + Add Integration → Schedule Wizard
+**בטיחות ומידע**
+- ברז ראשי / משאבה, בדיקה שהברז באמת נפתח
+- מד זרימה: התראת דליפה כשלא אמורה להיות השקיה, זרימה גבוהה (צינור פרוץ), זרימה נמוכה (מסנן סתום)
+- צריכת מים לכל אזור בליטרים, מוכן ללוח האנרגיה
+- דוחות עם גרף 30 יום וייצוא CSV, התראות בתיקונים כשישות נעלמת
 
-ריפו + צילומי מסך + תיעוד: https://github.com/bareli/schedule_wizard
+**משתלב ב־Home Assistant**
+- ישויות לכל אזור ותוכנית: מתג השקיה, זמן שנותר, הפעלה/כיבוי תוכנית, כפתור הפעלה, לוח שנה של ההשקיות הקרובות
+- שליטה קולית דרך Assist בעברית, אנגלית וגרמנית: "תשקה את הדשא 10 דקות", "עצור את ההשקיה", "דלג על ההשקיה היום"
+- התראת תזכורת עם כפתורי "דילוג היום" ו"השקיה עכשיו"
+- תצוגת "השבוע" עם דילוג וביטול לכל השקיה
+- הפאנל ב־17 שפות, כולל מימין לשמאל בעברית
 
-פידבק וצ'קים בלוקאלי יתקבלו בברכה.
+**התקנה:** HACS → ⋮ → Custom repositories → `https://github.com/bareli/schedule_wizard` (Integration) → Download → אתחול → הגדרות → מכשירים ושירותים → הוספת אינטגרציה → Schedule Wizard.
+
+קוד, צילומי מסך ותיעוד: https://github.com/bareli/schedule_wizard
+
+אשמח למשוב ולדיווחי באגים.
 ```
 
 ---
 
 ## Reddit r/homeassistant
 
-**URL:** https://reddit.com/r/homeassistant/submit
-
 **Title:**
 ```
-Released Schedule Wizard — HACS integration for calendar/time-driven valve & switch scheduling
+I built a free irrigation scheduler for HA: setup wizard, voice control, rain forecast skip, leak alerts and water tracking
 ```
 
 **Body:**
 ```
-Just published a custom integration for anyone using HA for irrigation, outdoor lighting, pool pumps, or anything that needs "open for N minutes" with auto-close and restart recovery.
+Schedule Wizard is an open-source HACS integration with its own sidebar panel. A 5-step wizard sets up your zones and watering plan, then it handles the rest: rain and forecast skip, soil moisture, cycle & soak (waters the next zone while one soaks), flow-meter leak and low-flow alerts, water used per zone for the Energy dashboard, plans that resume after a restart, Assist voice commands (EN/DE/HE), reminder pushes with Skip / Water now buttons, and native HA entities for every zone and plan. Panel in 17 languages.
 
-**Key points:**
-- Cron-style schedules + calendar-driven runs in one place
-- Auto-close, survives HA restarts (re-arms remaining timer, not "always on forever")
-- Skip runs when it's raining (weather entity or sensor threshold)
-- Webhook for external triggers
-- Bundled Lovelace card + sidebar panel
-- Works on HAOS, Supervised, Container, Core
-
-**Repo:** https://github.com/bareli/schedule_wizard
-
-**Install (while HACS default PR is pending):**
-HACS → Custom repositories → add `https://github.com/bareli/schedule_wizard` as Integration.
-
-Feedback welcome. Open issues if anything breaks.
+GIF and docs: https://github.com/bareli/schedule_wizard
 ```
 
 ---
 
-## Reddit r/homeautomation
-
-Same body as `r/homeassistant` works. Adjust title to mention Home Assistant explicitly since this sub isn't HA-only.
-
----
-
-## X / Twitter / Mastodon
+## X / short
 
 ```
-Shipped Schedule Wizard — @home_assistant HACS integration for calendar/time-driven schedules with auto-close, restart recovery, rain skip & webhook triggers.
-
-Irrigation, outdoor lights, pool pumps — anything that needs "open for N minutes" and then close.
-
-github.com/bareli/schedule_wizard
+Schedule Wizard v0.13 for Home Assistant: irrigation made simple. Setup wizard, rain forecast skip, cycle & soak, leak alerts, water per zone, voice via Assist, 17 languages. Free on HACS. https://github.com/bareli/schedule_wizard
 ```
-
-(280 char limit OK.)
-
----
-
-## Do's & Don'ts when posting
-
-- **Do** link the GitHub repo. First thing people want.
-- **Do** mention HACS-installable. Removes friction.
-- **Do** show the panel screenshot or a GIF in the top of the post if the platform allows.
-- **Don't** cross-post within 24 hours (HA forum moderators frown).
-- **Don't** ask for upvotes.
-- **Don't** promote in unrelated subs.

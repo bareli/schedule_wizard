@@ -150,6 +150,7 @@ details > summary { cursor: pointer; font-weight: 500; }
 .muted { color: var(--sw-muted); }
 bdi { unicode-bidi: isolate; }
 .num { text-align: end; }
+.num .water { display: block; color: var(--sw-primary); font-size: 12px; }
 .badge {
   display: inline-block; margin-inline-start: 6px; padding: 1px 6px;
   border-radius: 4px; font-size: 11px; font-weight: 500;
@@ -438,6 +439,15 @@ class ScheduleWizardPanel extends HTMLElement {
   _fmtDT(ts, opts) { return I18N.fmtDateTime(ts, this._lang, this._fo(opts)); }
   _fmtTime(ts, opts) { return I18N.fmtTime(ts, this._lang, this._fo(opts)); }
   _fmtDate(ts, opts) { return I18N.fmtDate(ts, this._lang, this._fo(opts)); }
+  _fmtNum(n, digits) { return I18N.fmtNumber(n, this._lang, this._fo({ maximumFractionDigits: digits || 0, minimumFractionDigits: digits || 0 })); }
+
+  // Litres below 1000, cubic metres (1 decimal) from there on.
+  _fmtLiters(liters) {
+    const l = Math.max(0, Number(liters) || 0);
+    return l < 999.5 ? this._t("water.l", { n: this._fmtNum(l) }) : this._t("water.m3", { n: this._fmtNum(l / 1000, 1) });
+  }
+
+  _fmtLpm(lpm) { return this._t("water.lpm", { n: this._fmtNum(lpm, Number(lpm) < 10 ? 1 : 0) }); }
 
   // Weekday + time for the coming week, full date beyond that.
   _fmtWhen(ts) {
@@ -1209,13 +1219,14 @@ class ScheduleWizardPanel extends HTMLElement {
   _activityItem(g) {
     const h = g.entry;
     const left = el("div", { style: "min-width:0;" }, [
-      el("div", {}, this._activitySentence(h)),
+      el("div", {}, [...this._activitySentence(h), h.liters > 0 ? " · " + this._fmtLiters(h.liters) : null]),
       el("div", { class: "sub" }, this._sourceLabel(h.source)),
     ]);
     if (g.kind === "cycle") {
       (g.children || []).filter(c => c.status !== "started").forEach(c => {
         left.appendChild(el("div", { class: "kids" }, joinParts([
           this._valveName(c.valve_entity_id), this._t("unit.min", { n: c.duration_min }), this._statusLabel(c.status),
+          c.liters > 0 ? this._fmtLiters(c.liters) : null,
         ])));
       });
     }
@@ -1304,6 +1315,8 @@ class ScheduleWizardPanel extends HTMLElement {
           el("div", { class: "name" }, [iso(v.label), v.enabled ? "" : " " + this._t("common.disabled_tag"), ...badges]),
           el("div", { class: "sub" }, joinParts([ltr(v.entity_id), this._t("zones.min_per_run", { n: v.default_duration_min })])),
           el("div", { class: "sub" }, lastLine + " • " + week),
+          (v.water_total_l || 0) > 0 ? el("div", { class: "sub" }, this._t("valves.water_used", { amount: this._fmtLiters(v.water_total_l) })
+            + (v.avg_lpm > 0 ? " · " + this._t("valves.usually_lpm", { lpm: this._fmtLpm(v.avg_lpm) }) : "")) : null,
         ]),
         el("div", { class: "actions" }, [
           el("button", { class: "btn small", onClick: () => this._openValveModal(v) }, this._t("zones.edit")),
@@ -1455,8 +1468,17 @@ class ScheduleWizardPanel extends HTMLElement {
     const vMoistThrRaw = (existing && existing.moisture_threshold !== null && existing.moisture_threshold !== undefined) ? String(existing.moisture_threshold) : "";
     const vMoistThreshold = el("input", { type: "number", min: "0", max: "100", step: "0.5", value: vMoistThrRaw });
 
-    const hasAdvanced = !!(existing && ((existing.soak_run_min || 0) > 0 || (existing.soak_pause_min || 0) > 0 || existing.moisture_entity));
+    const flowRateRaw = (existing && existing.flow_rate_lpm !== null && existing.flow_rate_lpm !== undefined) ? String(existing.flow_rate_lpm) : "";
+    const flowRateInput = el("input", { type: "number", min: "0", max: "10000", step: "any", inputmode: "decimal", value: flowRateRaw });
+
+    const hasAdvanced = !!(existing && ((existing.soak_run_min || 0) > 0 || (existing.soak_pause_min || 0) > 0 || existing.moisture_entity || flowRateRaw));
     const advBody = el("div", { style: hasAdvanced ? "" : "display:none;" }, [
+      el("label", { class: "field" }, [el("span", {}, this._t("valves.flow_rate")), flowRateInput]),
+      el("p", { class: "muted", style: "font-size:12px;margin:-6px 0 12px;" }, [
+        this._t("valves.flow_rate_hint"),
+        existing && existing.avg_lpm > 0 ? el("br") : null,
+        existing && existing.avg_lpm > 0 ? this._t("valves.usual_flow", { lpm: this._fmtLpm(existing.avg_lpm) }) : null,
+      ]),
       el("div", { class: "field-row" }, [
         el("label", { class: "field" }, [el("span", {}, this._t("valves.soak_run")), soakRunInput]),
         el("label", { class: "field" }, [el("span", {}, this._t("valves.soak_pause")), soakPauseInput]),
@@ -1494,6 +1516,12 @@ class ScheduleWizardPanel extends HTMLElement {
       const clampMin = (input) => Math.min(1440, Math.max(0, parseInt(input.value, 10) || 0));
       const thrRaw = vMoistThreshold.value.trim();
       const thr = thrRaw === "" ? null : parseFloat(thrRaw);
+      const flowRaw = flowRateInput.value.trim();
+      const flowRate = flowRaw === "" ? null : parseFloat(flowRaw);
+      if (flowRateInput.validity.badInput || (flowRaw !== "" && (isNaN(flowRate) || flowRate <= 0 || flowRate > 10000))) {
+        this._toast(this._t("valves.flow_rate_invalid"), "error");
+        return false;
+      }
       const ok = await this._callService("add_valve", {
         entity_id: chosen,
         label: label.trim(),
@@ -1505,6 +1533,7 @@ class ScheduleWizardPanel extends HTMLElement {
         moisture_entity: vMoistEntity.value.trim(),
         moisture_attribute: vMoistAttr.value.trim(),
         moisture_threshold: (thr === null || isNaN(thr)) ? null : thr,
+        flow_rate_lpm: flowRate,
       });
       if (ok && existing && existing.entity_id !== chosen) {
         const oldSchedules = (this._state.schedules || []).filter(s => s.valve_entity_id === existing.entity_id);
@@ -2220,6 +2249,9 @@ class ScheduleWizardPanel extends HTMLElement {
     const cycleStats = {};
     const dailyMin = {};
     const skipReasons = { skipped_rain: 0, skipped_moisture: 0, skipped_overlap: 0, failed_to_open: 0, cancelled: 0 };
+    const water = {};
+    let water30 = 0;
+    let historyWater = false;
 
     history.forEach(h => {
       const status = h.status || "";
@@ -2229,6 +2261,14 @@ class ScheduleWizardPanel extends HTMLElement {
       if (status === "started") return;
 
       if (status in skipReasons) skipReasons[status]++;
+
+      const liters = Number(h.liters) || 0;
+      if (!isCycleEntry && liters > 0) {
+        historyWater = true;
+        const w = water[h.valve_entity_id] = water[h.valve_entity_id] || { d7: 0, d30: 0 };
+        if (inWindow(h.ts, 7)) w.d7 += liters;
+        if (inWindow(h.ts, 30)) { w.d30 += liters; water30 += liters; }
+      }
 
       if (!isCycleEntry) {
         const id = h.valve_entity_id;
@@ -2269,6 +2309,14 @@ class ScheduleWizardPanel extends HTMLElement {
       ]),
       el("p", { class: "muted small", style: "margin:0;" }, this._t("reports.based_on", { n: history.length })),
     ]));
+
+    const totalWater = Number(this._state.water_total_l) || 0;
+    const hasWater = historyWater || totalWater > 0 || valves.some(v => (Number(v.water_total_l) || 0) > 0);
+    if (hasWater) {
+      root.appendChild(el("div", { class: "card" }, [
+        el("p", { style: "margin:0;font-weight:500;" }, this._t("reports.water_headline", { total: this._fmtLiters(totalWater), d30: this._fmtLiters(water30) })),
+      ]));
+    }
 
     const dayLabels = [];
     const dayValues = [];
@@ -2311,13 +2359,19 @@ class ScheduleWizardPanel extends HTMLElement {
       ]));
       valves.forEach(v => {
         const s = valveStats[v.entity_id] || { runs_7d: 0, min_7d: 0, runs_30d: 0, min_30d: 0, runs_total: 0, min_total: 0 };
+        const w = water[v.entity_id] || { d7: 0, d30: 0 };
         valveTable.appendChild(el("div", {
           style: "display:grid;grid-template-columns:1.4fr repeat(3, 1fr);gap:6px;font-size:13px;padding:6px 4px;border-bottom:1px solid var(--sw-border);",
         }, [
           el("span", {}, iso(v.label)),
-          el("span", { class: "num" }, this._t("reports.runs_min", { runs: s.runs_7d, min: s.min_7d })),
-          el("span", { class: "num" }, this._t("reports.runs_min", { runs: s.runs_30d, min: s.min_30d })),
-          el("span", { class: "num" }, this._t("reports.runs_min", { runs: s.runs_total, min: s.min_total })),
+          ...[
+            [s.runs_7d, s.min_7d, w.d7],
+            [s.runs_30d, s.min_30d, w.d30],
+            [s.runs_total, s.min_total, Number(v.water_total_l) || 0],
+          ].map(([runs, min, l]) => el("span", { class: "num" }, [
+            this._t("reports.runs_min", { runs, min }),
+            hasWater ? el("span", { class: "water" }, this._fmtLiters(l)) : null,
+          ])),
         ]));
       });
     }
@@ -2373,7 +2427,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const history = this._state.history || [];
     const valvesById = Object.fromEntries((this._state.valves || []).map(v => [v.entity_id, v.label]));
     const cyclesById = Object.fromEntries((this._state.cycles || []).map(c => [c.id, c.name]));
-    const header = ["timestamp", "iso_time", "target_kind", "target_id", "target_label", "duration_min", "source", "status", "note"];
+    const header = ["timestamp", "iso_time", "target_kind", "target_id", "target_label", "duration_min", "source", "status", "note", "liters"];
     const rows = history.map(h => {
       const isCycle = !!cyclesById[h.valve_entity_id];
       const id = h.valve_entity_id || "";
@@ -2387,6 +2441,7 @@ class ScheduleWizardPanel extends HTMLElement {
         h.source || "",
         h.status || "",
         h.note || "",
+        (Number(h.liters) || 0) > 0 ? Number(h.liters) : "",
       ];
     });
     const escape = (v) => {
@@ -2630,6 +2685,17 @@ class ScheduleWizardPanel extends HTMLElement {
       hint(this._tn("set.voice_entities", { entity: ltr("switch.<zone>_watering") })),
     ];
 
+    // Smarter cycle & soak
+    let interleaveOn = opts.interleave_soak !== false;
+    const interleaveSwitch = el("button", {
+      type: "button",
+      class: "switch",
+      role: "switch",
+      "aria-checked": interleaveOn ? "true" : "false",
+      "aria-label": this._t("set.interleave_toggle"),
+      onClick: () => { interleaveOn = !interleaveOn; interleaveSwitch.setAttribute("aria-checked", interleaveOn ? "true" : "false"); },
+    });
+
     const more = el("details", { class: "more" });
     if (this._moreOpen) more.open = true;
     more.addEventListener("toggle", () => { this._moreOpen = more.open; });
@@ -2673,6 +2739,10 @@ class ScheduleWizardPanel extends HTMLElement {
         ]),
         fcNow ? el("p", { class: "muted small" }, fcNow) : null,
       ]),
+      this._optGroup("interleave", this._t("set.g_interleave"), this._t("set.g_interleave_d"), opts.interleave_soak !== false, [
+        el("div", { class: "row-between", style: "margin-bottom:12px;gap:12px;" }, [el("span", {}, this._t("set.interleave_toggle")), interleaveSwitch]),
+        hint(this._t("set.interleave_hint")),
+      ]),
       this._optGroup("master", this._t("set.g_master"), this._t("set.g_master_d"), !!opts.master_valve_entity, [
         hint(this._t("settings.master_hint")),
         field(this._t("settings.master_entity"), masterEntity),
@@ -2680,6 +2750,7 @@ class ScheduleWizardPanel extends HTMLElement {
       ]),
       this._optGroup("flow", this._t("set.g_flow"), this._t("set.g_flow_d"), !!opts.flow_entity, [
         hint(this._t("settings.flow_hint")),
+        hint(this._t("settings.flow_water_hint")),
         field(this._t("settings.flow_entity"), flowEntity),
         field(this._t("common.attribute_optional"), flowAttr),
         el("div", { class: "field-row" }, [
@@ -2784,6 +2855,7 @@ class ScheduleWizardPanel extends HTMLElement {
           forecast_hours: parseInt(fcHours.value, 10) || 24,
           reminder_minutes: Math.min(720, Math.max(0, parseInt(reminderSel.value, 10) || 0)),
           voice_enabled: voiceOn,
+          interleave_soak: interleaveOn,
         });
         feedback.textContent = this._t("settings.saved_at", {
           time: this._fmtTime(Math.floor(Date.now() / 1000), { hour: "numeric", minute: "2-digit", second: "2-digit" }),

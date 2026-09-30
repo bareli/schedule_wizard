@@ -119,6 +119,12 @@
     "sensor": {
       "zone_time_left": {
         "name": "Restzeit"
+      },
+      "zone_water_used": {
+        "name": "Wasserverbrauch"
+      },
+      "water_used": {
+        "name": "Wasserverbrauch"
       }
     },
     "button": {

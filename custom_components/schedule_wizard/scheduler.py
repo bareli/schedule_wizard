@@ -29,6 +29,11 @@ from .const import (
     EVENT_CYCLE_SKIPPED_OVERLAP,
     EVENT_CYCLE_STARTED,
     EVENT_LEAK_DETECTED,
+    EVENT_LOW_FLOW,
+    FLOW_UNIT_TO_LPM,
+    LOW_FLOW_MIN_MINUTES,
+    LOW_FLOW_MIN_RUNS,
+    LOW_FLOW_RATIO,
     EVENT_MOISTURE_SKIPPED,
     EVENT_RAIN_SKIPPED,
     EVENT_VALVE_ENDED,
@@ -97,6 +102,7 @@ class Scheduler:
         self._forecast: dict[str, Any] = {"mm": None, "updated": 0, "kind": None, "error": None}
         self._stopping = False
         self._unsub_ha_stop = None
+        self._flow_last: Optional[tuple[float, float]] = None
 
     @property
     def active(self) -> dict[str, dict]:
@@ -952,6 +958,7 @@ class Scheduler:
             await self._async_master_maybe_close()
             raise RuntimeError(f"valve {entity_id} did not open")
 
+        self._integrate_flow()
         now = int(time.time())
         run.pop("starting", None)
         run["started_at"] = now
@@ -993,17 +1000,21 @@ class Scheduler:
         return _fire
 
     async def _async_complete(self, entity_id: str, status: str, note: str = "") -> None:
+        if entity_id in self._active:
+            self._integrate_flow()
         active = self._active.pop(entity_id, None)
         if not active:
             return
         self._cancel_run_timer(active)
         await self._call_service_off(entity_id)
+        liters = await self._async_account_water(entity_id, active)
         await self.store.async_record_run(
             entity_id,
             active.get("source", "manual"),
             active.get("duration_min", 0),
             status,
             note or active.get("note", ""),
+            liters=liters,
         )
         await self._async_persist_active()
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
@@ -1162,43 +1173,11 @@ class Scheduler:
         source = f"cycle:{cycle_id}"
         automated = state.get("source") in ("schedule", "calendar")
         try:
-            for i, step in enumerate(steps):
-                if self._active_cycles.get(cycle_id) is not state:
-                    return
-                step_no = offset + i + 1
-                entity_id = step.get("entity_id")
-                base_duration = int(step.get("duration_min", 1))
-                duration = self._scale_minutes(base_duration, factor)
-                if not entity_id or duration <= 0:
-                    LOG.warning(
-                        "cycle %s step %d skipped: entity_id=%r duration=%s base=%s factor=%s",
-                        cycle_id, step_no, entity_id, duration, base_duration, factor,
-                    )
-                    continue
-                state["step"] = step_no
-                state["current_entity"] = entity_id
-                state["step_ends_at"] = int(time.time()) + self._sequence_seconds(entity_id, duration)
-                self._persist_cycles()
-                async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
-                step_note = f"{state.get('note', '')}|step{step_no}"
-                if automated:
-                    valve = self.store.get_valve(entity_id)
-                    reason = self._valve_weather_reason(valve)
-                    if reason == "rain_delay_global":
-                        reason = "rain_delay"
-                    if not reason and self._valve_moisture_skip(valve):
-                        reason = "moisture"
-                    if reason:
-                        self._record_skip(reason, "valve", entity_id, self._entity_label(entity_id),
-                                          source, step_note, duration, None)
-                        continue
-                try:
-                    await self._async_run_sequence(entity_id, duration, source, step_note, owner="cycle")
-                except asyncio.CancelledError:
-                    raise
-                except Exception as e:
-                    LOG.warning("cycle %s step %d failed: %s", cycle_id, step_no, e)
-                    continue
+            plan = self._cycle_plan(cycle_id, steps, factor, offset)
+            if self._interleave_enabled() and any(len(p["chunks"]) > 1 for p in plan):
+                await self._run_steps_interleaved(cycle_id, plan, state, source, automated)
+            else:
+                await self._run_steps_sequential(cycle_id, plan, state, source, automated)
             state["current_entity"] = None
             await self.store.async_record_run(
                 cycle_id, state.get("source", "manual"), 0,
@@ -1261,7 +1240,7 @@ class Scheduler:
         if not state or state.get("paused"):
             return
         state["paused"] = True
-        state["paused_at_step"] = max(1, int(state.get("step", 0)))
+        state["paused_at_step"] = max(1, int(state.get("step", 0)), int(state.get("max_step") or 0))
         # Cancelling closes the current step valve (see _async_wait_run / async_run_valve).
         await self._async_cancel_task(state.get("task"))
         state["current_entity"] = None
@@ -1347,6 +1326,127 @@ class Scheduler:
             await self._async_complete(entity_id, "cancelled", reason)
         await self._async_master_maybe_close()
 
+    # ------------------------------------------------------------------ cycle steps
+
+    def _interleave_enabled(self) -> bool:
+        return bool(self.options.get("interleave_soak", True))
+
+    def _cycle_plan(self, cycle_id: str, steps: list, factor: float, offset: int) -> list[dict]:
+        plan = []
+        for i, step in enumerate(steps):
+            step_no = offset + i + 1
+            entity_id = step.get("entity_id")
+            base_duration = int(step.get("duration_min", 1))
+            duration = self._scale_minutes(base_duration, factor)
+            if not entity_id or duration <= 0:
+                LOG.warning(
+                    "cycle %s step %d skipped: entity_id=%r duration=%s base=%s factor=%s",
+                    cycle_id, step_no, entity_id, duration, base_duration, factor,
+                )
+                continue
+            valve = self.store.get_valve(entity_id) or {}
+            plan.append({
+                "step_no": step_no, "entity_id": entity_id, "duration": duration,
+                "chunks": self._soak_chunks(entity_id, duration),
+                "pause": int(valve.get("soak_pause_min") or 0) * 60,
+                "ready_at": 0.0, "started": False,
+            })
+        return plan
+
+    def _mark_step(self, state: dict, p: dict, seconds: int) -> None:
+        state["step"] = p["step_no"]
+        state["max_step"] = max(int(state.get("max_step") or 0), p["step_no"])
+        state["current_entity"] = p["entity_id"]
+        state["step_ends_at"] = int(time.time()) + seconds
+        self._persist_cycles()
+        async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+
+    def _step_skipped(self, p: dict, state: dict, source: str, automated: bool) -> bool:
+        if not automated:
+            return False
+        valve = self.store.get_valve(p["entity_id"])
+        reason = self._valve_weather_reason(valve)
+        if reason == "rain_delay_global":
+            reason = "rain_delay"
+        if not reason and self._valve_moisture_skip(valve):
+            reason = "moisture"
+        if reason:
+            self._record_skip(reason, "valve", p["entity_id"], self._entity_label(p["entity_id"]),
+                              source, f"{state.get('note', '')}|step{p['step_no']}", p["duration"], None)
+            return True
+        return False
+
+    async def _run_steps_sequential(self, cycle_id: str, plan: list, state: dict, source: str, automated: bool) -> None:
+        for p in plan:
+            if self._active_cycles.get(cycle_id) is not state:
+                return
+            self._mark_step(state, p, self._sequence_seconds(p["entity_id"], p["duration"]))
+            if self._step_skipped(p, state, source, automated):
+                continue
+            try:
+                await self._async_run_sequence(
+                    p["entity_id"], p["duration"], source, f"{state.get('note', '')}|step{p['step_no']}", owner="cycle",
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                LOG.warning("cycle %s step %d failed: %s", cycle_id, p["step_no"], e)
+
+    async def _run_steps_interleaved(self, cycle_id: str, plan: list, state: dict, source: str, automated: bool) -> None:
+        """Cycle & soak across zones: while one zone soaks, water the next one that is ready."""
+        waiting: set[str] = set()
+        try:
+            while any(p["chunks"] for p in plan):
+                if self._active_cycles.get(cycle_id) is not state:
+                    return
+                now = time.time()
+                ready = [p for p in plan if p["chunks"] and p["ready_at"] <= now]
+                if not ready:
+                    wait = min(p["ready_at"] for p in plan if p["chunks"]) - now
+                    state["current_entity"] = None
+                    async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+                    await asyncio.sleep(max(1.0, wait))
+                    continue
+                p = ready[0]
+                if not p["started"]:
+                    p["started"] = True
+                    if self._step_skipped(p, state, source, automated):
+                        p["chunks"] = []
+                        continue
+                total = p.get("total_chunks") or len(p["chunks"])
+                p["total_chunks"] = total
+                chunk = p["chunks"].pop(0)
+                done = total - len(p["chunks"])
+                self._soak.pop(p["entity_id"], None)
+                waiting.discard(p["entity_id"])
+                self._mark_step(state, p, chunk * 60)
+                try:
+                    run = await self.async_run_valve(
+                        p["entity_id"], chunk, source=source,
+                        note=f"{state.get('note', '')}|step{p['step_no']}|soak{done}/{total}",
+                    )
+                    await self._async_wait_run(p["entity_id"], run, chunk)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    LOG.warning("cycle %s step %d failed: %s", cycle_id, p["step_no"], e)
+                    p["chunks"] = []
+                    continue
+                if p["chunks"]:
+                    p["ready_at"] = time.time() + p["pause"]
+                    self._soak[p["entity_id"]] = {
+                        "entity_id": p["entity_id"], "owner": "cycle", "source": source,
+                        "total_min": p["duration"], "chunks": total, "chunk": done,
+                        "phase": "soaking", "resume_at": int(p["ready_at"]), "task": None,
+                    }
+                    waiting.add(p["entity_id"])
+                    async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+        finally:
+            for entity_id in waiting:
+                if (self._soak.get(entity_id) or {}).get("owner") == "cycle":
+                    self._soak.pop(entity_id, None)
+            async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+
     # ------------------------------------------------------------------ cycle persistence / resume
 
     def _sequence_seconds(self, entity_id: str, minutes: int) -> int:
@@ -1359,7 +1459,7 @@ class Scheduler:
         if self._stopping:
             return
         keep = ("cycle_id", "cycle_name", "started_at", "step", "total_steps", "current_entity", "source",
-                "note", "duration_factor", "paused", "paused_at_step", "start_offset", "step_ends_at")
+                "note", "duration_factor", "paused", "paused_at_step", "start_offset", "step_ends_at", "max_step")
         cycles = [{k: st.get(k) for k in keep} for st in self._active_cycles.values()]
         self.hass.async_create_task(self.store.async_set_cycle_state(cycles))
 
@@ -1391,7 +1491,7 @@ class Scheduler:
                     cycle_id, c.get("source", "manual"), 0, "cycle_cancelled", "downtime",
                 )
                 continue
-            step = max(0, int(c.get("step") or 0))
+            step = max(0, int(c.get("step") or 0), int(c.get("max_step") or 0))
             rest = (cycle.get("steps") or [])[step:]
             state["start_offset"] = step
             self._active_cycles[cycle_id] = state
@@ -1585,6 +1685,8 @@ class Scheduler:
         if not entity_id:
             return
         self._unsub_flow = async_track_state_change_event(self.hass, [entity_id], self._on_flow_change)
+        self._flow_last = None
+        self._integrate_flow()
         self._evaluate_flow()
 
     def _cancel_flow_timer(self) -> None:
@@ -1594,6 +1696,7 @@ class Scheduler:
 
     @callback
     def _on_flow_change(self, _event: Event) -> None:
+        self._integrate_flow()
         self._evaluate_flow()
 
     def _flow_value(self) -> Optional[float]:
@@ -1601,6 +1704,67 @@ class Scheduler:
         if not entity_id:
             return None
         return self._read_numeric(entity_id, (self.options.get("flow_attribute") or "").strip())
+
+    def _flow_lpm(self) -> Optional[float]:
+        """Flow in litres per minute, converted from the sensor's unit (L/min assumed if unknown)."""
+        value = self._flow_value()
+        if value is None:
+            return None
+        state = self.hass.states.get((self.options.get("flow_entity") or "").strip())
+        unit = str((state.attributes.get("unit_of_measurement") if state else "") or "").strip().lower()
+        return max(0.0, value * FLOW_UNIT_TO_LPM.get(unit, 1.0))
+
+    @callback
+    def _integrate_flow(self) -> None:
+        """Attribute water since the last sample to the zones running in that interval."""
+        if not (self.options.get("flow_entity") or "").strip():
+            self._flow_last = None
+            return
+        now = time.time()
+        if self._flow_last is not None:
+            last_ts, last_lpm = self._flow_last
+            running = [r for r in self._active.values() if not r.get("starting")]
+            if running and last_lpm > 0 and now > last_ts:
+                share = last_lpm * (now - last_ts) / 60 / len(running)
+                for r in running:
+                    r["liters"] = r.get("liters", 0.0) + share
+                    r["measured"] = True
+                    if len(running) > 1:
+                        r["shared"] = True
+        lpm = self._flow_lpm()
+        self._flow_last = (now, lpm) if lpm is not None else None
+
+    async def _async_account_water(self, entity_id: str, run: dict) -> Optional[float]:
+        """Litres for a finished run: measured by the flow sensor, else estimated from the zone's flow rate."""
+        if run.get("starting"):
+            return None
+        elapsed_min = max(0.0, (time.time() - float(run.get("started_at") or time.time())) / 60)
+        valve = self.store.get_valve(entity_id) or {}
+        measured = bool(run.get("measured")) and (self.options.get("flow_entity") or "").strip()
+        if measured:
+            liters = float(run.get("liters") or 0)
+        elif valve.get("flow_rate_lpm"):
+            liters = float(valve["flow_rate_lpm"]) * elapsed_min
+        else:
+            return None
+        run_lpm = None
+        if measured and not run.get("shared") and elapsed_min >= LOW_FLOW_MIN_MINUTES:
+            run_lpm = liters / elapsed_min
+            avg = valve.get("avg_lpm")
+            if avg and int(valve.get("flow_runs") or 0) >= LOW_FLOW_MIN_RUNS and run_lpm < LOW_FLOW_RATIO * float(avg):
+                label = self._entity_label(entity_id)
+                LOG.warning("low flow on %s: %.1f L/min, usually %.1f", entity_id, run_lpm, float(avg))
+                self.hass.bus.async_fire(EVENT_LOW_FLOW, {
+                    "entity_id": entity_id, "label": label,
+                    "lpm": round(run_lpm, 1), "expected_lpm": round(float(avg), 1),
+                })
+                self.hass.async_create_task(self._notify(
+                    "low_flow", "Schedule Wizard",
+                    f"Low flow on {label}: {run_lpm:.1f} L/min, usually {float(avg):.1f}. Check the filter, valve or pipe.",
+                ))
+                run_lpm = None  # don't learn from an abnormal run
+        await self.store.async_add_water(entity_id, liters, run_lpm)
+        return liters
 
     def _flow_violation(self) -> Optional[str]:
         value = self._flow_value()

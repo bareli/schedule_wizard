@@ -119,6 +119,12 @@
     "sensor": {
       "zone_time_left": {
         "name": "זמן שנותר"
+      },
+      "zone_water_used": {
+        "name": "צריכת מים"
+      },
+      "water_used": {
+        "name": "צריכת מים"
       }
     },
     "button": {

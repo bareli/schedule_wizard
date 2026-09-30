@@ -95,6 +95,12 @@
     "sensor": {
       "zone_time_left": {
         "name": "Time left"
+      },
+      "zone_water_used": {
+        "name": "Water used"
+      },
+      "water_used": {
+        "name": "Water used"
       }
     },
     "button": {
