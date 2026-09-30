@@ -20,6 +20,7 @@ VALVE_EXTRA_FIELDS = (
     "moisture_attribute",
     "moisture_threshold",
     "rain_exempt",
+    "flow_rate_lpm",
 )
 
 
@@ -35,6 +36,8 @@ def _clean_valve_extra(extra: dict[str, Any]) -> dict[str, Any]:
             out[k] = None if v is None or v == "" else float(v)
         elif k == "rain_exempt":
             out[k] = bool(v)
+        elif k == "flow_rate_lpm":
+            out[k] = None if v is None or v == "" or float(v) <= 0 else float(v)
         else:
             out[k] = (v or "").strip()
     return out
@@ -66,6 +69,8 @@ class WizardStore:
             "active_runs": [],
             "cycles": [],
             "skips": {},
+            "cycle_state": {},
+            "water_total_l": 0.0,
         }
         self._loaded = False
 
@@ -78,6 +83,8 @@ class WizardStore:
             self._data["active_runs"] = data.get("active_runs", [])
             self._data["cycles"] = data.get("cycles", [])
             self._data["skips"] = data.get("skips", {}) or {}
+            self._data["cycle_state"] = data.get("cycle_state", {}) or {}
+            self._data["water_total_l"] = float(data.get("water_total_l") or 0)
         self._loaded = True
 
     async def async_save(self) -> None:
@@ -141,6 +148,31 @@ class WizardStore:
     def active_runs(self) -> list[dict]:
         return list(self._data["active_runs"])
 
+    @property
+    def water_total_l(self) -> float:
+        return float(self._data.get("water_total_l") or 0)
+
+    async def async_add_water(self, entity_id: str, liters: float, run_lpm: Optional[float] = None) -> None:
+        """Add litres to a zone and the overall total; learn the zone's normal flow from measured runs."""
+        valve = self.get_valve(entity_id)
+        if liters > 0:
+            self._data["water_total_l"] = round(self.water_total_l + liters, 2)
+            if valve is not None:
+                valve["water_total_l"] = round(float(valve.get("water_total_l") or 0) + liters, 2)
+        if valve is not None and run_lpm is not None and run_lpm > 0:
+            avg = valve.get("avg_lpm")
+            valve["avg_lpm"] = round(run_lpm if not avg else 0.7 * float(avg) + 0.3 * run_lpm, 2)
+            valve["flow_runs"] = int(valve.get("flow_runs") or 0) + 1
+        await self.async_save()
+
+    @property
+    def cycle_state(self) -> dict:
+        return dict(self._data.get("cycle_state") or {})
+
+    async def async_set_cycle_state(self, cycles: list[dict]) -> None:
+        self._data["cycle_state"] = {"saved_at": int(time.time()), "cycles": cycles}
+        await self.async_save()
+
     async def async_set_active_runs(self, runs: list[dict]) -> None:
         self._data["active_runs"] = list(runs)
         await self.async_save()
@@ -181,6 +213,10 @@ class WizardStore:
             "moisture_threshold": None,
             "rain_exempt": False,
             "rain_delay_until": 0,
+            "flow_rate_lpm": None,
+            "water_total_l": 0.0,
+            "avg_lpm": None,
+            "flow_runs": 0,
             **_clean_valve_extra(extra),
             "created_at": int(time.time()),
         }
@@ -335,7 +371,10 @@ class WizardStore:
             return True
         return False
 
-    async def async_record_run(self, valve_entity_id: str, source: str, duration_min: int, status: str, note: str = "") -> None:
+    async def async_record_run(
+        self, valve_entity_id: str, source: str, duration_min: int, status: str, note: str = "",
+        liters: Optional[float] = None,
+    ) -> None:
         entry = {
             "valve_entity_id": valve_entity_id,
             "source": source,
@@ -344,6 +383,8 @@ class WizardStore:
             "note": note,
             "ts": int(time.time()),
         }
+        if liters is not None:
+            entry["liters"] = round(float(liters), 1)
         self._data["history"].insert(0, entry)
         if len(self._data["history"]) > MAX_HISTORY:
             self._data["history"] = self._data["history"][:MAX_HISTORY]

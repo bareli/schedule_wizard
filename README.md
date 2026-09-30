@@ -6,6 +6,8 @@
 
 Home Assistant **custom integration** that runs a scheduler for irrigation valves, switches, lights, and covers. Triggers entities on recurring schedules or from calendar events, auto-closes after the configured duration, survives HA restarts. Works on every HA install type (HAOS, Supervised, Container, Core).
 
+![Schedule Wizard: setup wizard, Home, week view, Hebrew right-to-left](docs/demo.gif)
+
 ## Why
 
 Built-in automations can fire a valve on a schedule, but:
@@ -31,9 +33,10 @@ Schedule Wizard handles all of the above in one integration with its own sidebar
 - **Rain delay** button: skip schedule + calendar runs for 24h / 48h / 7d (or custom hours), for all valves or a single valve.
 - **Indoor valves**: mark a valve as indoor so the global rain delay and rain skip don't apply to it (greenhouse, balcony, drip under cover).
 - **Rain skip**: optional weather/sensor entity; skip when state matches a list or numeric value crosses a threshold.
+- **Rain forecast skip**: skip outdoor zones when the weather forecast expects N mm or more in the next 6 to 48 hours.
 - **Soil moisture skip**: optional global moisture sensor, plus an optional **per-valve** sensor that overrides it for that zone (also checked per step inside cycles).
 - **Schedule conditions**: attach up to 10 entity conditions to a schedule (`above` / `below` / `equals` / `not_equals`, state or attribute). The run is skipped unless all hold.
-- **Cycle & soak**: per valve, split long runs into chunks with soak pauses so water sinks in instead of running off (slopes, clay).
+- **Cycle & soak**: per valve, split long runs into chunks with soak pauses so water sinks in instead of running off (slopes, clay). In a watering plan, the next zone waters while one soaks.
 - **Seasonal adjustment** (temperature-scaled): scales schedule and calendar durations between low/high temperature thresholds, clamped to min/max percentages. Manual runs are not scaled.
 - **Cycle overlap protection**: schedule/calendar cycles skip while another cycle runs (off by default; opt-in `allow_concurrent_cycles`).
 
@@ -41,6 +44,7 @@ Schedule Wizard handles all of the above in one integration with its own sidebar
 - **Master valve / pump support**: a central valve auto-opens before any zone, auto-closes after the last zone closes. Optional pre-open delay for pump pressurization.
 - **Fail-to-open detection**: verifies the valve actually went on within N seconds; logs error, fires `valve_failed_to_open` event, sends notification if not.
 - **Flow sensor leak detection**: alerts on flow while nothing is watering (leak) or above a max while watering (burst pipe); optionally stops everything and closes the master valve.
+- **Water used per zone** in litres (measured by the flow meter, or estimated from a zone's flow rate), with sensors for the Energy dashboard and a **low-flow warning** when a zone gets much less water than usual.
 - **Stop all** button and service for an instant shutdown of every valve, soak sequence and cycle.
 
 **Visibility**
@@ -59,7 +63,7 @@ Schedule Wizard handles all of the above in one integration with its own sidebar
 - Notifications: pick any `notify.*` service(s); choose which events trigger pushes.
 
 **i18n**
-- Sidebar panel and Lovelace card in **English, German and Hebrew** (full right-to-left layout), following your HA profile language. Dates, times and weekdays use your locale and HA time zone.
+- Sidebar panel and Lovelace card in **17 languages** (right-to-left for Hebrew and Arabic), following your HA profile language. Dates, times and weekdays use your locale and HA time zone.
 - 17 languages for the config flow and service descriptions: English, Hebrew, Spanish, German, French, Italian, Dutch, Portuguese, Russian, Arabic, Polish, Simplified Chinese, Ukrainian, Swedish, Danish, Norwegian, Finnish.
 
 **Platform**
@@ -348,7 +352,9 @@ Short runs with pauses let water soak in instead of running off. Set per valve (
 - **Max run (min)**: longest continuous chunk.
 - **Soak pause (min)**: wait between chunks.
 
-A 10-minute schedule with max run 4 and pause 3 runs 4 → pause 3 → 3 → pause 3 → 3 (chunks are balanced). Applies to schedule, calendar and cycle runs; manual runs are not split. While soaking, the Dashboard shows a countdown and the master valve closes. Fires `schedule_wizard_valve_soaking` at each pause. `stop_valve` cancels the rest of the sequence.
+A 10-minute schedule with max run 4 and pause 3 runs 4 → pause 3 → 3 → pause 3 → 3 (chunks are balanced).
+
+**Inside a watering plan** the pauses aren't wasted: while one zone soaks, the plan waters the next zone that's ready, then comes back. A plan with a slope (4 + 4 min, 10 min soak) and two lawns (15 min each) takes about 38 minutes instead of 48. Turn this off in Settings → More options → Smarter cycle & soak to water each zone's parts back to back. Applies to schedule, calendar and cycle runs; manual runs are not split. While soaking, the Dashboard shows a countdown and the master valve closes. Fires `schedule_wizard_valve_soaking` at each pause. `stop_valve` cancels the rest of the sequence.
 
 ```yaml
 service: schedule_wizard.add_valve
@@ -433,6 +439,7 @@ The integration fires events on the HA event bus. Use them as triggers for any a
 | `schedule_wizard_condition_skipped`      | A schedule's conditions were not met                 | `target`, `kind`, `label`/`name`, `source`, `schedule_id`        |
 | `schedule_wizard_valve_soaking`          | A cycle-and-soak run paused between chunks           | `entity_id`, `label`, `chunk`, `chunks`, `resume_at`, `source`   |
 | `schedule_wizard_leak_detected`          | Flow sensor alert                                    | `kind` (`leak`/`high_flow`), `flow_entity`, `value`, `running`, `stopped_all` |
+| `schedule_wizard_low_flow`               | A zone got much less water than usual                | `entity_id`, `label`, `lpm`, `expected_lpm`                      |
 | `schedule_wizard_valve_failed_to_open`   | Fail-to-open detection triggered                     | `entity_id`, `label`, `source`, `duration_min`                   |
 | `schedule_wizard_rain_delay_set`         | Rain delay set or cleared                            | `until`, `hours`                                                 |
 | `schedule_wizard_cycle_skipped_overlap`  | A schedule/calendar cycle skipped while another ran  | `cycle_id`, `name`, `source`, `schedule_id`, `busy_with`         |
@@ -565,7 +572,7 @@ Options:
 
 ## Languages
 
-The panel and card follow the language set in your HA profile (Profile → Language): English, German (Deutsch) and Hebrew (עברית). Hebrew switches the whole panel and card to right-to-left. Other languages fall back to English.
+The panel and card follow the language set in your HA profile (Profile → Language): English, Deutsch, עברית, Español, Français, Italiano, Nederlands, Português, Русский, Українська, Polski, العربية, 简体中文, Svenska, Dansk, Norsk bokmål and Suomi. Hebrew and Arabic switch the whole panel and card to right-to-left. Other languages fall back to English. English, German and Hebrew are reviewed; the others are machine translations, so corrections are very welcome.
 
 Config flow and service descriptions are translated into 17 languages via `translations/*.json`.
 
@@ -584,6 +591,23 @@ Every zone and every watering plan gets its own device in Home Assistant, with e
 | `binary_sensor.schedule_wizard_watering` | On while anything waters. Attributes list the zones and plans. |
 | `switch.schedule_wizard_rain_delay` | On while the rain delay is active. Turn on = pause for 24 h. |
 | `calendar.schedule_wizard_watering_schedule` | Upcoming runs, shown in HA's Calendar. Skipped and rain-paused runs are marked. |
+
+## Rain forecast
+
+Settings → More options → **Skip when rain is forecast**. Pick a weather entity that provides forecasts (for example `weather.home`), the amount in mm, and how far ahead to look (6, 12, 24 or 48 hours). The forecast is refreshed every 30 minutes; if it can't be read for 3 hours, nothing is skipped. Indoor zones and manual runs are never skipped. Skipped runs show as `skipped_forecast`.
+
+## Water usage
+
+With a flow meter (Settings → More options → Leak alerts from a flow meter), each run's water is measured and added to its zone. L/min, L/h, L/s, m³/h and gal/min sensors are converted automatically. Without a flow meter, set **Flow rate (L/min)** in a zone's editor and usage is estimated from run time.
+
+- `sensor.<zone>_water_used` and `sensor.schedule_wizard_water_used` (litres, total increasing): add them under Settings → Dashboards → Energy → Water consumption.
+- Reports shows litres per zone for 7 days, 30 days and in total; the CSV export has a `liters` column.
+- **Low-flow warning**: after 3 measured runs a zone learns its usual flow. A run with less than half of it fires `schedule_wizard_low_flow` and a `low_flow` notification (clogged filter, kinked pipe, valve not fully open). Runs that overlap another zone aren't used for this.
+
+## Problems and diagnostics
+
+- If a zone's switch or a sensor used in Settings disappears (renamed, removed, integration not loading), a warning appears in **Settings → Repairs** naming the entity and what it's used for. It clears itself once fixed.
+- **Download diagnostics** (Settings → Devices & Services → Schedule Wizard → ⋮) gives a JSON file with your zones, plans, schedules, state and recent history, with the webhook ID and notify targets removed. Attach it to bug reports.
 
 ## Voice (Assist)
 
@@ -750,6 +774,8 @@ On HA restart, the scheduler re-reads active runs from storage and checks each e
 | ON / open       | > 0 seconds     | Re-arm auto-close for remaining time.   |
 | ON / open       | ≤ 0 seconds     | Close immediately, log as expired.      |
 | OFF / closed    | any             | Drop run, log as cancelled.             |
+
+**Cycles resume after a restart** (since v0.13.0): a watering plan interrupted by an HA restart or update continues with its next zone, as long as HA is back within 30 minutes of when the current zone would have finished. Otherwise it's logged as cancelled. Paused plans stay paused. Split (soak) runs of single zones are not resumed.
 
 Cycles and soak sequences are not resumed after a restart: the valve open at shutdown finishes its own remaining time, the rest of the sequence is dropped. Changing settings does **not** restart the integration, so it never interrupts a running cycle.
 

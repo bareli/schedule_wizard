@@ -15,8 +15,10 @@ from homeassistant.components import panel_custom, webhook, websocket_api
 from homeassistant.components.frontend import async_remove_panel
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, Platform
+from homeassistant.core import CoreState, HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse, callback
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.event import async_call_later
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.util import dt as dt_util
@@ -54,6 +56,10 @@ from .const import (
     CONF_FLOW_LEAK_THRESHOLD,
     CONF_FLOW_MAX_RUNNING,
     CONF_FLOW_STOP_ALL,
+    CONF_FORECAST_ENTITY,
+    CONF_FORECAST_HOURS,
+    CONF_FORECAST_SKIP_MM,
+    CONF_INTERLEAVE_SOAK,
     CONF_REMINDER_MINUTES,
     CONF_VOICE_ENABLED,
     CONDITION_OPERATORS,
@@ -85,9 +91,10 @@ from .const import (
     SERVICE_STOP_VALVE,
     SERVICE_UPDATE_CYCLE,
     SERVICE_UPDATE_SCHEDULE,
+    SIGNAL_CONFIG_CHANGED,
     SUPPORTED_DOMAINS,
 )
-from . import planner
+from . import issues, planner
 from .scheduler import Scheduler
 from .storage import WizardStore
 from .voice import VoiceCommands
@@ -147,6 +154,7 @@ SCHEMA_ADD_VALVE = vol.Schema({
     vol.Optional("moisture_attribute"): cv.string,
     vol.Optional("moisture_threshold"): vol.Any(vol.Coerce(float), None),
     vol.Optional("rain_exempt"): cv.boolean,
+    vol.Optional("flow_rate_lpm"): vol.Any(vol.All(vol.Coerce(float), vol.Range(min=0, max=10000)), None),
 })
 
 VALVE_FIELD_MAP = {
@@ -156,6 +164,7 @@ VALVE_FIELD_MAP = {
     "moisture_attribute": "moisture_attribute",
     "moisture_threshold": "moisture_threshold",
     "rain_exempt": "rain_exempt",
+    "flow_rate_lpm": "flow_rate_lpm",
 }
 
 SCHEMA_CONDITIONS = vol.All(cv.ensure_list, [vol.Schema({
@@ -490,6 +499,8 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "active_cycles": active_cycles,
             "soaking": scheduler.soaking,
             "flow": scheduler.flow_status,
+            "forecast": scheduler.forecast_status,
+            "water_total_l": store.water_total_l,
             "week": planner.occurrences(
                 store, options, dt_util.start_of_local_day(), dt_util.start_of_local_day() + _td(days=7),
             ),
@@ -541,6 +552,10 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         vol.Optional(CONF_FLOW_STOP_ALL): cv.boolean,
         vol.Optional(CONF_REMINDER_MINUTES): vol.All(int, vol.Range(min=0, max=720)),
         vol.Optional(CONF_VOICE_ENABLED): cv.boolean,
+        vol.Optional(CONF_FORECAST_ENTITY): vol.Any(str, None),
+        vol.Optional(CONF_FORECAST_SKIP_MM): vol.Any(float, int, None),
+        vol.Optional(CONF_FORECAST_HOURS): vol.All(int, vol.Range(min=1, max=72)),
+        vol.Optional(CONF_INTERLEAVE_SOAK): cv.boolean,
     })
     @websocket_api.require_admin
     @websocket_api.async_response
@@ -879,7 +894,39 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     await _async_sync_voice(hass, entry)
+    _async_setup_issue_checks(hass, entry)
     return True
+
+
+ISSUE_CHECK_DELAY = 120
+
+
+@callback
+def _async_setup_issue_checks(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Check for missing entities 2 minutes after HA is up (slow integrations), then on every change."""
+    data = hass.data[DOMAIN][entry.entry_id]
+    ready = {"on": False}
+
+    @callback
+    def _check(*_args) -> None:
+        if ready["on"] and hass.data.get(DOMAIN, {}).get(entry.entry_id) is data:
+            issues.async_check_entities(hass, data["store"], data["options"])
+
+    @callback
+    def _first(*_args) -> None:
+        ready["on"] = True
+        _check()
+
+    @callback
+    def _started(*_args) -> None:
+        entry.async_on_unload(async_call_later(hass, ISSUE_CHECK_DELAY, _first))
+
+    if hass.state is CoreState.running:
+        _started()
+    else:
+        entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _started))
+    entry.async_on_unload(async_dispatcher_connect(hass, SIGNAL_CONFIG_CHANGED, _check))
+    data["check_issues"] = _check
 
 
 async def _async_sync_voice(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -907,6 +954,8 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
     data["options"].update(_build_options(entry))
     data["scheduler"].async_options_updated()
     await _async_sync_voice(hass, entry)
+    if data.get("check_issues"):
+        data["check_issues"]()
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -927,6 +976,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 pass
 
     if not hass.data.get(DOMAIN):
+        issues.async_clear(hass)
         for svc in (
             SERVICE_RUN_VALVE,
             SERVICE_STOP_VALVE,

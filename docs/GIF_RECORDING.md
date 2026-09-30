@@ -1,3 +1,7 @@
+# Demo GIF
+
+`docs/demo.gif` (v0.13.0) was generated from the panel test harness: setup wizard (choose zones, when, check), Home while watering, This week, and Hebrew right-to-left. Re-record after big UI changes; the manual steps below still work for a GIF from a real Home Assistant.
+
 # Recording a demo GIF
 
 Can't automate screen recording. Here's the manual path — 5 minutes.

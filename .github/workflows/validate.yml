@@ -34,4 +34,7 @@ jobs:
         with:
           python-version: "3.13"
       - run: pip install -r requirements_test.txt
+      - name: Install Assist test deps pinned by the installed Home Assistant
+        run: |
+          pip install $(python -c "import importlib.util, json, os; d = importlib.util.find_spec('homeassistant.components.conversation').submodule_search_locations[0]; print(' '.join(json.load(open(os.path.join(d, 'manifest.json')))['requirements']))")
       - run: pytest -q

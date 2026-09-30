@@ -124,6 +124,17 @@ add_valve:
           min: 0
           max: 100
           step: 0.1
+    flow_rate_lpm:
+      name: Flow rate (L/min)
+      description: Used to estimate water use when there is no flow meter. Leave empty if you have one.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 10000
+          step: 0.1
+          unit_of_measurement: L/min
+          mode: box
     rain_exempt:
       name: Indoor (ignore rain)
       description: Global rain delay and rain skip don't apply to this valve. A per-valve rain delay still does.

@@ -50,6 +50,10 @@ CONF_FLOW_DELAY_SEC = "flow_delay_sec"
 CONF_FLOW_STOP_ALL = "flow_stop_all"
 
 CONF_REMINDER_MINUTES = "reminder_minutes"
+CONF_FORECAST_ENTITY = "forecast_entity"
+CONF_FORECAST_SKIP_MM = "forecast_skip_mm"
+CONF_FORECAST_HOURS = "forecast_hours"
+CONF_INTERLEAVE_SOAK = "interleave_soak"
 CONF_VOICE_ENABLED = "voice_enabled"
 
 DEFAULT_RAIN_SKIP_STATES = "rainy,pouring,snowy,lightning-rainy"
@@ -88,6 +92,10 @@ DEFAULT_OPTIONS = {
     CONF_FLOW_DELAY_SEC: 60,
     CONF_FLOW_STOP_ALL: False,
     CONF_REMINDER_MINUTES: 0,
+    CONF_FORECAST_ENTITY: "",
+    CONF_FORECAST_SKIP_MM: 0,
+    CONF_FORECAST_HOURS: 24,
+    CONF_INTERLEAVE_SOAK: True,
     CONF_VOICE_ENABLED: True,
 }
 
@@ -102,11 +110,18 @@ NOTIFY_EVENTS = (
     "valve_failed",
     "rain_delay",
     "leak_detected",
+    "low_flow",
 )
 
 CONDITION_OPERATORS = ("above", "below", "equals", "not_equals")
 
 MAX_RUN_MINUTES = 1440
+
+# A cycle interrupted by a restart resumes only if HA was back within this many seconds
+# of when its current zone would have finished.
+RESUME_MAX_GAP_SECONDS = 30 * 60
+FORECAST_REFRESH_MINUTES = 30
+FORECAST_MAX_AGE_SECONDS = 3 * 3600
 
 SUPPORTED_DOMAINS = ("switch", "valve", "cover", "input_boolean", "light")
 
@@ -129,6 +144,17 @@ EVENT_MOISTURE_SKIPPED = f"{DOMAIN}_moisture_skipped"
 EVENT_CONDITION_SKIPPED = f"{DOMAIN}_condition_skipped"
 EVENT_VALVE_SOAKING = f"{DOMAIN}_valve_soaking"
 EVENT_LEAK_DETECTED = f"{DOMAIN}_leak_detected"
+EVENT_LOW_FLOW = f"{DOMAIN}_low_flow"
+
+# flow sensor unit -> factor to litres per minute
+FLOW_UNIT_TO_LPM = {
+    "l/min": 1.0, "lpm": 1.0, "l/h": 1 / 60, "l/s": 60.0,
+    "m³/h": 1000 / 60, "m3/h": 1000 / 60, "m³/min": 1000.0,
+    "gal/min": 3.78541, "gpm": 3.78541, "gal/h": 3.78541 / 60,
+}
+LOW_FLOW_RATIO = 0.5
+LOW_FLOW_MIN_RUNS = 3
+LOW_FLOW_MIN_MINUTES = 2
 
 DAY_BITS = {0: 1, 1: 2, 2: 4, 3: 8, 4: 16, 5: 32, 6: 64}
 

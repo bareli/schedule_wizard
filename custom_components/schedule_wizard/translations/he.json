@@ -119,6 +119,12 @@
     "sensor": {
       "zone_time_left": {
         "name": "זמן שנותר"
+      },
+      "zone_water_used": {
+        "name": "צריכת מים"
+      },
+      "water_used": {
+        "name": "צריכת מים"
       }
     },
     "button": {
@@ -135,6 +141,12 @@
       "schedule": {
         "name": "לוח השקיה"
       }
+    }
+  },
+  "issues": {
+    "missing_entity": {
+      "title": "Schedule Wizard: {name} לא נמצא",
+      "description": "הישות `{entity_id}`, שמשמשת עבור {what}, לא קיימת או לא נטענה. אפשר להחזיר לה את השם הקודם או לבחור ישות אחרת בפאנל של Schedule Wizard. ההודעה תיעלם אחרי התיקון."
     }
   }
 }
