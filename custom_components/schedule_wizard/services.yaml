@@ -434,3 +434,48 @@ list_config:
 stop_all:
   name: Stop all
   description: Stop every running valve, soak sequence and cycle, then close the master valve.
+
+skip_next:
+  name: Skip next run
+  description: Skip the next run of one schedule. Returns the skipped run.
+  fields:
+    schedule_id:
+      name: Schedule ID
+      required: true
+      selector:
+        text:
+
+skip_day:
+  name: Skip a day
+  description: Skip every scheduled run on a day. Without a date, skips the rest of today.
+  fields:
+    date:
+      name: Date
+      required: false
+      selector:
+        date:
+
+unskip:
+  name: Undo skip
+  description: Undo a skip of one schedule on a date.
+  fields:
+    schedule_id:
+      name: Schedule ID
+      required: true
+      selector:
+        text:
+    date:
+      name: Date
+      required: true
+      selector:
+        date:
+
+run_schedule:
+  name: Run schedule now
+  description: Start a schedule's zone or plan right away and drop today's scheduled run of it.
+  fields:
+    schedule_id:
+      name: Schedule ID
+      required: true
+      selector:
+        text:

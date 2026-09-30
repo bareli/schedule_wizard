@@ -49,6 +49,9 @@ CONF_FLOW_MAX_RUNNING = "flow_max_running"
 CONF_FLOW_DELAY_SEC = "flow_delay_sec"
 CONF_FLOW_STOP_ALL = "flow_stop_all"
 
+CONF_REMINDER_MINUTES = "reminder_minutes"
+CONF_VOICE_ENABLED = "voice_enabled"
+
 DEFAULT_RAIN_SKIP_STATES = "rainy,pouring,snowy,lightning-rainy"
 
 DEFAULT_OPTIONS = {
@@ -84,6 +87,8 @@ DEFAULT_OPTIONS = {
     CONF_FLOW_MAX_RUNNING: 0,
     CONF_FLOW_DELAY_SEC: 60,
     CONF_FLOW_STOP_ALL: False,
+    CONF_REMINDER_MINUTES: 0,
+    CONF_VOICE_ENABLED: True,
 }
 
 NOTIFY_EVENTS = (
@@ -106,6 +111,9 @@ MAX_RUN_MINUTES = 1440
 SUPPORTED_DOMAINS = ("switch", "valve", "cover", "input_boolean", "light")
 
 SIGNAL_STATE_CHANGED = f"{DOMAIN}_state_changed"
+SIGNAL_CONFIG_CHANGED = f"{DOMAIN}_config_changed"
+
+NOTIFICATION_ACTION_PREFIX = "SCHEDULE_WIZARD_"
 
 EVENT_VALVE_STARTED = f"{DOMAIN}_valve_started"
 EVENT_VALVE_ENDED = f"{DOMAIN}_valve_ended"
@@ -137,6 +145,10 @@ SERVICE_REMOVE_CYCLE = "remove_cycle"
 SERVICE_RUN_CYCLE = "run_cycle"
 SERVICE_STOP_CYCLE = "stop_cycle"
 SERVICE_STOP_ALL = "stop_all"
+SERVICE_SKIP_NEXT = "skip_next"
+SERVICE_SKIP_DAY = "skip_day"
+SERVICE_UNSKIP = "unskip"
+SERVICE_RUN_SCHEDULE = "run_schedule"
 SERVICE_LIST = "list_config"
 SERVICE_RAIN_DELAY = "set_rain_delay"
 SERVICE_CLEAR_RAIN_DELAY = "clear_rain_delay"

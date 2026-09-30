@@ -155,6 +155,36 @@ bdi { unicode-bidi: isolate; }
   border-radius: 4px; font-size: 11px; font-weight: 500;
   background: var(--sw-border); color: var(--sw-muted); vertical-align: middle;
 }
+.badge.warn { background: rgba(180,83,9,0.15); color: var(--sw-warn); }
+.wk-wrap { container-type: inline-size; }
+.week { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.wk-day { display: grid; gap: 6px; align-content: start; min-width: 0; padding: 8px; border: 1px solid var(--sw-border); border-radius: 10px; background: var(--sw-bg); }
+.wk-day.today { border-color: var(--sw-primary); }
+.wk-head { display: flex; justify-content: space-between; align-items: center; gap: 4px; flex-wrap: wrap; }
+.wk-head strong { font-weight: 500; font-size: 14px; margin-inline-end: 4px; }
+.wk-head .btn { padding: 2px 6px; font-size: 12px; }
+.wk-runs { display: flex; flex-direction: column; gap: 6px; }
+.wk-run {
+  display: grid; gap: 1px; width: 100%; text-align: start; cursor: pointer;
+  padding: 6px 8px; border: 1px solid var(--sw-border); border-radius: 8px;
+  background: var(--sw-card); color: var(--sw-text); font: inherit; font-size: 13px;
+}
+.wk-run:hover { border-color: var(--sw-primary); }
+.wk-run .t { font-weight: 600; font-variant-numeric: tabular-nums; }
+.wk-run .n { overflow-wrap: anywhere; }
+.wk-run.past { opacity: 0.55; }
+.wk-run.skipped .t, .wk-run.skipped .n { text-decoration: line-through; color: var(--sw-muted); }
+.wk-run.rain { border-color: var(--sw-warn); background: rgba(180,83,9,0.07); }
+.wk-tag { font-size: 11px; font-weight: 500; color: var(--sw-muted); }
+.wk-run.rain .wk-tag, .wk-tag.warn { color: var(--sw-warn); }
+.voice-ex { margin: 4px 0 12px; padding-inline-start: 20px; display: grid; gap: 4px; font-size: 14px; font-style: italic; }
+@container (max-width: 860px) {
+  .week { grid-template-columns: 1fr; }
+  .wk-day { grid-template-columns: minmax(96px, 22%) 1fr; align-items: start; }
+  .wk-head { flex-direction: column; align-items: flex-start; }
+  .wk-runs { flex-direction: row; flex-wrap: wrap; }
+  .wk-run { flex: 1 1 150px; width: auto; }
+}
 .alert-banner {
   padding: 12px 14px; margin-bottom: 14px; border-radius: 10px;
   background: var(--sw-danger); color: #fff; font-weight: 600;
@@ -179,7 +209,7 @@ bdi { unicode-bidi: isolate; }
 }
 .modal h3 { margin: 0 0 14px; font-size: 18px; font-weight: 500; }
 .modal-actions {
-  display: flex; justify-content: flex-end; gap: 8px;
+  display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px;
   margin-top: 14px; padding-top: 12px;
   border-top: 1px solid var(--sw-border);
 }
@@ -718,7 +748,141 @@ class ScheduleWizardPanel extends HTMLElement {
     valves.forEach(v => grid.appendChild(this._zoneCard(v)));
     root.appendChild(grid);
 
+    root.appendChild(this._weekCard());
     root.appendChild(this._activityCard());
+  }
+
+  // ---------- This week ----------
+
+  _weekRuns() {
+    return Array.isArray(this._state.week) ? this._state.week : [];
+  }
+
+  // The 7 local day keys ("YYYY-MM-DD") starting today, in the formatter time zone.
+  _weekDays() {
+    const [y, m, d] = I18N.dayKey(this._state.now, this._hass).split("-").map(Number);
+    return Array.from({ length: 7 }, (_, i) => new Date(Date.UTC(y, m - 1, d + i)).toISOString().slice(0, 10));
+  }
+
+  _dayInfo(key) {
+    const [y, m, d] = String(key).split("-").map(Number);
+    const ts = Date.UTC(y, m - 1, d, 12) / 1000;
+    const wd = I18N.weekdayShort((new Date(ts * 1000).getUTCDay() + 6) % 7, this._lang, this._fo());
+    const date = this._fmtDate(ts, { day: "numeric", month: "numeric", timeZone: "UTC" });
+    const idx = this._weekDays().indexOf(key);
+    const name = idx === 0 ? this._t("week.today") : idx === 1 ? this._t("week.tomorrow") : wd;
+    return { name, wd, date, full: `${wd} ${date}`, idx };
+  }
+
+  // Next upcoming occurrence of a schedule in the week view (skipped or not).
+  _nextOccOf(scheduleId) {
+    const now = this._state.now;
+    return this._weekRuns().find(r => r.schedule_id === scheduleId && r.start > now) || null;
+  }
+
+  _isSkipped(scheduleId, day) {
+    const list = ((this._state.skips || {})[scheduleId]) || [];
+    return Array.isArray(list) && list.includes(day);
+  }
+
+  _skipTag(r) {
+    if (r.skip === "skipped_manual") return el("span", { class: "wk-tag" }, this._t("week.skipped"));
+    if (r.skip === "rain_delay") return el("span", { class: "wk-tag" }, this._t("week.rain"));
+    if (r.skip === "partial_rain_delay") return el("span", { class: "wk-tag warn" }, this._t("week.partial_rain"));
+    return null;
+  }
+
+  _weekCard() {
+    const now = this._state.now;
+    const runs = this._weekRuns();
+    const card = el("section", { class: "card wk-wrap" }, [el("h2", {}, this._t("week.title"))]);
+    if (!runs.length) {
+      card.appendChild(el("div", { class: "empty-state", style: "padding:8px;" }, [
+        el("p", { class: "muted" }, this._t("week.empty")),
+        el("button", { class: "btn primary", onClick: () => this._openWizard() }, this._t("home.new_plan")),
+      ]));
+      return card;
+    }
+    const grid = el("div", { class: "week" });
+    this._weekDays().forEach((key, i) => {
+      const info = this._dayInfo(key);
+      const dayRuns = runs.filter(r => r.day === key);
+      const canSkip = dayRuns.some(r => r.start > now && r.skip !== "skipped_manual");
+      const head = el("div", { class: "wk-head" }, [
+        el("div", {}, [el("strong", {}, info.name), el("span", { class: "sub" }, i < 2 ? info.full : info.date)]),
+        canSkip ? el("button", {
+          class: "btn ghost small",
+          title: this._t("week.skip_day_title", { day: info.full }),
+          onClick: () => {
+            if (!confirm(this._t("week.skip_day_confirm", { day: info.full }))) return;
+            this._callService("skip_day", { date: key });
+          },
+        }, this._t("week.skip_day")) : null,
+      ]);
+      const list = el("div", { class: "wk-runs" });
+      if (!dayRuns.length) list.appendChild(el("div", { class: "muted small" }, this._t("week.no_runs")));
+      dayRuns.forEach(r => {
+        const cls = ["wk-run"];
+        if (r.end < now) cls.push("past");
+        if (r.skip === "skipped_manual") cls.push("skipped");
+        else if (r.skip === "rain_delay") cls.push("rain");
+        list.appendChild(el("button", { type: "button", class: cls.join(" "), onClick: () => this._openRunModal(r) }, [
+          el("span", { class: "t" }, this._fmtTime(r.start)),
+          el("span", { class: "n" }, [iso(r.name), " · ", el("span", { style: "white-space:nowrap;" }, this._t("unit.min", { n: r.minutes }))]),
+          this._skipTag(r),
+        ]));
+      });
+      grid.appendChild(el("div", { class: "wk-day" + (i === 0 ? " today" : "") }, [head, list]));
+    });
+    card.appendChild(grid);
+    return card;
+  }
+
+  _openRunModal(r) {
+    const now = this._state.now;
+    const info = this._dayInfo(r.day);
+    const next = this._nextOccOf(r.schedule_id);
+    const isNext = !!next && next.start === r.start;
+    const close = () => { this._modalRoot.innerHTML = ""; this._editing = false; };
+    const act = (service, data) => async () => { if (await this._callService(service, data)) close(); };
+
+    const modal = el("div", { class: "modal", role: "dialog", "aria-modal": "true", "aria-labelledby": "sw-run-title" });
+    modal.appendChild(el("h3", { id: "sw-run-title" }, iso(r.name)));
+    modal.appendChild(el("div", { class: "muted small" }, joinParts([
+      `${info.name === info.wd ? info.full : `${info.name}, ${info.full}`}, ${this._fmtTime(r.start)}`,
+      this._t("unit.min", { n: r.minutes }),
+    ])));
+    const tag = this._skipTag(r);
+    if (tag) modal.appendChild(el("div", { style: "margin-top:6px;" }, tag));
+    const zones = el("div", { class: "list", style: "margin-top:12px;" }, [
+      el("div", { class: "sub", style: "font-weight:600;" }, this._t("week.zones")),
+    ]);
+    (r.zones || []).forEach(z => zones.appendChild(el("div", { class: "zmin small" }, [
+      el("span", { style: "min-width:0;" }, [iso(z.label || z.entity_id), z.indoor ? el("span", { class: "badge" }, this._t("valves.badge_indoor")) : null]),
+      el("span", { class: "muted" }, this._t("unit.min", { n: z.minutes })),
+    ])));
+    modal.appendChild(zones);
+
+    const actions = [el("button", { class: "btn", onClick: close }, this._t("common.close"))];
+    if (r.skip === "skipped_manual") {
+      actions.push(el("button", { class: "btn", onClick: act("unskip", { schedule_id: r.schedule_id, date: r.day }) }, this._t("week.undo_skip")));
+    } else if (isNext) {
+      actions.push(el("button", { class: "btn", onClick: act("skip_next", { schedule_id: r.schedule_id }) }, this._t("week.skip_run")));
+    }
+    if (info.idx === 0 && r.start > now) {
+      // Starts it now and drops today's scheduled run, same as the reminder's Water now.
+      const water = act("run_schedule", { schedule_id: r.schedule_id });
+      actions.push(el("button", { class: "btn primary", onClick: water }, this._t("zone.water_now")));
+    }
+    modal.appendChild(el("div", { class: "modal-actions" }, actions));
+
+    const overlay = el("div", { class: "modal-overlay" }, modal);
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+    overlay.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+    this._modalRoot.innerHTML = "";
+    this._applyDir(overlay);
+    this._modalRoot.appendChild(overlay);
+    actions[actions.length - 1].focus();
   }
 
   _statusCard() {
@@ -826,8 +990,20 @@ class ScheduleWizardPanel extends HTMLElement {
       }, this._t("home.resume_now")));
     } else {
       pill = el("span", { class: "pill ok" }, this._t("home.all_good"));
-      const next = this._nextOverall();
-      if (next) {
+      const wk = this._weekRuns().find(r => r.start > now && r.skip !== "skipped_manual");
+      const next = wk ? null : this._nextOverall();
+      if (wk) {
+        title = this._tn("home.next", { name: iso(wk.name), when: this._fmtWhen(wk.start) });
+        const zones = wk.zones || [];
+        subs.push(wk.kind === "cycle"
+          ? joinParts([
+            joinParts(zones.map(z => iso(z.label || z.entity_id)), ", "),
+            this._t("home.total_min", { n: wk.minutes }),
+          ], " · ")
+          : this._t("unit.min", { n: wk.minutes }));
+        if (wk.skip === "rain_delay") subs.push(this._t("week.rain"));
+        else if (wk.skip === "partial_rain_delay") subs.push(this._t("week.partial_rain"));
+      } else if (next) {
         const nr = next.next_run;
         const cycle = nr.cycle_id ? (st.cycles || []).find(c => c.id === nr.cycle_id) : null;
         title = this._tn("home.next", {
@@ -880,6 +1056,7 @@ class ScheduleWizardPanel extends HTMLElement {
       if (!v.next_run) return;
       const ts = parseInt(v.next_run.fires_at, 10) || 0;
       if (!ts) return;
+      if (v.next_run.schedule_id && this._isSkipped(v.next_run.schedule_id, I18N.dayKey(ts, this._hass))) return;
       if (!best || ts < (parseInt(best.next_run.fires_at, 10) || 0)) best = v;
     });
     return best;
@@ -1171,12 +1348,30 @@ class ScheduleWizardPanel extends HTMLElement {
       title: this._t(s.enabled ? "common.disable" : "common.enable"),
       onClick: () => this._callService("update_schedule", { schedule_id: s.id, enabled: !s.enabled }),
     });
+    const skipped = this._nextSkippedDay(s);
+    let skipBtn = null;
+    if (skipped) {
+      skipBtn = el("button", {
+        class: "btn small",
+        onClick: () => this._callService("unskip", { schedule_id: s.id, date: skipped }),
+      }, this._t("common.undo"));
+    } else if (this._schedActive(s)) {
+      skipBtn = el("button", {
+        class: "btn small",
+        onClick: () => this._callService("skip_next", { schedule_id: s.id }),
+      }, this._t("sched.skip_next"));
+    }
     return el("div", { class: "sched-row" }, [
       el("div", { style: "min-width:0;" }, [
-        el("div", {}, [...main, condCount ? el("span", { class: "badge" }, condCount === 1 ? this._t("sched.conditions_one") : this._t("sched.conditions_other", { n: condCount })) : null]),
+        el("div", {}, [
+          ...main,
+          condCount ? el("span", { class: "badge" }, condCount === 1 ? this._t("sched.conditions_one") : this._t("sched.conditions_other", { n: condCount })) : null,
+          skipped ? el("span", { class: "badge warn" }, this._t("sched.next_skipped")) : null,
+        ]),
         s.name && s.name !== ownerName ? el("div", { class: "sub" }, iso(s.name)) : null,
       ]),
       el("div", { class: "actions" }, [
+        skipBtn,
         toggle,
         el("button", { class: "btn small", onClick: () => this._openScheduleModal(s) }, this._t("common.edit")),
         el("button", {
@@ -1185,6 +1380,23 @@ class ScheduleWizardPanel extends HTMLElement {
         }, this._t("common.delete")),
       ]),
     ]);
+  }
+
+  // Whether a schedule and its target are enabled, so it has upcoming runs.
+  _schedActive(s) {
+    if (!s.enabled) return false;
+    if (s.cycle_id) return !!(this._state.cycles || []).find(c => c.id === s.cycle_id && c.enabled);
+    return !!(this._state.valves || []).find(v => v.entity_id === s.valve_entity_id && v.enabled);
+  }
+
+  // Day of the schedule's next run when that run is skipped by the user, else null.
+  _nextSkippedDay(s) {
+    if (!this._schedActive(s)) return null;
+    const next = this._nextOccOf(s.id);
+    if (next) return next.skip === "skipped_manual" ? next.day : null;
+    const today = this._weekDays()[0];
+    const future = (((this._state.skips || {})[s.id]) || []).filter(d => d > today).sort();
+    return future.length ? future[0] : null;
   }
 
   _openValveModal(existing) {
@@ -2259,6 +2471,17 @@ class ScheduleWizardPanel extends HTMLElement {
     });
     ess.appendChild(el("div", { class: "field" }, [el("span", {}, this._t("settings.notify_services")), targetsWrap]));
     ess.appendChild(el("div", { class: "field" }, [el("span", {}, this._t("settings.notify_when")), eventsWrap]));
+    const curReminder = Math.max(0, parseInt(opts.reminder_minutes, 10) || 0);
+    const reminderVals = [0, 10, 15, 30, 60];
+    if (!reminderVals.includes(curReminder)) reminderVals.push(curReminder);
+    const reminderSel = el("select", {});
+    reminderVals.sort((a, b) => a - b).forEach(n => {
+      const opt = el("option", { value: String(n) }, n ? this._t("set.reminder_opt", { n }) : this._t("common.off"));
+      if (n === curReminder) opt.selected = true;
+      reminderSel.appendChild(opt);
+    });
+    ess.appendChild(field(this._t("set.reminder"), reminderSel));
+    ess.appendChild(el("p", { class: "muted small", style: "margin:-6px 0 12px;" }, this._t("set.reminder_hint")));
     ess.appendChild(field(this._t("set.calendar_optional"), calSel));
     ess.appendChild(el("p", { class: "muted small", style: "margin:-6px 0 0;" }, this._t("settings.calendar_hint")));
     root.appendChild(ess);
@@ -2378,6 +2601,23 @@ class ScheduleWizardPanel extends HTMLElement {
       }, this._t("settings.copy_url")));
     }
 
+    // Voice
+    let voiceOn = opts.voice_enabled !== false;
+    const voiceSwitch = el("button", {
+      type: "button",
+      class: "switch",
+      role: "switch",
+      "aria-checked": voiceOn ? "true" : "false",
+      "aria-label": this._t("set.voice_toggle"),
+      onClick: () => { voiceOn = !voiceOn; voiceSwitch.setAttribute("aria-checked", voiceOn ? "true" : "false"); },
+    });
+    const voiceChildren = [
+      el("div", { class: "row-between", style: "margin-bottom:12px;" }, [el("span", {}, this._t("set.voice_toggle")), voiceSwitch]),
+      el("p", { class: "muted", style: "margin:0;" }, this._t("set.voice_examples")),
+      el("ul", { class: "voice-ex" }, [1, 2, 3, 4, 5].map(i => el("li", {}, this._t("set.voice_ex" + i)))),
+      hint(this._tn("set.voice_entities", { entity: ltr("switch.<zone>_watering") })),
+    ];
+
     const more = el("details", { class: "more" });
     if (this._moreOpen) more.open = true;
     more.addEventListener("toggle", () => { this._moreOpen = more.open; });
@@ -2439,6 +2679,7 @@ class ScheduleWizardPanel extends HTMLElement {
         hint(this._t("settings.overlap_hint")),
         field(this._t("settings.allow_concurrent"), allowConcurrent),
       ]),
+      this._optGroup("voice", this._t("set.g_voice"), this._t("set.g_voice_d"), opts.voice_enabled !== false, voiceChildren),
       this._optGroup("calendar", this._t("set.g_calendar"), this._t("set.g_calendar_d"), null, [
         el("div", { class: "field-row" }, [
           field(this._t("settings.lookahead"), lookInput),
@@ -2516,6 +2757,8 @@ class ScheduleWizardPanel extends HTMLElement {
           flow_attribute: flowAttr.value.trim(),
           ...flowNums,
           flow_stop_all: flowStopAll.checked,
+          reminder_minutes: Math.min(720, Math.max(0, parseInt(reminderSel.value, 10) || 0)),
+          voice_enabled: voiceOn,
         });
         feedback.textContent = this._t("settings.saved_at", {
           time: this._fmtTime(Math.floor(Date.now() / 1000), { hour: "numeric", minute: "2-digit", second: "2-digit" }),

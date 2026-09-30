@@ -35,9 +35,11 @@ from .const import (
     EVENT_VALVE_SOAKING,
     EVENT_VALVE_STARTED,
     MAX_RUN_MINUTES,
+    NOTIFICATION_ACTION_PREFIX,
     SIGNAL_STATE_CHANGED,
     SUPPORTED_DOMAINS,
 )
+from . import planner
 from .storage import WizardStore
 
 LOG = logging.getLogger(__name__)
@@ -51,6 +53,12 @@ SKIP_EVENTS = {
     "moisture": EVENT_MOISTURE_SKIPPED,
     "condition": EVENT_CONDITION_SKIPPED,
 }
+REMINDER_TEXT = {
+    "en": {"title": "Watering soon", "body": "{name} starts at {time} ({minutes} min).", "skip": "Skip today", "run": "Water now"},
+    "de": {"title": "Bewässerung gleich", "body": "{name} startet um {time} ({minutes} Min.).", "skip": "Heute überspringen", "run": "Jetzt bewässern"},
+    "he": {"title": "השקיה בקרוב", "body": "{name} מתחיל ב־{time} ({minutes} דק׳).", "skip": "דילוג היום", "run": "השקיה עכשיו"},
+}
+
 SKIP_TEXT = {
     "rain": "rain active",
     "rain_delay": "rain delay active",
@@ -78,6 +86,7 @@ class Scheduler:
         self._calendar_pending: dict[str, tuple[int, Optional[Callable]]] = {}
         self._master_open = False
         self._master_lock = asyncio.Lock()
+        self._unsub_action = None
 
     @property
     def active(self) -> dict[str, dict]:
@@ -110,6 +119,10 @@ class Scheduler:
         self._arm_calendar()
         await self._async_restore_active_runs()
         self._arm_flow()
+        self._unsub_action = self.hass.bus.async_listen(
+            "mobile_app_notification_action", self._on_notification_action
+        )
+        await self.store.async_prune_skips(dt_util.now().date().isoformat())
         LOG.info("scheduler started (poll every %ss, restored %d active runs)",
                  self._poll_seconds, len(self._active))
 
@@ -201,7 +214,7 @@ class Scheduler:
         await self.store.async_set_active_runs(runs)
 
     async def async_stop(self) -> None:
-        for attr in ("_unsub_minute", "_unsub_calendar", "_unsub_flow"):
+        for attr in ("_unsub_minute", "_unsub_calendar", "_unsub_flow", "_unsub_action"):
             unsub = getattr(self, attr)
             if unsub:
                 unsub()
@@ -229,6 +242,10 @@ class Scheduler:
         local = dt_util.as_local(now)
         bit = DAY_BITS[local.weekday()]
         hhmm = local.strftime("%H:%M")
+        today = local.date().isoformat()
+        if hhmm == "00:00":
+            self.hass.async_create_task(self.store.async_prune_skips(today))
+        self._send_due_reminders(local)
         for sched in self.store.schedules:
             if not sched.get("enabled"):
                 continue
@@ -237,6 +254,15 @@ class Scheduler:
             if sched.get("time_hhmm") != hhmm:
                 continue
             ref = f"schedule:{sched['id']}"
+            if self.store.is_skipped(sched["id"], today):
+                target = planner.schedule_target(self.store, sched)
+                LOG.info("skip %s: skipped by user for %s", ref, today)
+                self.hass.async_create_task(self.store.async_record_run(
+                    (target or {}).get("id") or sched.get("cycle_id") or sched.get("valve_entity_id") or "",
+                    "schedule", 0, "skipped_manual", ref,
+                ))
+                self.hass.async_create_task(self.store.async_remove_skip(sched["id"], today))
+                continue
             cycle_id = sched.get("cycle_id") or ""
             if cycle_id:
                 self.hass.async_create_background_task(
@@ -251,6 +277,103 @@ class Scheduler:
                     ),
                     f"{DOMAIN}_{ref}",
                 )
+
+    # ------------------------------------------------------------------ skips / reminders
+
+    async def async_skip_next(self, schedule_id: str) -> Optional[dict]:
+        occ = planner.next_occurrence(self.store, self.options, schedule_id)
+        if occ:
+            await self.store.async_add_skip(schedule_id, occ["day"])
+        return occ
+
+    async def async_skip_day(self, day: Optional[str] = None) -> list[dict]:
+        now = dt_util.now()
+        day = day or now.date().isoformat()
+        try:
+            day_date = datetime.strptime(day, "%Y-%m-%d").date()
+        except ValueError as e:
+            raise ValueError("date must be YYYY-MM-DD") from e
+        day_start = dt_util.start_of_local_day(day_date)
+        start = max(day_start, now) if day_date == now.date() else day_start
+        occs = [
+            o for o in planner.occurrences(self.store, self.options, start, day_start + timedelta(days=1))
+            if o["day"] == day
+        ]
+        for occ in occs:
+            await self.store.async_add_skip(occ["schedule_id"], day)
+        return occs
+
+    async def async_run_schedule_now(self, schedule_id: str, source: str = "manual") -> None:
+        """Start a schedule's target right away (no gating), and drop today's pending run of it."""
+        sched = self.store.get_schedule(schedule_id)
+        target = planner.schedule_target(self.store, sched) if sched else None
+        if not target:
+            raise ValueError("schedule not found or disabled")
+        occ = planner.next_occurrence(self.store, self.options, schedule_id, days=1)
+        if occ and occ["day"] == dt_util.now().date().isoformat():
+            await self.store.async_add_skip(schedule_id, occ["day"])
+        if target["kind"] == "cycle":
+            await self.async_run_cycle(target["id"], source=source, note=f"schedule:{schedule_id}")
+        else:
+            await self.async_run_valve(target["id"], target["minutes"], source=source, note=f"schedule:{schedule_id}")
+
+    def _reminder_lang(self) -> str:
+        lang = (getattr(self.hass.config, "language", "en") or "en").split("-")[0].lower()
+        return lang if lang in REMINDER_TEXT else "en"
+
+    @callback
+    def _send_due_reminders(self, local: datetime) -> None:
+        try:
+            lead = int(self.options.get("reminder_minutes") or 0)
+        except (TypeError, ValueError):
+            lead = 0
+        if lead <= 0 or not self._notify_targets():
+            return
+        start = local.replace(second=0, microsecond=0) + timedelta(minutes=lead)
+        for occ in planner.occurrences(self.store, self.options, start, start + timedelta(minutes=1)):
+            if occ["skip"] in ("skipped_manual", "rain_delay"):
+                continue
+            self.hass.async_create_task(self._async_send_reminder(occ))
+
+    async def _async_send_reminder(self, occ: dict) -> None:
+        text = REMINDER_TEXT[self._reminder_lang()]
+        when = dt_util.as_local(dt_util.utc_from_timestamp(occ["start"])).strftime("%H:%M")
+        body = text["body"].format(name=occ["name"], time=when, minutes=occ["minutes"])
+        key = f"{occ['schedule_id']}_{occ['day']}"
+        for target in self._notify_targets():
+            data: dict[str, Any] = {"title": text["title"], "message": body}
+            if target.startswith("mobile_app_"):
+                data["data"] = {
+                    "tag": f"schedule_wizard_{key}",
+                    "actions": [
+                        {"action": f"{NOTIFICATION_ACTION_PREFIX}SKIP_{key}", "title": text["skip"]},
+                        {"action": f"{NOTIFICATION_ACTION_PREFIX}RUN_{key}", "title": text["run"]},
+                    ],
+                }
+            try:
+                await self.hass.services.async_call("notify", target, data, blocking=False)
+            except Exception as e:
+                LOG.warning("reminder to %s failed: %s", target, e)
+
+    async def _on_notification_action(self, event: Event) -> None:
+        action = str(event.data.get("action") or "")
+        if not action.startswith(NOTIFICATION_ACTION_PREFIX):
+            return
+        parts = action[len(NOTIFICATION_ACTION_PREFIX):].split("_")
+        if len(parts) != 3:
+            return
+        verb, schedule_id, day = parts
+        if not self.store.get_schedule(schedule_id):
+            return
+        try:
+            if verb == "SKIP":
+                await self.store.async_add_skip(schedule_id, day)
+                LOG.info("schedule %s skipped for %s from a notification", schedule_id, day)
+            elif verb == "RUN":
+                await self.async_run_schedule_now(schedule_id, source="notification")
+        except Exception as e:
+            LOG.warning("notification action %s failed: %s", action, e)
+        async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
 
     def _is_valve_busy(self, entity_id: str) -> bool:
         return entity_id in self._active or entity_id in self._soak

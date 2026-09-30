@@ -59,7 +59,8 @@ async def zones(hass: HomeAssistant):
 
 async def setup_wizard(hass: HomeAssistant, options: dict | None = None) -> MockConfigEntry:
     # Frontend-only dependencies are marked loaded so setup doesn't pull hass_frontend.
-    hass.config.components.update({"frontend", "panel_custom", "lovelace", "calendar"})
+    hass.config.components.update({"frontend", "panel_custom", "lovelace"})
+    assert await async_setup_component(hass, "calendar", {})
     entry = MockConfigEntry(domain=DOMAIN, title="Schedule Wizard", data={}, options=options or {})
     entry.add_to_hass(hass)
     assert await hass.config_entries.async_setup(entry.entry_id)

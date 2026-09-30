@@ -54,6 +54,8 @@ from .const import (
     CONF_FLOW_LEAK_THRESHOLD,
     CONF_FLOW_MAX_RUNNING,
     CONF_FLOW_STOP_ALL,
+    CONF_REMINDER_MINUTES,
+    CONF_VOICE_ENABLED,
     CONDITION_OPERATORS,
     DEFAULT_DURATION,
     DEFAULT_OPTIONS,
@@ -74,19 +76,27 @@ from .const import (
     SERVICE_RESUME_CYCLE,
     SERVICE_RUN_CYCLE,
     SERVICE_RUN_VALVE,
+    SERVICE_SKIP_DAY,
+    SERVICE_SKIP_NEXT,
+    SERVICE_RUN_SCHEDULE,
     SERVICE_STOP_ALL,
+    SERVICE_UNSKIP,
     SERVICE_STOP_CYCLE,
     SERVICE_STOP_VALVE,
     SERVICE_UPDATE_CYCLE,
     SERVICE_UPDATE_SCHEDULE,
     SUPPORTED_DOMAINS,
 )
+from . import planner
 from .scheduler import Scheduler
 from .storage import WizardStore
+from .voice import VoiceCommands
 
 LOG = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.SENSOR]
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR, Platform.SWITCH, Platform.BUTTON, Platform.BINARY_SENSOR, Platform.CALENDAR,
+]
 
 PANEL_URL_PATH = "schedule-wizard"
 PANEL_STATIC_URL = "/schedule_wizard_panel"
@@ -219,6 +229,19 @@ SCHEMA_CLEAR_RAIN_DELAY = vol.Schema({
 })
 
 SCHEMA_NO_ARGS = vol.Schema({})
+
+SCHEMA_SKIP_NEXT = vol.Schema({
+    vol.Required("schedule_id"): cv.string,
+})
+
+SCHEMA_SKIP_DAY = vol.Schema({
+    vol.Optional("date"): cv.date,
+})
+
+SCHEMA_UNSKIP = vol.Schema({
+    vol.Required("schedule_id"): cv.string,
+    vol.Required("date"): cv.date,
+})
 
 SCHEMA_PAUSE_RESUME_CYCLE = vol.Schema({
     vol.Required("cycle_id"): cv.string,
@@ -467,6 +490,10 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "active_cycles": active_cycles,
             "soaking": scheduler.soaking,
             "flow": scheduler.flow_status,
+            "week": planner.occurrences(
+                store, options, dt_util.start_of_local_day(), dt_util.start_of_local_day() + _td(days=7),
+            ),
+            "skips": store.skips,
             "history": store.history[:500],
             "options": options,
             "controllable": controllable,
@@ -512,6 +539,8 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         vol.Optional(CONF_FLOW_MAX_RUNNING): vol.Any(float, int, None),
         vol.Optional(CONF_FLOW_DELAY_SEC): vol.All(int, vol.Range(min=5, max=3600)),
         vol.Optional(CONF_FLOW_STOP_ALL): cv.boolean,
+        vol.Optional(CONF_REMINDER_MINUTES): vol.All(int, vol.Range(min=0, max=720)),
+        vol.Optional(CONF_VOICE_ENABLED): cv.boolean,
     })
     @websocket_api.require_admin
     @websocket_api.async_response
@@ -692,6 +721,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def _svc_stop_all(call: ServiceCall) -> None:
         await scheduler.async_stop_all()
 
+    async def _svc_skip_next(call: ServiceCall) -> ServiceResponse:
+        if not store.get_schedule(call.data["schedule_id"]):
+            raise HomeAssistantError("schedule not found")
+        occ = await scheduler.async_skip_next(call.data["schedule_id"])
+        return {"skipped": occ}
+
+    async def _svc_skip_day(call: ServiceCall) -> ServiceResponse:
+        day = call.data.get("date")
+        try:
+            occs = await scheduler.async_skip_day(day.isoformat() if day else None)
+        except ValueError as e:
+            raise HomeAssistantError(str(e)) from e
+        return {"skipped": occs}
+
+    async def _svc_run_schedule(call: ServiceCall) -> None:
+        try:
+            await scheduler.async_run_schedule_now(call.data["schedule_id"], source="manual")
+        except Exception as e:
+            raise HomeAssistantError(str(e)) from e
+
+    async def _svc_unskip(call: ServiceCall) -> None:
+        await store.async_remove_skip(call.data["schedule_id"], call.data["date"].isoformat())
+
     async def _svc_rain_delay(call: ServiceCall) -> None:
         hours = float(call.data["hours"])
         until_ts = int(time.time()) + int(hours * 3600)
@@ -802,6 +854,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(DOMAIN, SERVICE_RUN_CYCLE, _svc_run_cycle, schema=SCHEMA_RUN_CYCLE)
     hass.services.async_register(DOMAIN, SERVICE_STOP_CYCLE, _svc_stop_cycle, schema=SCHEMA_STOP_CYCLE)
     hass.services.async_register(DOMAIN, SERVICE_STOP_ALL, _svc_stop_all, schema=SCHEMA_NO_ARGS)
+    hass.services.async_register(
+        DOMAIN, SERVICE_SKIP_NEXT, _svc_skip_next, schema=SCHEMA_SKIP_NEXT,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SKIP_DAY, _svc_skip_day, schema=SCHEMA_SKIP_DAY,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(DOMAIN, SERVICE_UNSKIP, _svc_unskip, schema=SCHEMA_UNSKIP)
+    hass.services.async_register(DOMAIN, SERVICE_RUN_SCHEDULE, _svc_run_schedule, schema=SCHEMA_SKIP_NEXT)
     hass.services.async_register(DOMAIN, SERVICE_RAIN_DELAY, _svc_rain_delay, schema=SCHEMA_RAIN_DELAY)
     hass.services.async_register(DOMAIN, SERVICE_CLEAR_RAIN_DELAY, _svc_clear_rain_delay, schema=SCHEMA_CLEAR_RAIN_DELAY)
     hass.services.async_register(DOMAIN, SERVICE_PAUSE_CYCLE, _svc_pause_cycle, schema=SCHEMA_PAUSE_RESUME_CYCLE)
@@ -816,7 +878,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    await _async_sync_voice(hass, entry)
     return True
+
+
+async def _async_sync_voice(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Start or stop Assist sentences to match the voice_enabled option."""
+    data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if not data:
+        return
+    want = bool(data["options"].get(CONF_VOICE_ENABLED, True))
+    voice: VoiceCommands | None = data.get("voice")
+    if want and voice is None:
+        voice = VoiceCommands(hass, entry, data)
+        data["voice"] = voice
+        await voice.async_start()
+    elif not want and voice is not None:
+        voice.async_stop()
+        data["voice"] = None
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -827,6 +906,7 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
     data["options"].clear()
     data["options"].update(_build_options(entry))
     data["scheduler"].async_options_updated()
+    await _async_sync_voice(hass, entry)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -836,6 +916,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     data = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     if data:
+        if data.get("voice"):
+            data["voice"].async_stop()
         await data["scheduler"].async_stop()
         wh_id = data.get("webhook_id")
         if wh_id:
@@ -859,6 +941,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             SERVICE_RUN_CYCLE,
             SERVICE_STOP_CYCLE,
             SERVICE_STOP_ALL,
+            SERVICE_SKIP_NEXT,
+            SERVICE_SKIP_DAY,
+            SERVICE_UNSKIP,
+            SERVICE_RUN_SCHEDULE,
             SERVICE_RAIN_DELAY,
             SERVICE_CLEAR_RAIN_DELAY,
             SERVICE_PAUSE_CYCLE,

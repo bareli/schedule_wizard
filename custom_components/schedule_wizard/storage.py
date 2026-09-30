@@ -6,9 +6,10 @@ import uuid
 from typing import Any, Optional
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
 
-from .const import STORAGE_KEY, STORAGE_VERSION
+from .const import SIGNAL_CONFIG_CHANGED, STORAGE_KEY, STORAGE_VERSION
 
 MAX_HISTORY = 500
 
@@ -56,6 +57,7 @@ def _clean_conditions(conditions: Optional[list[dict]]) -> list[dict]:
 
 class WizardStore:
     def __init__(self, hass: HomeAssistant):
+        self._hass = hass
         self._store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._data: dict[str, Any] = {
             "valves": [],
@@ -63,6 +65,7 @@ class WizardStore:
             "history": [],
             "active_runs": [],
             "cycles": [],
+            "skips": {},
         }
         self._loaded = False
 
@@ -74,10 +77,53 @@ class WizardStore:
             self._data["history"] = data.get("history", [])
             self._data["active_runs"] = data.get("active_runs", [])
             self._data["cycles"] = data.get("cycles", [])
+            self._data["skips"] = data.get("skips", {}) or {}
         self._loaded = True
 
     async def async_save(self) -> None:
         await self._store.async_save(self._data)
+
+    async def _async_save_config(self) -> None:
+        """Save after a change to valves, schedules or cycles, and tell entity platforms."""
+        await self.async_save()
+        async_dispatcher_send(self._hass, SIGNAL_CONFIG_CHANGED)
+
+    # ---- one-off skips: {schedule_id: ["YYYY-MM-DD", ...]} in local dates
+
+    @property
+    def skips(self) -> dict[str, list[str]]:
+        return {k: list(v) for k, v in self._data["skips"].items()}
+
+    def is_skipped(self, schedule_id: str, day: str) -> bool:
+        return day in self._data["skips"].get(schedule_id, [])
+
+    async def async_add_skip(self, schedule_id: str, day: str) -> None:
+        days = self._data["skips"].setdefault(schedule_id, [])
+        if day not in days:
+            days.append(day)
+            days.sort()
+            await self._async_save_config()
+
+    async def async_remove_skip(self, schedule_id: str, day: str) -> None:
+        days = self._data["skips"].get(schedule_id, [])
+        if day in days:
+            days.remove(day)
+            if not days:
+                self._data["skips"].pop(schedule_id, None)
+            await self._async_save_config()
+
+    async def async_prune_skips(self, today: str) -> None:
+        changed = False
+        for sid in list(self._data["skips"]):
+            keep = [d for d in self._data["skips"][sid] if d >= today]
+            if keep != self._data["skips"][sid]:
+                changed = True
+                if keep:
+                    self._data["skips"][sid] = keep
+                else:
+                    self._data["skips"].pop(sid)
+        if changed:
+            await self._async_save_config()
 
     @property
     def valves(self) -> list[dict]:
@@ -121,7 +167,7 @@ class WizardStore:
                 "enabled": bool(enabled),
                 **_clean_valve_extra(extra),
             })
-            await self.async_save()
+            await self._async_save_config()
             return existing
         valve = {
             "entity_id": entity_id,
@@ -139,7 +185,7 @@ class WizardStore:
             "created_at": int(time.time()),
         }
         self._data["valves"].append(valve)
-        await self.async_save()
+        await self._async_save_config()
         return valve
 
     async def async_set_valves_rain_delay(self, entity_ids: list[str], until: int) -> list[str]:
@@ -151,7 +197,7 @@ class WizardStore:
                 valve["rain_delay_until"] = int(until)
                 updated.append(entity_id)
         if updated:
-            await self.async_save()
+            await self._async_save_config()
         return updated
 
     async def async_remove_valve(self, entity_id: str) -> bool:
@@ -159,7 +205,7 @@ class WizardStore:
         self._data["valves"] = [v for v in self._data["valves"] if v["entity_id"] != entity_id]
         self._data["schedules"] = [s for s in self._data["schedules"] if s.get("valve_entity_id") != entity_id]
         if len(self._data["valves"]) != before:
-            await self.async_save()
+            await self._async_save_config()
             return True
         return False
 
@@ -193,7 +239,7 @@ class WizardStore:
             "created_at": int(time.time()),
         }
         self._data["schedules"].append(sched)
-        await self.async_save()
+        await self._async_save_config()
         return sched
 
     async def async_update_schedule(self, schedule_id: str, **fields: Any) -> Optional[dict]:
@@ -210,14 +256,15 @@ class WizardStore:
                     sched[k] = fields[k]
         if fields.get("conditions") is not None:
             sched["conditions"] = _clean_conditions(fields["conditions"])
-        await self.async_save()
+        await self._async_save_config()
         return sched
 
     async def async_remove_schedule(self, schedule_id: str) -> bool:
         before = len(self._data["schedules"])
         self._data["schedules"] = [s for s in self._data["schedules"] if s["id"] != schedule_id]
+        self._data["skips"].pop(schedule_id, None)
         if len(self._data["schedules"]) != before:
-            await self.async_save()
+            await self._async_save_config()
             return True
         return False
 
@@ -255,7 +302,7 @@ class WizardStore:
             "created_at": int(time.time()),
         }
         self._data["cycles"].append(cycle)
-        await self.async_save()
+        await self._async_save_config()
         return cycle
 
     async def async_update_cycle(self, cycle_id: str, **fields: Any) -> Optional[dict]:
@@ -274,7 +321,7 @@ class WizardStore:
                 }
                 for s in fields["steps"]
             ]
-        await self.async_save()
+        await self._async_save_config()
         return cycle
 
     async def async_remove_cycle(self, cycle_id: str) -> bool:
@@ -284,7 +331,7 @@ class WizardStore:
             s for s in self._data["schedules"] if s.get("cycle_id") != cycle_id
         ]
         if len(self._data["cycles"]) != before:
-            await self.async_save()
+            await self._async_save_config()
             return True
         return False
 

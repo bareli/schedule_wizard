@@ -31,18 +31,110 @@
     }
   },
   "services": {
-    "run_valve": { "name": "Ventil öffnen", "description": "Öffnet ein Ventil für die angegebene Dauer." },
-    "stop_valve": { "name": "Ventil schließen", "description": "Schließt ein Ventil und stoppt den Timer." },
-    "add_valve": { "name": "Ventil hinzufügen", "description": "Registriert ein Ventil beim Scheduler." },
-    "remove_valve": { "name": "Ventil entfernen", "description": "Entfernt ein Ventil und alle zugehörigen Zeitpläne." },
-    "add_schedule": { "name": "Zeitplan hinzufügen", "description": "Fügt einen wiederkehrenden Zeitplan hinzu." },
-    "update_schedule": { "name": "Zeitplan aktualisieren", "description": "Ändert einen bestehenden Zeitplan." },
-    "remove_schedule": { "name": "Zeitplan entfernen", "description": "Löscht einen Zeitplan." },
-    "add_cycle": { "name": "Zyklus hinzufügen", "description": "Erstellt einen Zyklus aus mehreren Ventilen in Reihenfolge." },
-    "update_cycle": { "name": "Zyklus aktualisieren", "description": "Ändert einen vorhandenen Zyklus." },
-    "remove_cycle": { "name": "Zyklus entfernen", "description": "Löscht einen Zyklus und zugehörige Zeitpläne." },
-    "run_cycle": { "name": "Zyklus starten", "description": "Startet einen Zyklus jetzt; Ventile laufen nacheinander." },
-    "stop_cycle": { "name": "Zyklus stoppen", "description": "Bricht einen laufenden Zyklus ab." },
-    "list_config": { "name": "Konfiguration auflisten", "description": "Gibt Ventile, Zeitpläne, Zyklen, aktive Läufe und Verlauf zurück." }
+    "run_valve": {
+      "name": "Ventil öffnen",
+      "description": "Öffnet ein Ventil für die angegebene Dauer."
+    },
+    "stop_valve": {
+      "name": "Ventil schließen",
+      "description": "Schließt ein Ventil und stoppt den Timer."
+    },
+    "add_valve": {
+      "name": "Ventil hinzufügen",
+      "description": "Registriert ein Ventil beim Scheduler."
+    },
+    "remove_valve": {
+      "name": "Ventil entfernen",
+      "description": "Entfernt ein Ventil und alle zugehörigen Zeitpläne."
+    },
+    "add_schedule": {
+      "name": "Zeitplan hinzufügen",
+      "description": "Fügt einen wiederkehrenden Zeitplan hinzu."
+    },
+    "update_schedule": {
+      "name": "Zeitplan aktualisieren",
+      "description": "Ändert einen bestehenden Zeitplan."
+    },
+    "remove_schedule": {
+      "name": "Zeitplan entfernen",
+      "description": "Löscht einen Zeitplan."
+    },
+    "add_cycle": {
+      "name": "Zyklus hinzufügen",
+      "description": "Erstellt einen Zyklus aus mehreren Ventilen in Reihenfolge."
+    },
+    "update_cycle": {
+      "name": "Zyklus aktualisieren",
+      "description": "Ändert einen vorhandenen Zyklus."
+    },
+    "remove_cycle": {
+      "name": "Zyklus entfernen",
+      "description": "Löscht einen Zyklus und zugehörige Zeitpläne."
+    },
+    "run_cycle": {
+      "name": "Zyklus starten",
+      "description": "Startet einen Zyklus jetzt; Ventile laufen nacheinander."
+    },
+    "stop_cycle": {
+      "name": "Zyklus stoppen",
+      "description": "Bricht einen laufenden Zyklus ab."
+    },
+    "list_config": {
+      "name": "Konfiguration auflisten",
+      "description": "Gibt Ventile, Zeitpläne, Zyklen, aktive Läufe und Verlauf zurück."
+    },
+    "stop_all": {
+      "name": "Alles stoppen",
+      "description": "Stoppt alle laufenden Ventile, Sickerpausen und Zyklen und schließt das Hauptventil."
+    },
+    "skip_next": {
+      "name": "Nächsten Lauf überspringen",
+      "description": "Überspringt den nächsten Lauf eines Zeitplans."
+    },
+    "skip_day": {
+      "name": "Tag überspringen",
+      "description": "Überspringt alle geplanten Läufe an einem Tag (Standard: der Rest von heute)."
+    },
+    "unskip": {
+      "name": "Überspringen rückgängig",
+      "description": "Macht das Überspringen eines Zeitplans an einem Datum rückgängig."
+    },
+    "run_schedule": {
+      "name": "Zeitplan jetzt ausführen",
+      "description": "Startet die Zone oder den Plan eines Zeitplans sofort und lässt den heutigen geplanten Lauf entfallen."
+    }
+  },
+  "entity": {
+    "switch": {
+      "zone_watering": {
+        "name": "Bewässerung"
+      },
+      "plan_enabled": {
+        "name": "Aktiviert"
+      },
+      "rain_delay": {
+        "name": "Regenverzögerung"
+      }
+    },
+    "sensor": {
+      "zone_time_left": {
+        "name": "Restzeit"
+      }
+    },
+    "button": {
+      "plan_run": {
+        "name": "Jetzt starten"
+      }
+    },
+    "binary_sensor": {
+      "watering": {
+        "name": "Bewässerung"
+      }
+    },
+    "calendar": {
+      "schedule": {
+        "name": "Bewässerungsplan"
+      }
+    }
   }
 }
