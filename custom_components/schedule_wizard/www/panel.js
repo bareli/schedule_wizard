@@ -2575,6 +2575,18 @@ class ScheduleWizardPanel extends HTMLElement {
     const flowStopAll = el("input", { type: "checkbox" });
     flowStopAll.checked = !!opts.flow_stop_all;
 
+    // Rain forecast
+    const fcEntity = el("input", { type: "text", dir: "ltr", placeholder: "weather.home", value: String(opts.forecast_entity || "") });
+    const fcMm = el("input", { type: "number", min: "0", step: "0.5", value: numVal(opts.forecast_skip_mm ?? 0) });
+    const fcHours = el("select", {});
+    [6, 12, 24, 48].forEach(h => fcHours.appendChild(el("option", { value: String(h) }, this._t("set.fc_hours_opt", { n: h }))));
+    fcHours.value = String([6, 12, 24, 48].includes(Number(opts.forecast_hours)) ? opts.forecast_hours : 24);
+    const fc = this._state.forecast || {};
+    const fcNow = !fc.entity_id ? null
+      : (fc.mm === null || fc.mm === undefined)
+        ? this._t("set.fc_unavailable")
+        : this._t("set.fc_now", { mm: fc.mm, n: fc.hours || 24 });
+
     // Webhook
     const webhookId = this._state.webhook_id || "";
     const webhookChildren = [hint(this._t("settings.webhook_hint"))];
@@ -2652,6 +2664,15 @@ class ScheduleWizardPanel extends HTMLElement {
           field(this._t("common.skip_when_gte"), moistureThreshold),
         ]),
       ]),
+      this._optGroup("forecast", this._t("set.g_forecast"), this._t("set.g_forecast_d"), !!opts.forecast_entity && Number(opts.forecast_skip_mm) > 0, [
+        hint(this._t("set.fc_hint")),
+        field(this._t("set.fc_entity"), fcEntity),
+        el("div", { class: "field-row" }, [
+          field(this._t("set.fc_mm"), fcMm),
+          field(this._t("set.fc_hours"), fcHours),
+        ]),
+        fcNow ? el("p", { class: "muted small" }, fcNow) : null,
+      ]),
       this._optGroup("master", this._t("set.g_master"), this._t("set.g_master_d"), !!opts.master_valve_entity, [
         hint(this._t("settings.master_hint")),
         field(this._t("settings.master_entity"), masterEntity),
@@ -2726,6 +2747,8 @@ class ScheduleWizardPanel extends HTMLElement {
         const n = parseFloat(input.value);
         if (input.value.trim() !== "" && !isNaN(n)) flowNums[key] = Math.max(0, n);
       });
+      const fcN = parseFloat(fcMm.value);
+      if (fcMm.value.trim() !== "" && !isNaN(fcN)) flowNums.forecast_skip_mm = Math.max(0, fcN);
       const delayN = parseInt(flowDelay.value, 10);
       if (flowDelay.value.trim() !== "" && !isNaN(delayN)) flowNums.flow_delay_sec = Math.min(3600, Math.max(5, delayN));
       try {
@@ -2757,6 +2780,8 @@ class ScheduleWizardPanel extends HTMLElement {
           flow_attribute: flowAttr.value.trim(),
           ...flowNums,
           flow_stop_all: flowStopAll.checked,
+          forecast_entity: fcEntity.value.trim(),
+          forecast_hours: parseInt(fcHours.value, 10) || 24,
           reminder_minutes: Math.min(720, Math.max(0, parseInt(reminderSel.value, 10) || 0)),
           voice_enabled: voiceOn,
         });

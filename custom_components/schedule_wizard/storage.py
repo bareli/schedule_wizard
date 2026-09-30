@@ -66,6 +66,7 @@ class WizardStore:
             "active_runs": [],
             "cycles": [],
             "skips": {},
+            "cycle_state": {},
         }
         self._loaded = False
 
@@ -78,6 +79,7 @@ class WizardStore:
             self._data["active_runs"] = data.get("active_runs", [])
             self._data["cycles"] = data.get("cycles", [])
             self._data["skips"] = data.get("skips", {}) or {}
+            self._data["cycle_state"] = data.get("cycle_state", {}) or {}
         self._loaded = True
 
     async def async_save(self) -> None:
@@ -140,6 +142,14 @@ class WizardStore:
     @property
     def active_runs(self) -> list[dict]:
         return list(self._data["active_runs"])
+
+    @property
+    def cycle_state(self) -> dict:
+        return dict(self._data.get("cycle_state") or {})
+
+    async def async_set_cycle_state(self, cycles: list[dict]) -> None:
+        self._data["cycle_state"] = {"saved_at": int(time.time()), "cycles": cycles}
+        await self.async_save()
 
     async def async_set_active_runs(self, runs: list[dict]) -> None:
         self._data["active_runs"] = list(runs)

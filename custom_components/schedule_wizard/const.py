@@ -50,6 +50,9 @@ CONF_FLOW_DELAY_SEC = "flow_delay_sec"
 CONF_FLOW_STOP_ALL = "flow_stop_all"
 
 CONF_REMINDER_MINUTES = "reminder_minutes"
+CONF_FORECAST_ENTITY = "forecast_entity"
+CONF_FORECAST_SKIP_MM = "forecast_skip_mm"
+CONF_FORECAST_HOURS = "forecast_hours"
 CONF_VOICE_ENABLED = "voice_enabled"
 
 DEFAULT_RAIN_SKIP_STATES = "rainy,pouring,snowy,lightning-rainy"
@@ -88,6 +91,9 @@ DEFAULT_OPTIONS = {
     CONF_FLOW_DELAY_SEC: 60,
     CONF_FLOW_STOP_ALL: False,
     CONF_REMINDER_MINUTES: 0,
+    CONF_FORECAST_ENTITY: "",
+    CONF_FORECAST_SKIP_MM: 0,
+    CONF_FORECAST_HOURS: 24,
     CONF_VOICE_ENABLED: True,
 }
 
@@ -107,6 +113,12 @@ NOTIFY_EVENTS = (
 CONDITION_OPERATORS = ("above", "below", "equals", "not_equals")
 
 MAX_RUN_MINUTES = 1440
+
+# A cycle interrupted by a restart resumes only if HA was back within this many seconds
+# of when its current zone would have finished.
+RESUME_MAX_GAP_SECONDS = 30 * 60
+FORECAST_REFRESH_MINUTES = 30
+FORECAST_MAX_AGE_SECONDS = 3 * 3600
 
 SUPPORTED_DOMAINS = ("switch", "valve", "cover", "input_boolean", "light")
 

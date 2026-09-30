@@ -31,6 +31,7 @@ Schedule Wizard handles all of the above in one integration with its own sidebar
 - **Rain delay** button: skip schedule + calendar runs for 24h / 48h / 7d (or custom hours), for all valves or a single valve.
 - **Indoor valves**: mark a valve as indoor so the global rain delay and rain skip don't apply to it (greenhouse, balcony, drip under cover).
 - **Rain skip**: optional weather/sensor entity; skip when state matches a list or numeric value crosses a threshold.
+- **Rain forecast skip**: skip outdoor zones when the weather forecast expects N mm or more in the next 6 to 48 hours.
 - **Soil moisture skip**: optional global moisture sensor, plus an optional **per-valve** sensor that overrides it for that zone (also checked per step inside cycles).
 - **Schedule conditions**: attach up to 10 entity conditions to a schedule (`above` / `below` / `equals` / `not_equals`, state or attribute). The run is skipped unless all hold.
 - **Cycle & soak**: per valve, split long runs into chunks with soak pauses so water sinks in instead of running off (slopes, clay).
@@ -585,6 +586,15 @@ Every zone and every watering plan gets its own device in Home Assistant, with e
 | `switch.schedule_wizard_rain_delay` | On while the rain delay is active. Turn on = pause for 24 h. |
 | `calendar.schedule_wizard_watering_schedule` | Upcoming runs, shown in HA's Calendar. Skipped and rain-paused runs are marked. |
 
+## Rain forecast
+
+Settings → More options → **Skip when rain is forecast**. Pick a weather entity that provides forecasts (for example `weather.home`), the amount in mm, and how far ahead to look (6, 12, 24 or 48 hours). The forecast is refreshed every 30 minutes; if it can't be read for 3 hours, nothing is skipped. Indoor zones and manual runs are never skipped. Skipped runs show as `skipped_forecast`.
+
+## Problems and diagnostics
+
+- If a zone's switch or a sensor used in Settings disappears (renamed, removed, integration not loading), a warning appears in **Settings → Repairs** naming the entity and what it's used for. It clears itself once fixed.
+- **Download diagnostics** (Settings → Devices & Services → Schedule Wizard → ⋮) gives a JSON file with your zones, plans, schedules, state and recent history, with the webhook ID and notify targets removed. Attach it to bug reports.
+
 ## Voice (Assist)
 
 Say or type these to Assist (Settings → Voice assistants). Zone and plan names are matched loosely ("the front lawn" finds "Front lawn").
@@ -750,6 +760,8 @@ On HA restart, the scheduler re-reads active runs from storage and checks each e
 | ON / open       | > 0 seconds     | Re-arm auto-close for remaining time.   |
 | ON / open       | ≤ 0 seconds     | Close immediately, log as expired.      |
 | OFF / closed    | any             | Drop run, log as cancelled.             |
+
+**Cycles resume after a restart** (since v0.13.0): a watering plan interrupted by an HA restart or update continues with its next zone, as long as HA is back within 30 minutes of when the current zone would have finished. Otherwise it's logged as cancelled. Paused plans stay paused. Split (soak) runs of single zones are not resumed.
 
 Cycles and soak sequences are not resumed after a restart: the valve open at shutdown finishes its own remaining time, the rest of the sequence is dropped. Changing settings does **not** restart the integration, so it never interrupts a running cycle.
 

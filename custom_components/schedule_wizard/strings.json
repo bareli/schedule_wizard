@@ -112,5 +112,11 @@
         "name": "Watering schedule"
       }
     }
+  },
+  "issues": {
+    "missing_entity": {
+      "title": "Schedule Wizard: {name} not found",
+      "description": "The entity `{entity_id}`, used for {what}, doesn't exist or isn't loaded. Rename it back, or pick another entity in the Schedule Wizard panel. This message disappears once it's fixed."
+    }
   }
 }

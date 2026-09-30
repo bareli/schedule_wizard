@@ -407,7 +407,17 @@ export const STRINGS = /*JSON-START*/ {
     "set.voice_ex3": "Skip watering today",
     "set.voice_ex4": "Pause watering for 2 days",
     "set.voice_ex5": "Start watering plan Morning",
-    "set.voice_entities": "You can also use the entities, e.g. {entity}, in dashboards and automations."
+    "set.voice_entities": "You can also use the entities, e.g. {entity}, in dashboards and automations.",
+    "status.skipped_forecast": "skipped (rain forecast)",
+    "set.g_forecast": "Skip when rain is forecast",
+    "set.g_forecast_d": "Uses your weather forecast to skip watering before rain.",
+    "set.fc_hint": "Skips schedule and calendar runs of outdoor zones when the forecast rain in the coming hours reaches the amount below. Indoor zones and manual runs are never skipped.",
+    "set.fc_entity": "Weather entity with a forecast",
+    "set.fc_mm": "Skip at or above (mm, 0 = off)",
+    "set.fc_hours": "Look ahead",
+    "set.fc_hours_opt": "{n} hours",
+    "set.fc_now": "Forecast now: {mm} mm in the next {n} hours.",
+    "set.fc_unavailable": "No forecast data yet from this entity."
   },
   "de": {
     "common.save": "Speichern",
@@ -815,7 +825,17 @@ export const STRINGS = /*JSON-START*/ {
     "set.voice_ex3": "Bewässerung heute überspringen",
     "set.voice_ex4": "Pausiere die Bewässerung für 2 Tage",
     "set.voice_ex5": "Starte den Bewässerungsplan Morgen",
-    "set.voice_entities": "Du kannst die Entitäten, z. B. {entity}, auch in Dashboards und Automationen verwenden."
+    "set.voice_entities": "Du kannst die Entitäten, z. B. {entity}, auch in Dashboards und Automationen verwenden.",
+    "status.skipped_forecast": "übersprungen (Regenvorhersage)",
+    "set.g_forecast": "Bei Regenvorhersage überspringen",
+    "set.g_forecast_d": "Nutzt deine Wettervorhersage, um vor Regen nicht zu bewässern.",
+    "set.fc_hint": "Überspringt Zeitplan- und Kalenderläufe von Außenzonen, wenn der vorhergesagte Regen in den nächsten Stunden die Menge unten erreicht. Innenzonen und manuelle Läufe werden nie übersprungen.",
+    "set.fc_entity": "Wetter-Entität mit Vorhersage",
+    "set.fc_mm": "Überspringen ab (mm, 0 = aus)",
+    "set.fc_hours": "Vorausschau",
+    "set.fc_hours_opt": "{n} Stunden",
+    "set.fc_now": "Aktuelle Vorhersage: {mm} mm in den nächsten {n} Stunden.",
+    "set.fc_unavailable": "Noch keine Vorhersagedaten von dieser Entität."
   },
   "he": {
     "common.save": "שמירה",
@@ -1223,7 +1243,17 @@ export const STRINGS = /*JSON-START*/ {
     "set.voice_ex3": "דלג על ההשקיה היום",
     "set.voice_ex4": "השהה את ההשקיה ל 2 ימים",
     "set.voice_ex5": "הפעל תוכנית השקיה בוקר",
-    "set.voice_entities": "אפשר להשתמש גם בישויות, למשל {entity}, בלוחות בקרה ובאוטומציות."
+    "set.voice_entities": "אפשר להשתמש גם בישויות, למשל {entity}, בלוחות בקרה ובאוטומציות.",
+    "status.skipped_forecast": "דולג (תחזית גשם)",
+    "set.g_forecast": "דילוג כשצפוי גשם",
+    "set.g_forecast_d": "משתמש בתחזית מזג האוויר כדי לא להשקות לפני גשם.",
+    "set.fc_hint": "מדלג על השקיות של אזורים חיצוניים מתזמונים ומלוח השנה כשכמות הגשם הצפויה בשעות הקרובות מגיעה לכמות שלמטה. אזורים פנימיים והפעלה ידנית אף פעם לא מדולגים.",
+    "set.fc_entity": "ישות מזג אוויר עם תחזית",
+    "set.fc_mm": "דילוג מ־ (מ״מ, 0 = כבוי)",
+    "set.fc_hours": "טווח תחזית",
+    "set.fc_hours_opt": "{n} שעות",
+    "set.fc_now": "התחזית כעת: {mm} מ״מ ב־{n} השעות הקרובות.",
+    "set.fc_unavailable": "עדיין אין נתוני תחזית מהישות הזו."
   }
 } /*JSON-END*/;
 

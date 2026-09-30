@@ -8,6 +8,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Any, Callable, Optional
 
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import (
@@ -34,8 +35,11 @@ from .const import (
     EVENT_VALVE_FAILED,
     EVENT_VALVE_SOAKING,
     EVENT_VALVE_STARTED,
+    FORECAST_MAX_AGE_SECONDS,
+    FORECAST_REFRESH_MINUTES,
     MAX_RUN_MINUTES,
     NOTIFICATION_ACTION_PREFIX,
+    RESUME_MAX_GAP_SECONDS,
     SIGNAL_STATE_CHANGED,
     SUPPORTED_DOMAINS,
 )
@@ -49,6 +53,7 @@ UNAVAILABLE_STATES = {"unavailable", "unknown", ""}
 
 SKIP_EVENTS = {
     "rain": EVENT_RAIN_SKIPPED,
+    "forecast": EVENT_RAIN_SKIPPED,
     "rain_delay": EVENT_RAIN_SKIPPED,
     "moisture": EVENT_MOISTURE_SKIPPED,
     "condition": EVENT_CONDITION_SKIPPED,
@@ -61,6 +66,7 @@ REMINDER_TEXT = {
 
 SKIP_TEXT = {
     "rain": "rain active",
+    "forecast": "rain forecast",
     "rain_delay": "rain delay active",
     "moisture": "soil moisture above threshold",
     "condition": "schedule condition not met",
@@ -87,6 +93,10 @@ class Scheduler:
         self._master_open = False
         self._master_lock = asyncio.Lock()
         self._unsub_action = None
+        self._unsub_forecast = None
+        self._forecast: dict[str, Any] = {"mm": None, "updated": 0, "kind": None, "error": None}
+        self._stopping = False
+        self._unsub_ha_stop = None
 
     @property
     def active(self) -> dict[str, dict]:
@@ -118,10 +128,13 @@ class Scheduler:
         self._calendar_entity = self.options.get("calendar_entity") or ""
         self._arm_calendar()
         await self._async_restore_active_runs()
+        await self._async_restore_cycles()
         self._arm_flow()
+        self._arm_forecast()
         self._unsub_action = self.hass.bus.async_listen(
             "mobile_app_notification_action", self._on_notification_action
         )
+        self._unsub_ha_stop = self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, self._on_ha_stop)
         await self.store.async_prune_skips(dt_util.now().date().isoformat())
         LOG.info("scheduler started (poll every %ss, restored %d active runs)",
                  self._poll_seconds, len(self._active))
@@ -145,6 +158,7 @@ class Scheduler:
             self._cancel_calendar_pending()
             self._known_calendar_events = set()
         self._arm_flow()
+        self._arm_forecast()
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
 
     def _cancel_calendar_pending(self) -> None:
@@ -213,8 +227,16 @@ class Scheduler:
         ]
         await self.store.async_set_active_runs(runs)
 
+    @callback
+    def _on_ha_stop(self, _event: Event) -> None:
+        """HA is shutting down: tasks get cancelled next; leave valves and cycle state for resume."""
+        self._unsub_ha_stop = None
+        self._stopping = True
+
     async def async_stop(self) -> None:
-        for attr in ("_unsub_minute", "_unsub_calendar", "_unsub_flow", "_unsub_action"):
+        # Shutdown or reload: keep persisted runs and cycles so they resume on the next start.
+        self._stopping = True
+        for attr in ("_unsub_minute", "_unsub_calendar", "_unsub_flow", "_unsub_action", "_unsub_forecast", "_unsub_ha_stop"):
             unsub = getattr(self, attr)
             if unsub:
                 unsub()
@@ -477,6 +499,8 @@ class Scheduler:
             return "rain_delay_global"
         if self._should_skip_for_rain():
             return "rain"
+        if self._should_skip_for_forecast():
+            return "forecast"
         return None
 
     def _skip_reason(
@@ -484,6 +508,8 @@ class Scheduler:
     ) -> Optional[str]:
         if check_rain and valve is None and self._should_skip_for_rain():
             return "rain"
+        if check_rain and valve is None and self._should_skip_for_forecast():
+            return "forecast"
         per_valve = self._valve_moisture_skip(valve) if valve else None
         if per_valve is True or (per_valve is None and self._should_skip_for_moisture()):
             return "moisture"
@@ -509,7 +535,7 @@ class Scheduler:
         payload["name" if kind == "cycle" else "label"] = name
         self.hass.bus.async_fire(SKIP_EVENTS[reason], payload)
         what = f"cycle {name}" if kind == "cycle" else name
-        notify_event = "skipped_rain" if reason == "rain_delay" else f"skipped_{reason}"
+        notify_event = "skipped_rain" if reason in ("rain_delay", "forecast") else f"skipped_{reason}"
         self.hass.async_create_task(self._notify(
             notify_event, "Schedule Wizard", f"Skipped {what}: {SKIP_TEXT[reason]}",
         ))
@@ -891,7 +917,7 @@ class Scheduler:
             await self._call_service_on(entity_id)
             opened = await self._async_verify_opened(entity_id)
         except asyncio.CancelledError:
-            if self._active.get(entity_id) is run:
+            if self._active.get(entity_id) is run and not self._stopping:
                 self._active.pop(entity_id, None)
                 await self._call_service_off(entity_id)
                 await self._async_master_maybe_close()
@@ -1003,7 +1029,7 @@ class Scheduler:
         try:
             await asyncio.sleep(minutes * 60)
         except asyncio.CancelledError:
-            if self._active.get(entity_id) is run:
+            if self._active.get(entity_id) is run and not self._stopping:
                 await self._async_complete(entity_id, "cancelled")
             raise
         if self._active.get(entity_id) is run:
@@ -1109,6 +1135,7 @@ class Scheduler:
             self._run_cycle_task(cycle, state), f"{DOMAIN}_cycle_{cycle_id}"
         )
         state["task"] = task
+        self._persist_cycles()
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
         LOG.info("started cycle %s (%s), %d steps, source=%s",
                  cycle_id, cycle.get("name"), len(steps), source)
@@ -1150,6 +1177,8 @@ class Scheduler:
                     continue
                 state["step"] = step_no
                 state["current_entity"] = entity_id
+                state["step_ends_at"] = int(time.time()) + self._sequence_seconds(entity_id, duration)
+                self._persist_cycles()
                 async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
                 step_note = f"{state.get('note', '')}|step{step_no}"
                 if automated:
@@ -1187,14 +1216,16 @@ class Scheduler:
                 f"Cycle completed: {cycle.get('name', cycle_id)}",
             ))
         except asyncio.CancelledError:
-            if not state.get("paused"):
+            if not state.get("paused") and not self._stopping:
                 await self._async_record_cycle_cancelled(cycle_id, cycle.get("name", ""), state)
             raise
         finally:
-            if not state.get("paused") and self._active_cycles.get(cycle_id) is state:
-                self._active_cycles.pop(cycle_id, None)
-            async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
-            self.hass.async_create_task(self._async_master_maybe_close())
+            if not self._stopping:
+                if not state.get("paused") and self._active_cycles.get(cycle_id) is state:
+                    self._active_cycles.pop(cycle_id, None)
+                self._persist_cycles()
+                async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+                self.hass.async_create_task(self._async_master_maybe_close())
 
     async def _async_record_cycle_cancelled(self, cycle_id: str, name: str, state: dict) -> None:
         await self.store.async_record_run(
@@ -1235,6 +1266,7 @@ class Scheduler:
         await self._async_cancel_task(state.get("task"))
         state["current_entity"] = None
         self._active_cycles[cycle_id] = state
+        self._persist_cycles()
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
         await self._async_master_maybe_close()
         self.hass.bus.async_fire(EVENT_CYCLE_PAUSED, {
@@ -1269,6 +1301,7 @@ class Scheduler:
             self._run_cycle_task(cycle_resume, state), f"{DOMAIN}_cycle_{cycle_id}"
         )
         state["task"] = task
+        self._persist_cycles()
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
         self.hass.bus.async_fire(EVENT_CYCLE_RESUMED, {
             "cycle_id": cycle_id,
@@ -1282,6 +1315,7 @@ class Scheduler:
             return
         if state.get("paused"):
             self._active_cycles.pop(cycle_id, None)
+            self._persist_cycles()
             await self._async_record_cycle_cancelled(cycle_id, state.get("cycle_name", ""), state)
             async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
             await self._async_master_maybe_close()
@@ -1312,6 +1346,175 @@ class Scheduler:
         for entity_id in list(self._active):
             await self._async_complete(entity_id, "cancelled", reason)
         await self._async_master_maybe_close()
+
+    # ------------------------------------------------------------------ cycle persistence / resume
+
+    def _sequence_seconds(self, entity_id: str, minutes: int) -> int:
+        chunks = self._soak_chunks(entity_id, minutes)
+        pause = int((self.store.get_valve(entity_id) or {}).get("soak_pause_min") or 0)
+        return sum(chunks) * 60 + max(0, len(chunks) - 1) * pause * 60
+
+    @callback
+    def _persist_cycles(self) -> None:
+        if self._stopping:
+            return
+        keep = ("cycle_id", "cycle_name", "started_at", "step", "total_steps", "current_entity", "source",
+                "note", "duration_factor", "paused", "paused_at_step", "start_offset", "step_ends_at")
+        cycles = [{k: st.get(k) for k in keep} for st in self._active_cycles.values()]
+        self.hass.async_create_task(self.store.async_set_cycle_state(cycles))
+
+    async def _async_restore_cycles(self) -> None:
+        saved = self.store.cycle_state
+        cycles = saved.get("cycles") or []
+        if not cycles:
+            return
+        now = int(time.time())
+        saved_at = int(saved.get("saved_at") or now)
+        for c in cycles:
+            cycle_id = c.get("cycle_id")
+            cycle = self.store.get_cycle(cycle_id or "")
+            if not cycle or cycle_id in self._active_cycles:
+                continue
+            state = {k: v for k, v in c.items() if v is not None}
+            state.setdefault("duration_factor", 1.0)
+            if c.get("paused"):
+                self._active_cycles[cycle_id] = state
+                continue
+            entity = c.get("current_entity")
+            run = self._active.get(entity) if entity else None
+            if run and run.get("source") != f"cycle:{cycle_id}":
+                run = None
+            ends = int((run or {}).get("ends_at") or c.get("step_ends_at") or saved_at)
+            if run is None and now - ends > RESUME_MAX_GAP_SECONDS:
+                LOG.info("not resuming cycle %s: HA was down too long", cycle_id)
+                await self.store.async_record_run(
+                    cycle_id, c.get("source", "manual"), 0, "cycle_cancelled", "downtime",
+                )
+                continue
+            step = max(0, int(c.get("step") or 0))
+            rest = (cycle.get("steps") or [])[step:]
+            state["start_offset"] = step
+            self._active_cycles[cycle_id] = state
+            state["task"] = self.hass.async_create_background_task(
+                self._resume_cycle_task(cycle, state, rest, entity, run), f"{DOMAIN}_cycle_{cycle_id}"
+            )
+            LOG.info("resuming cycle %s after restart from step %d", cycle_id, step + 1)
+            self.hass.bus.async_fire(EVENT_CYCLE_RESUMED, {
+                "cycle_id": cycle_id, "name": cycle.get("name", ""), "from_step": step + 1, "after_restart": True,
+            })
+        self._persist_cycles()
+        if self._active_cycles:
+            async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+
+    async def _resume_cycle_task(self, cycle: dict, state: dict, rest: list, entity: Optional[str], run: Optional[dict]) -> None:
+        cycle_id = cycle["id"]
+        if run is not None and entity:
+            try:
+                wait = max(0, int(run.get("ends_at", 0)) - int(time.time()))
+                await asyncio.sleep(wait)
+                if self._active.get(entity) is run:
+                    await self._async_complete(entity, "completed")
+            except asyncio.CancelledError:
+                if self._active.get(entity) is run and not self._stopping:
+                    await self._async_complete(entity, "cancelled")
+                if not state.get("paused") and not self._stopping:
+                    await self._async_record_cycle_cancelled(cycle_id, cycle.get("name", ""), state)
+                    if self._active_cycles.get(cycle_id) is state:
+                        self._active_cycles.pop(cycle_id, None)
+                    self._persist_cycles()
+                    async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+                raise
+        await self._run_cycle_task({**cycle, "steps": rest}, state)
+
+    # ------------------------------------------------------------------ rain forecast
+
+    @property
+    def forecast_status(self) -> dict:
+        entity_id = (self.options.get("forecast_entity") or "").strip()
+        return {"entity_id": entity_id, "mm": self._forecast_mm(), "hours": self._forecast_hours(),
+                "updated": self._forecast.get("updated") or None, "error": self._forecast.get("error")}
+
+    def _forecast_hours(self) -> int:
+        try:
+            return max(1, min(72, int(self.options.get("forecast_hours") or 24)))
+        except (TypeError, ValueError):
+            return 24
+
+    def _forecast_mm(self) -> Optional[float]:
+        if not (self.options.get("forecast_entity") or "").strip():
+            return None
+        if time.time() - float(self._forecast.get("updated") or 0) > FORECAST_MAX_AGE_SECONDS:
+            return None
+        return self._forecast.get("mm")
+
+    def _should_skip_for_forecast(self) -> bool:
+        try:
+            threshold = float(self.options.get("forecast_skip_mm") or 0)
+        except (TypeError, ValueError):
+            return False
+        mm = self._forecast_mm()
+        return threshold > 0 and mm is not None and mm >= threshold
+
+    def _arm_forecast(self) -> None:
+        if self._unsub_forecast:
+            self._unsub_forecast()
+            self._unsub_forecast = None
+        if not (self.options.get("forecast_entity") or "").strip():
+            self._forecast = {"mm": None, "updated": 0, "kind": None, "error": None}
+            return
+        self._unsub_forecast = async_track_time_interval(
+            self.hass, self._async_refresh_forecast, timedelta(minutes=FORECAST_REFRESH_MINUTES)
+        )
+        self.hass.async_create_task(self._async_refresh_forecast())
+
+    async def _async_refresh_forecast(self, _now=None) -> None:
+        entity_id = (self.options.get("forecast_entity") or "").strip()
+        if not entity_id:
+            return
+        hours = self._forecast_hours()
+        now = dt_util.utcnow()
+        horizon = now + timedelta(hours=hours)
+        total = None
+        kind = None
+        error = None
+        for ftype in ("hourly", "daily"):
+            try:
+                resp = await self.hass.services.async_call(
+                    "weather", "get_forecasts", {"entity_id": entity_id, "type": ftype},
+                    blocking=True, return_response=True,
+                )
+                items = ((resp or {}).get(entity_id) or {}).get("forecast") or []
+            except Exception as e:
+                error = str(e)
+                continue
+            if not items:
+                continue
+            span = timedelta(hours=1) if ftype == "hourly" else timedelta(days=1)
+            acc = 0.0
+            for item in items:
+                start = dt_util.parse_datetime(str(item.get("datetime") or ""))
+                if start is None:
+                    continue
+                start = dt_util.as_utc(start)
+                if start < horizon and start + span > now:
+                    try:
+                        acc += float(item.get("precipitation") or 0)
+                    except (TypeError, ValueError):
+                        pass
+            total, kind, error = acc, ftype, None
+            break
+        if total is not None:
+            state = self.hass.states.get(entity_id)
+            unit = (state.attributes.get("precipitation_unit") if state else "") or "mm"
+            if unit == "in":
+                total *= 25.4
+            elif unit == "cm":
+                total *= 10
+            self._forecast = {"mm": round(total, 1), "updated": time.time(), "kind": kind, "error": None}
+        else:
+            self._forecast = {**self._forecast, "error": error or "no forecast data"}
+            LOG.warning("rain forecast from %s unavailable: %s", entity_id, self._forecast["error"])
+        async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
 
     # ------------------------------------------------------------------ services / master
 
