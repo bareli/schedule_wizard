@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.0: rain forecast skip, plans resume after restart, Repairs warnings, diagnostics
+
+- **Rain forecast skip**: skip outdoor zones when your weather forecast expects N mm or more in the next 6 to 48 hours (Settings → More options). New history status `skipped_forecast`.
+- **Plans resume after a restart**: a watering plan interrupted by an HA restart or update continues with its next zone if HA is back within 30 minutes; paused plans stay paused. Valves are no longer turned off during HA shutdown, so the running zone finishes its time.
+- **Repairs warnings** when a zone switch or a sensor used in Settings is missing, cleared automatically once fixed.
+- **Diagnostics download** for bug reports (webhook ID and notify targets redacted).
+
 ## 0.12.0: Home Assistant entities, voice control, week view, reminder buttons
 
 - **Entities**: a device per zone (`switch.<zone>_watering`, `sensor.<zone>_time_left`) and per plan (`switch.<plan>_enabled`, `button.<plan>_run_now`), plus `binary_sensor.schedule_wizard_watering`, `switch.schedule_wizard_rain_delay` and `calendar.schedule_wizard_watering_schedule`. Added, renamed and removed live as you edit.
