@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.0: Home Assistant entities, voice control, week view, reminder buttons
+
+- **Entities**: a device per zone (`switch.<zone>_watering`, `sensor.<zone>_time_left`) and per plan (`switch.<plan>_enabled`, `button.<plan>_run_now`), plus `binary_sensor.schedule_wizard_watering`, `switch.schedule_wizard_rain_delay` and `calendar.schedule_wizard_watering_schedule`. Added, renamed and removed live as you edit.
+- **Voice (Assist)** in English, German and Hebrew: water a zone (for N minutes), start a plan, stop watering, skip today, pause for N days, ask what's watering. Can be turned off.
+- **This week** on Home: upcoming runs for 7 days with skip / undo per run, skip a whole day, water now.
+- **Reminders**: optional push N minutes before a run with **Skip today** and **Water now** buttons (HA Companion app).
+- New services `skip_next`, `skip_day`, `unskip`, `run_schedule`; new history status `skipped_manual`.
+
 ## 0.11.0: simpler panel with a setup wizard
 
 - **Setup wizard**: pick your switches, name the zones, choose days, time and minutes, and the order. It creates the zones, the watering plan and its schedule in one go.

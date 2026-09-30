@@ -4,15 +4,20 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from homeassistant.components.sensor import SensorEntity
+from datetime import timedelta
+
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.const import UnitOfTime
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN, SIGNAL_STATE_CHANGED
+from .entity_base import WizardEntity, hub_device, track_zones, zone_device
+
+SCAN_INTERVAL = timedelta(seconds=30)
 
 
 async def async_setup_entry(
@@ -25,15 +30,48 @@ async def async_setup_entry(
         ActiveRunsSensor(entry.entry_id, data["scheduler"], data["store"]),
         NextScheduleSensor(entry.entry_id, data["store"]),
     ])
+    track_zones(hass, entry, data, async_add_entities, lambda key, v: [ZoneTimeLeftSensor(data, entry.entry_id, key)])
 
 
-def _device_info(entry_id: str) -> DeviceInfo:
-    return DeviceInfo(
-        identifiers={(DOMAIN, entry_id)},
-        name="Schedule Wizard",
-        manufacturer="Schedule Wizard",
-        entry_type=DeviceEntryType.SERVICE,
-    )
+def _device_info(entry_id: str):
+    return hub_device(entry_id)
+
+
+class ZoneTimeLeftSensor(WizardEntity, SensorEntity):
+    """Minutes left for a zone (0 when idle). Polled every 30 s while it counts down."""
+
+    _attr_translation_key = "zone_time_left"
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.MINUTES
+    _attr_icon = "mdi:timer-sand"
+    _attr_should_poll = True
+
+    def __init__(self, data: dict, entry_id: str, zone: str):
+        super().__init__(data, entry_id)
+        self._zone = zone
+        self._attr_unique_id = f"{entry_id}_zone_{zone}_time_left"
+        valve = self.store.get_valve(zone) or {"entity_id": zone}
+        self._attr_device_info = zone_device(entry_id, valve)
+
+    @property
+    def available(self) -> bool:
+        return self.store.get_valve(self._zone) is not None
+
+    @property
+    def native_value(self) -> int:
+        run = self.scheduler.active.get(self._zone)
+        if not run or run.get("starting"):
+            return 0
+        return max(0, -(-(int(run.get("ends_at", 0)) - int(time.time())) // 60))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        soak = next((x for x in self.scheduler.soaking if x.get("entity_id") == self._zone), None)
+        return {
+            "valve_entity_id": self._zone,
+            "soaking": bool(soak and soak.get("phase") == "soaking"),
+            "resumes_at": soak.get("resume_at") if soak else None,
+        }
 
 
 class ActiveRunsSensor(SensorEntity):

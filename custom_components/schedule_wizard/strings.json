@@ -62,6 +62,55 @@
     "stop_all": {
       "name": "Stop all",
       "description": "Stop every running valve, soak sequence and cycle, then close the master valve."
+    },
+    "skip_next": {
+      "name": "Skip next run",
+      "description": "Skip the next run of one schedule."
+    },
+    "skip_day": {
+      "name": "Skip a day",
+      "description": "Skip every scheduled run on a day (default: the rest of today)."
+    },
+    "unskip": {
+      "name": "Undo skip",
+      "description": "Undo a skip of one schedule on a date."
+    },
+    "run_schedule": {
+      "name": "Run schedule now",
+      "description": "Start a schedule's zone or plan right away and drop today's scheduled run of it."
+    }
+  },
+  "entity": {
+    "switch": {
+      "zone_watering": {
+        "name": "Watering"
+      },
+      "plan_enabled": {
+        "name": "Enabled"
+      },
+      "rain_delay": {
+        "name": "Rain delay"
+      }
+    },
+    "sensor": {
+      "zone_time_left": {
+        "name": "Time left"
+      }
+    },
+    "button": {
+      "plan_run": {
+        "name": "Run now"
+      }
+    },
+    "binary_sensor": {
+      "watering": {
+        "name": "Watering"
+      }
+    },
+    "calendar": {
+      "schedule": {
+        "name": "Watering schedule"
+      }
     }
   }
 }

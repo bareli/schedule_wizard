@@ -48,7 +48,10 @@ Schedule Wizard handles all of the above in one integration with its own sidebar
 - Lovelace card (`custom:schedule-wizard-card`) with active-run progress and Quick Run.
 - Per-valve **last run / 7-day stats / next opening** on the Dashboard, Valves tab, and Lovelace card.
 - **Recent activity** groups cycle runs with each valve opening indented under the parent cycle.
-- Two sensors: `active_runs` (with per-run details) and `next_schedule`.
+- **Home Assistant entities** for every zone and plan (water / stop switches, time left, plan on/off, run buttons), a "watering now" sensor, a rain delay switch and a **calendar** with upcoming runs.
+- **Voice control through Assist** in English, German and Hebrew: "water the front lawn for 10 minutes", "stop watering", "skip watering today".
+- **This week** view of upcoming runs, with skip / undo per run or per day.
+- **Reminder notifications** with **Skip today** and **Water now** buttons (HA mobile app).
 - 14 events fired on the HA event bus, ready as automation triggers.
 
 **Triggers**
@@ -173,6 +176,10 @@ The HA **Configure** dialog only edits the basic options; it no longer wipes the
 | `schedule_wizard.set_rain_delay`  | Skip schedule and calendar runs for the next N hours; all valves, or only `entity_id` valves. |
 | `schedule_wizard.clear_rain_delay`| Clear the global delay, or only the delay of `entity_id` valves.                              |
 | `schedule_wizard.stop_all`        | Stop every running valve, soak sequence and cycle, then close the master valve.               |
+| `schedule_wizard.skip_next`       | Skip the next run of one schedule (`schedule_id`).                                            |
+| `schedule_wizard.skip_day`        | Skip every run on a `date` (default: the rest of today).                                      |
+| `schedule_wizard.unskip`          | Undo a skip (`schedule_id`, `date`).                                                          |
+| `schedule_wizard.run_schedule`    | Start a schedule's zone or plan now and drop today's scheduled run of it.                     |
 | `schedule_wizard.list_config`     | Return valves, schedules, cycles, active runs, active cycles, recent history (response).     |
 
 All services are visible under **Developer Tools → Actions** with full selectors.
@@ -563,6 +570,46 @@ The panel and card follow the language set in your HA profile (Profile → Langu
 Config flow and service descriptions are translated into 17 languages via `translations/*.json`.
 
 **Adding a panel language:** copy the `"en"` block in `custom_components/schedule_wizard/www/i18n.js`, translate the values, and open a PR. `tests/test_i18n.py` checks that every key and placeholder is present. Right-to-left languages (Arabic, Persian, Urdu) get RTL layout automatically.
+
+## Entities
+
+Every zone and every watering plan gets its own device in Home Assistant, with entities you can put on dashboards, use in automations and control by voice. They appear, rename and disappear as you edit zones and plans.
+
+| Entity | What it does |
+| --- | --- |
+| `switch.<zone>_watering` | On while the zone waters. Turn on = water for its default minutes, turn off = stop. |
+| `sensor.<zone>_time_left` | Minutes left (0 when idle). |
+| `switch.<plan>_enabled` | Plan on/off. Off = its schedules don't run. |
+| `button.<plan>_run_now` | Start the plan now. |
+| `binary_sensor.schedule_wizard_watering` | On while anything waters. Attributes list the zones and plans. |
+| `switch.schedule_wizard_rain_delay` | On while the rain delay is active. Turn on = pause for 24 h. |
+| `calendar.schedule_wizard_watering_schedule` | Upcoming runs, shown in HA's Calendar. Skipped and rain-paused runs are marked. |
+
+## Voice (Assist)
+
+Say or type these to Assist (Settings → Voice assistants). Zone and plan names are matched loosely ("the front lawn" finds "Front lawn").
+
+| English | Deutsch | עברית |
+| --- | --- | --- |
+| Water the front lawn for 10 minutes | Bewässere den Rasen für 10 Minuten | תשקה את הדשא 10 דקות |
+| Water the front lawn | Bewässere den Rasen | תשקה את הדשא |
+| Start watering plan Morning | Starte den Bewässerungsplan Morgen | הפעל תוכנית השקיה בוקר |
+| Stop watering | Stoppe die Bewässerung | עצור את ההשקיה |
+| Stop watering the front lawn | Stoppe die Bewässerung von Rasen | עצור את ההשקיה של הדשא |
+| Skip watering today | Bewässerung heute überspringen | דלג על ההשקיה היום |
+| Pause watering for 2 days | Pausiere die Bewässerung für 2 Tage | השהה את ההשקיה ל 2 ימים |
+| Is the watering on? | Läuft die Bewässerung? | מה משקה עכשיו |
+
+Every sentence includes a watering word, so it never captures other commands. The zone switches also work with HA's built-in sentences ("turn on front lawn watering"). Turn voice off in Settings → More options → Voice commands.
+
+## Reminders with buttons
+
+Settings → Notifications → **Remind me before watering** (10 to 60 minutes). You get a push like "Morning watering starts at 06:00 (35 min)" with two buttons:
+
+- **Skip today**: that run is skipped (logged as `skipped_manual`).
+- **Water now**: starts it right away and drops the scheduled run.
+
+Buttons need the Home Assistant Companion app (`notify.mobile_app_*`); other notify services get the text only.
 
 ## Sensors
 
