@@ -594,7 +594,10 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
                 }
             if h["ts"] >= week_ago and h.get("status") in ("completed", "cancelled"):
                 s["runs_7d"] += 1
-                s["total_min_7d"] += int(h.get("duration_min", 0))
+                # A stopped run from before 0.15.0 (no planned_min) holds the planned length, not what watered
+                # (BUG-037): it still counts as a run, as before, but its minutes are left out of the total.
+                if h.get("status") == "completed" or "planned_min" in h:
+                    s["total_min_7d"] += int(h.get("duration_min", 0))
             elif h["ts"] >= week_ago and h.get("status") == "superseded" and "planned_min" in h:
                 # Replaced by a new run: not a run of its own, but the minutes were watered (BUG-028). Rows
                 # written before 0.15.0 have no planned_min and hold the planned length, not what watered.

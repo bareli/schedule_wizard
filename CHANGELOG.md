@@ -31,6 +31,8 @@
 - **Hebrew "one minute" by voice**: "השקה את הגינה למשך דקה" and "...דקה אחת" now water for 1 minute instead of the zone's default.
 - **Card in German on a narrow phone**: long words such as "Regenverzögerung" wrap inside the zone's text column; at 320 px the minutes field and button move to their own line under the name.
 - **Times in plan lists** and in the wizard's Check step use the same clock format as the rest of the page ("6:00 AM" or "6:00") instead of the stored "06:00".
+- **Stopped runs from before 0.15.0** (#101): a run stopped in 0.14.x was saved with its planned length, so the Last watering line, day totals, Reports and the zone summary counted it at full length (for example 130 min when 2 min watered). Its minutes are now left out, like replaced runs from before 0.15.0; it still counts as a run.
+- **Rain check line stays current** (#102): in Settings the "Now:" under the rain source follows the sensor when you pick it again and when its state changes, without redrawing the form.
 
 ## 0.14.0: water every N days, 0 % temperature adjustment skips the run
 
