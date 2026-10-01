@@ -94,13 +94,13 @@ After install, a **Schedule Wizard** entry appears in the sidebar (sprinkler ico
 
 ### Setup wizard
 
-First time you open the panel, **Start setup** walks you through five short steps: tick your switches, name the zones, pick days, start time and minutes, choose "one zone at a time" or "all together", then save. It creates the zones, the plan and its schedule for you. Run it again any time with **+ New watering plan**.
+First time you open the panel, **Start setup** walks you through four short steps: tick your switches (a new zone gets its name right there), choose when (days of the week or every 2 to 30 days; a set time, or sunrise / sunset with minutes before or after) and the minutes per zone, choose "one zone at a time" or "all together" and name the plan, then check and save. The last step also asks which weather or rain sensor to use to skip watering when it rains, if none is set yet. It creates the zones, the plan and its schedule for you. Run it again any time with **+ New watering plan**.
 
 ![Setup wizard](docs/screenshots/panel-wizard.png)
 
 ### Home
 
-One status card at the top: watering now (with time left and Stop), paused for rain, or the next run. Below it, a card per zone with minutes and **Water now**. Pause for rain (all zones or one zone), stop everything, recent activity and **Reports** are all here.
+One status card at the top: watering now (with time left and Stop), paused for rain, or the next run. Below it, the last watering ("Last watering: yesterday 06:00, 3 zones · 30 min", or a skip after it) and a card per zone with minutes and **Water now**. Each zone shows the next run that will really water; after **Skip day** or during a rain pause it says so ("Skipped Fri 6:00 AM. Next: Mon 6:00 AM · 10 min"). Pause for rain (all zones or one zone), stop everything (asked in the panel first), recent activity by day with **Today / Yesterday / Last 7 days** and a total per day, and **Reports** are all here. A run started with **Water now** in the panel, on the card or from a dashboard button reads "manual (Water now)"; one started by an automation reads "service".
 
 ![Home](docs/screenshots/panel-home.png)
 
@@ -110,9 +110,9 @@ Every zone with its schedule written out ("Mon, Thu at 06:00 · 10 min" or "Ever
 
 ![Zones](docs/screenshots/panel-zones.png)
 
-### Programs
+### Plans
 
-Your watering plans: zones in order, the days and times they run, Run now / Pause / Stop, and Edit for the full step editor.
+Your watering plans: zones in order, with **Run now** / Pause / Stop, **Edit plan** (steps, name, on/off) and **Delete plan** at the top of each plan, and its **Watering times** below as their own group, each with Skip next, on/off, **Edit time** and **Delete time**.
 
 ### Every N days
 
@@ -546,7 +546,9 @@ Three modes, checked in this order (a threshold of 0 or blank disables the numer
 
 1. **Attribute + threshold** — reads `attribute` off the entity, compares numerically to `threshold`. Skip if ≥.
 2. **Threshold only** — parses the entity's state as a number, compares to `threshold`. Skip if ≥.
-3. **Skip states** — compares entity state to comma-separated list in `rain_skip_states`. Skip if match.
+3. **Skip states** — compares entity state to comma-separated list in `rain_skip_states`. Skip if match. A `binary_sensor` also counts as rain while it is `on`.
+
+In the panel (Settings, and the last step of the setup wizard) the rain source is picked from a list of your weather entities, rain sensors and other sensors; under it a line says what counts as rain, what the source reports now and whether watering would be skipped right now, or warns when the entity no longer exists. Saving a rain source that does not exist is refused.
 
 Skipped runs log `skipped_rain` in history. Manual runs are **not** affected by rain skip.
 

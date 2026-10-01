@@ -146,6 +146,45 @@ def _state_rev(state: dict[str, Any]) -> str:
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
 
 
+# Zone pickers list what a sprinkler usually is first (UX-015).
+ZONE_DOMAIN_ORDER = {"valve": 0, "switch": 1, "cover": 2, "light": 3, "input_boolean": 4}
+# Rain skip sources (UX-011): weather states, rain sensors (numeric or state), rain binary sensors.
+RAIN_SOURCE_DOMAINS = ("weather", "sensor", "binary_sensor")
+
+
+def _own_entity_ids(hass: HomeAssistant) -> set[str]:
+    """Entities this integration created (zone switches, plan switches, rain-delay switch, ...)."""
+    from homeassistant.helpers import entity_registry as er
+
+    return {e.entity_id for e in er.async_get(hass).entities.values() if e.platform == DOMAIN}
+
+
+def _notify_target_info(hass: HomeAssistant, services: list[str]) -> list[dict[str, str]]:
+    """What each notify service reaches, for a readable list (UX-011): a phone by its name, HA's own panel."""
+    from homeassistant.util import slugify
+
+    phones: dict[str, str] = {}
+    for entry in hass.config_entries.async_entries("mobile_app"):
+        name = str((entry.data or {}).get("device_name") or entry.title or "")
+        if name:
+            phones[f"mobile_app_{slugify(name)}"] = name
+    out = []
+    for service in services:
+        if service in phones or service.startswith("mobile_app_"):
+            name = phones.get(service) or service[len("mobile_app_"):].replace("_", " ")
+            out.append({"service": service, "kind": "mobile", "name": name})
+        elif service in ("persistent_notification", "send_message", "notify"):
+            out.append({"service": service, "kind": service, "name": ""})
+        else:
+            out.append({"service": service, "kind": "other", "name": service.replace("_", " ")})
+    return out
+
+
+def _call_source(call: ServiceCall) -> str:
+    """"manual" for a person pressing a button (panel, card, dashboard); "service" for automations (UX-012)."""
+    return "manual" if call.context and call.context.user_id else "service"
+
+
 def _entity_in_supported_domain(value: str) -> str:
     value = cv.entity_id(value)
     domain = value.split(".")[0]
@@ -492,8 +531,12 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
 
         controllable = []
         calendars = []
+        own = _own_entity_ids(hass_inner)
         for s in hass_inner.states.async_all():
             if s.domain in SUPPORTED_DOMAINS:
+                if s.entity_id in own:
+                    # A zone switch or the rain-delay switch of this integration is never a zone (UX-015).
+                    continue
                 controllable.append({
                     "entity_id": s.entity_id,
                     "domain": s.domain,
@@ -505,7 +548,8 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
                     "entity_id": s.entity_id,
                     "friendly_name": s.attributes.get("friendly_name", s.entity_id),
                 })
-        controllable.sort(key=lambda x: x["friendly_name"].lower())
+        # Valves and switches first: what a sprinkler usually is (UX-015).
+        controllable.sort(key=lambda x: (ZONE_DOMAIN_ORDER.get(x["domain"], 9), x["friendly_name"].lower()))
         calendars.sort(key=lambda x: x["friendly_name"].lower())
 
         active = [
@@ -518,6 +562,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         ]
 
         notify_services = sorted(list((hass_inner.services.async_services().get("notify") or {}).keys()))
+        notify_targets_info = _notify_target_info(hass_inner, notify_services)
         try:
             temp_unit = hass_inner.config.units.temperature_unit
         except Exception:
@@ -557,8 +602,11 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         cycles_by_id = {c["id"]: c for c in cycles_snapshot}
         now_dt = dt_util.now()
 
-        def _next_run_for(valve_id: str) -> dict | None:
+        def _next_run_for(valve: dict) -> tuple[dict | None, dict | None]:
+            """The next run that will water this zone, and the earlier run it skips, if any (UX-010)."""
+            valve_id = valve["entity_id"]
             best = None
+            skip = None
             for s in schedules_snapshot:
                 if not s.get("enabled"):
                     continue
@@ -577,7 +625,9 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
                                 break
                 if not matches:
                     continue
-                fire = planner.next_fire(s, now_dt, hass=hass_inner)
+                fire, s_skip = planner.next_zone_run(store, options, s, valve, now_dt, hass=hass_inner)
+                if s_skip and (skip is None or s_skip["fires_at"] < skip["fires_at"]):
+                    skip = {**s_skip, "schedule_id": s["id"]}
                 if fire is None:
                     continue
                 delta_sec = int((fire - now_dt).total_seconds())
@@ -590,7 +640,10 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
                         "schedule_id": s["id"],
                         "cycle_id": s.get("cycle_id") or "",
                     }
-            return best
+            # Only a skipped run before the next real one is worth telling.
+            if skip and best and skip["fires_at"] > best["fires_at"]:
+                skip = None
+            return best, skip
 
         valves_enriched = []
         for v in store.valves:
@@ -599,7 +652,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
                 "last_run": None, "last_completed": None,
                 "runs_7d": 0, "total_min_7d": 0,
             })
-            entry["next_run"] = _next_run_for(v["entity_id"])
+            entry["next_run"], entry["next_skip"] = _next_run_for(v)
             valves_enriched.append(entry)
 
         is_admin = bool(connection.user and connection.user.is_admin)
@@ -627,6 +680,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "controllable": controllable,
             "calendars": calendars,
             "notify_services": notify_services,
+            "notify_targets_info": notify_targets_info,
             "notify_events": list(NOTIFY_EVENTS),
             "temperature_unit": temp_unit,
             "rain_delay_until": options.get(CONF_RAIN_DELAY_UNTIL, 0),
@@ -704,6 +758,15 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             # An unchanged master valve that has since gone missing must not block saving (#40).
             connection.send_error(msg["id"], "invalid_format", f"main valve {master} not found")
             return
+        rain = (msg.get(CONF_RAIN_ENTITY) or "").strip() if CONF_RAIN_ENTITY in msg else None
+        if rain and rain != (entry.options.get(CONF_RAIN_ENTITY) or "").strip():
+            # A new rain source must exist (UX-011: a typo used to be saved and never skip); an unchanged one
+            # that has since gone missing does not block saving, it has its own repair.
+            if rain.split(".")[0] not in RAIN_SOURCE_DOMAINS or hass_inner.states.get(rain) is None:
+                connection.send_error(msg["id"], "invalid_format", f"rain_entity {rain} not found")
+                return
+        if rain is not None:
+            msg = {**msg, CONF_RAIN_ENTITY: rain}
         new_options = dict(entry.options)
         for key in OPTION_KEYS:
             if key in msg:
@@ -893,7 +956,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             valve = store.get_valve(entity_id)
             duration = valve["default_duration_min"] if valve else int(options[CONF_DEFAULT_DURATION])
         try:
-            await scheduler.async_run_valve(entity_id, int(duration), source="service")
+            await scheduler.async_run_valve(entity_id, int(duration), source=_call_source(call))
         except Exception as e:
             raise HomeAssistantError(str(e)) from e
 
@@ -902,6 +965,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def _svc_add_valve(call: ServiceCall) -> None:
         extra = {dst: call.data[src] for src, dst in VALVE_FIELD_MAP.items() if src in call.data}
+        if not store.get_valve(call.data["entity_id"]) and call.data["entity_id"] in _own_entity_ids(hass):
+            # Its own zone, plan or rain-delay switch would make a loop, not a sprinkler (UX-015).
+            raise HomeAssistantError(f"{call.data['entity_id']} belongs to Schedule Wizard and cannot be a zone")
         if not store.get_valve(call.data["entity_id"]) and len(store.valves) >= MAX_VALVES:
             raise HomeAssistantError(f"at most {MAX_VALVES} zones")
         await store.async_upsert_valve(
@@ -985,7 +1051,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def _svc_run_cycle(call: ServiceCall) -> None:
         try:
-            await scheduler.async_run_cycle(call.data["cycle_id"], source="service")
+            await scheduler.async_run_cycle(call.data["cycle_id"], source=_call_source(call))
         except Exception as e:
             raise HomeAssistantError(str(e)) from e
 

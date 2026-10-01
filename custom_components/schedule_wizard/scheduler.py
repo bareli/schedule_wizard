@@ -1148,9 +1148,10 @@ class Scheduler:
                 if attribute:
                     return False
         skip_states = [s.strip() for s in str(self.options.get("rain_skip_states") or "").split(",") if s.strip()]
-        if skip_states:
-            return state.state in skip_states
-        return False
+        if skip_states and state.state in skip_states:
+            return True
+        # A rain binary sensor (offered by the picker since UX-011) reports rain as "on".
+        return state.domain == "binary_sensor" and state.state == "on"
 
     def _conditions_pass(self, conditions: list[dict]) -> bool:
         """All conditions must hold. A missing/unavailable entity fails its condition."""

@@ -17,7 +17,7 @@ from .conftest import advance, data, is_on, settle, setup_wizard
 from .test_scheduler import Z1, Z2, _schedule_now, add_cycle, add_valve, fire_minute, statuses
 from custom_components.schedule_wizard.entity_base import find_device
 
-pytestmark = pytest.mark.usefixtures("zones")
+pytestmark = pytest.mark.usefixtures("fixed_clock", "zones")
 
 
 async def test_zone_entities_follow_config(hass: HomeAssistant):

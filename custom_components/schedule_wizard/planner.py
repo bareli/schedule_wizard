@@ -167,6 +167,49 @@ def _valve_delay_until(valve: dict) -> int:
         return 0
 
 
+def zone_pause_until(options: dict, valve: dict, fire_ts: int) -> int:
+    """End of the rain pause that stops this zone at fire_ts (its own or the global one), else 0."""
+    own = _valve_delay_until(valve)
+    until = own if own > fire_ts else 0
+    if not valve.get("rain_exempt"):
+        glob = _rain_delay_until(options)
+        if glob > fire_ts:
+            until = max(until, glob)
+    return until
+
+
+# Runs a zone may have skipped in a row before its next real one (a 7-day rain pause on a daily schedule).
+SKIP_SCAN_LIMIT = 60
+
+
+def next_zone_run(store: WizardStore, options: dict, sched: dict, valve: dict,
+                  now: datetime, hass=None) -> tuple[Optional[datetime], Optional[dict[str, Any]]]:
+    """Next start of a schedule that will water this zone, and the first run before it that will not (UX-010).
+
+    A run does not water the zone when the user skipped that day or a rain pause covers the zone then.
+    Returns (fire, skip) where skip is {"fires_at", "reason": "skipped_manual" | "rain_delay", "until"} or None.
+    """
+    after = now
+    skip: Optional[dict[str, Any]] = None
+    for _ in range(SKIP_SCAN_LIMIT):
+        fire = next_fire(sched, after, hass=hass)
+        if fire is None:
+            return None, skip
+        ts = int(fire.timestamp())
+        until = 0
+        if store.is_skipped(sched["id"], fire.date().isoformat()):
+            reason = "skipped_manual"
+        else:
+            until = zone_pause_until(options, valve, ts)
+            reason = "rain_delay" if until else None
+        if reason is None:
+            return fire, skip
+        if skip is None:
+            skip = {"fires_at": ts, "reason": reason, "until": until}
+        after = fire
+    return None, skip
+
+
 def schedule_target(store: WizardStore, sched: dict) -> Optional[dict[str, Any]]:
     """Resolve a schedule to {kind, id, name, zones: [{entity_id, label, minutes, indoor}], minutes}."""
     if not sched.get("enabled"):
