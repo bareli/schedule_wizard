@@ -217,6 +217,11 @@ bdi { unicode-bidi: isolate; }
   margin-top: 14px; padding-top: 12px;
   border-top: 1px solid var(--sw-border);
 }
+/* Save stays reachable in long forms on small screens. */
+.modal > .modal-actions {
+  position: sticky; bottom: -20px; z-index: 1;
+  margin-bottom: -20px; padding-bottom: 20px; background: var(--sw-card);
+}
 .modal.wizard { max-width: 560px; padding: 0; display: flex; flex-direction: column; overflow: hidden; }
 .wiz-head { padding: 16px 20px; border-bottom: 1px solid var(--sw-border); display: grid; gap: 8px; }
 .wiz-head h3 { margin: 0; font-size: 20px; }
@@ -385,6 +390,34 @@ function repeatPayload(s) {
 // Today's date (YYYY-MM-DD) in Home Assistant's time zone.
 function todayKey(hass) {
   return I18N.dayKey(Date.now() / 1000, hass);
+}
+
+function isSkipStatus(status) {
+  return String(status || "").startsWith("skipped_");
+}
+
+// Current "HH:MM" (24 h) in the same time zone as todayKey().
+function nowHHMM(hass) {
+  const tz = hass && hass.config && hass.config.time_zone;
+  const local = hass && hass.locale && hass.locale.time_zone === "local";
+  const opts = { hour: "2-digit", minute: "2-digit", hourCycle: "h23" };
+  if (tz && !local) opts.timeZone = tz;
+  try {
+    return new Intl.DateTimeFormat("en-GB", opts).format(new Date());
+  } catch (e) {
+    delete opts.timeZone;
+    return new Intl.DateTimeFormat("en-GB", opts).format(new Date());
+  }
+}
+
+// "YYYY-MM-DD" day arithmetic on the calendar (no time zone involved).
+function dayNum(key) {
+  const [y, m, d] = String(key).split("-").map(Number);
+  return Math.round(Date.UTC(y, m - 1, d) / 86400000);
+}
+
+function dayFromNum(n) {
+  return new Date(n * 86400000).toISOString().slice(0, 10);
 }
 
 const INTERVAL_MIN = 2;
@@ -833,10 +866,28 @@ class ScheduleWizardPanel extends HTMLElement {
     return Array.isArray(list) && list.includes(day);
   }
 
+  // Temperature factor at 0 % right now: today's and tomorrow's upcoming runs will be skipped (#29).
+  _coolSkip(r) {
+    const s = this._state.seasonal;
+    if (!s || !s.skips || r.skip || r.start <= this._state.now) return false;
+    const idx = this._weekDays().indexOf(r.day);
+    return idx === 0 || idx === 1;
+  }
+
+  // A past run that history recorded as skipped at 0 % (the week view only predicts manual skips).
+  _coolSkipped(r) {
+    if (r.skip || r.start > this._state.now) return false;
+    const note = "schedule:" + r.schedule_id;
+    return (this._state.history || []).some(h => h.status === "skipped_seasonal_zero" && h.note === note
+      && h.ts >= r.start - 60 && h.ts < r.start + 120);
+  }
+
   _skipTag(r) {
     if (r.skip === "skipped_manual") return el("span", { class: "wk-tag" }, this._t("week.skipped"));
     if (r.skip === "rain_delay") return el("span", { class: "wk-tag" }, this._t("week.rain"));
     if (r.skip === "partial_rain_delay") return el("span", { class: "wk-tag warn" }, this._t("week.partial_rain"));
+    if (this._coolSkip(r)) return el("span", { class: "wk-tag warn" }, this._t("week.cool_skip"));
+    if (this._coolSkipped(r)) return el("span", { class: "wk-tag" }, this._t("week.skipped"));
     return null;
   }
 
@@ -872,7 +923,7 @@ class ScheduleWizardPanel extends HTMLElement {
       dayRuns.forEach(r => {
         const cls = ["wk-run"];
         if (r.end < now) cls.push("past");
-        if (r.skip === "skipped_manual") cls.push("skipped");
+        if (r.skip === "skipped_manual" || this._coolSkipped(r)) cls.push("skipped");
         else if (r.skip === "rain_delay") cls.push("rain");
         list.appendChild(el("button", { type: "button", class: cls.join(" "), onClick: () => this._openRunModal(r) }, [
           el("span", { class: "t" }, this._fmtTime(r.start)),
@@ -1037,7 +1088,10 @@ class ScheduleWizardPanel extends HTMLElement {
         onClick: () => this._callService("clear_rain_delay", {}),
       }, this._t("home.resume_now")));
     } else {
-      pill = el("span", { class: "pill ok" }, this._t("home.all_good"));
+      const cool = !!(st.seasonal && st.seasonal.skips);
+      pill = cool
+        ? el("span", { class: "pill pause" }, this._t("home.cool_paused"))
+        : el("span", { class: "pill ok" }, this._t("home.all_good"));
       const wk = this._weekRuns().find(r => r.start > now && r.skip !== "skipped_manual");
       const next = wk ? null : this._nextOverall();
       if (wk) {
@@ -1051,6 +1105,7 @@ class ScheduleWizardPanel extends HTMLElement {
           : this._t("unit.min", { n: wk.minutes }));
         if (wk.skip === "rain_delay") subs.push(this._t("week.rain"));
         else if (wk.skip === "partial_rain_delay") subs.push(this._t("week.partial_rain"));
+        else if (this._coolSkip(wk)) subs.push(this._t("week.cool_skip"));
       } else if (next) {
         const nr = next.next_run;
         const cycle = nr.cycle_id ? (st.cycles || []).find(c => c.id === nr.cycle_id) : null;
@@ -1263,7 +1318,9 @@ class ScheduleWizardPanel extends HTMLElement {
     if (g.kind === "cycle") {
       (g.children || []).filter(c => c.status !== "started").forEach(c => {
         left.appendChild(el("div", { class: "kids" }, joinParts([
-          this._valveName(c.valve_entity_id), this._t("unit.min", { n: c.duration_min }), this._statusLabel(c.status),
+          this._valveName(c.valve_entity_id),
+          isSkipStatus(c.status) ? null : this._t("unit.min", { n: c.duration_min }),
+          this._statusLabel(c.status),
           c.liters > 0 ? this._fmtLiters(c.liters) : null,
         ])));
       });
@@ -1329,7 +1386,8 @@ class ScheduleWizardPanel extends HTMLElement {
       const ago = Math.max(0, st.now - stats.last_run.ts);
       lastLine = joinParts([
         this._t("valves.last", { ago: this._fmtAgo(ago) }),
-        this._t("unit.min", { n: stats.last_run.duration_min }),
+        // A skipped run did not water: no planned minutes next to it (#31).
+        isSkipStatus(stats.last_run.status) ? null : this._t("unit.min", { n: stats.last_run.duration_min }),
         this._statusLabel(stats.last_run.status),
       ]).join("");
     }
@@ -1924,16 +1982,50 @@ class ScheduleWizardPanel extends HTMLElement {
       return raw !== "" && Number.isInteger(n) && n >= INTERVAL_MIN && n <= INTERVAL_MAX ? n : null;
     };
     const startValue = () => (/^\d{4}-\d{2}-\d{2}$/.test(startInput.value) ? startInput.value : null);
-    intervalInput.addEventListener("input", () => { if (intervalValue() !== null) setErr(intervalErr, intervalInput, ""); });
-    startInput.addEventListener("input", () => { if (startValue()) setErr(startErr, startInput, ""); });
+    // Live "First run: <weekday date time>, then every N days" under the fields (#30).
+    const firstRunLine = el("div", { class: "muted small", "aria-live": "polite", style: "margin:-4px 0 12px;" });
+    const updateFirstRun = () => {
+      firstRunLine.innerHTML = "";
+      const n = intervalValue();
+      const start = startValue();
+      const hhmm = /^\d{2}:\d{2}$/.test(String(timeInput.value)) ? timeInput.value : null;
+      if (n === null || !start || !hhmm) return;
+      const today = dayNum(todayKey(this._hass));
+      const passed = hhmm <= nowHHMM(this._hass);
+      let first = dayNum(start);
+      let key = "sched.first_run";
+      if (first < today) {
+        key = "sched.next_run_line";
+        first += Math.ceil((today - first) / n) * n;
+        if (first === today && passed) first += n;
+      } else if (first === today && passed) {
+        key = "sched.first_run_passed";
+        first += n;
+      }
+      const [fy, fm, fd] = dayFromNum(first).split("-").map(Number);
+      const ts = Date.UTC(fy, fm - 1, fd, 12) / 1000;
+      const when = el("span", {}, [
+        I18N.fmtDate(ts, this._lang, { hass: this._hass, timeZone: "UTC", weekday: "short", month: "short", day: "numeric" }),
+        " ", ltr(hhmm),
+      ]);
+      firstRunLine.append(...this._tn(key, { when, n, time: ltr(hhmm) }));
+    };
+    intervalInput.addEventListener("input", () => { if (intervalValue() !== null) setErr(intervalErr, intervalInput, ""); updateFirstRun(); });
+    startInput.addEventListener("input", () => { if (startValue()) setErr(startErr, startInput, ""); updateFirstRun(); });
+    timeInput.addEventListener("input", updateFirstRun);
     const daysField = el("div", { class: "field" }, [el("span", {}, this._t("sched.days")), days, daysErr]);
-    const intervalRow = el("div", { class: "field-row" }, [
-      el("label", { class: "field" }, [el("span", {}, this._t("sched.interval_days")), intervalInput, intervalErr]),
-      el("label", { class: "field" }, [el("span", {}, this._t("sched.start_date")), startInput, startErr]),
+    const intervalRow = el("div", {}, [
+      el("div", { class: "field-row" }, [
+        el("label", { class: "field" }, [el("span", {}, this._t("sched.interval_days")), intervalInput, intervalErr]),
+        el("label", { class: "field" }, [el("span", {}, this._t("sched.start_date")), startInput, startErr]),
+      ]),
+      firstRunLine,
     ]);
+    const intervalErrText = () => this._t("sched.err_interval", { option: this._t("sched.repeat_weekdays") });
     const syncRepeat = () => {
       daysField.hidden = repeat !== "weekdays";
       intervalRow.hidden = repeat !== "interval";
+      updateFirstRun();
     };
     repeatSel.addEventListener("change", () => { repeat = repeatSel.value; syncRepeat(); });
     syncRepeat();
@@ -1947,7 +2039,7 @@ class ScheduleWizardPanel extends HTMLElement {
       }
       const n = intervalValue();
       const start = startValue();
-      if (n === null) setErr(intervalErr, intervalInput, this._t("sched.err_interval"));
+      if (n === null) setErr(intervalErr, intervalInput, intervalErrText());
       if (!start) setErr(startErr, startInput, this._t("sched.err_start_date"));
       if (n === null) { intervalInput.focus(); return null; }
       if (!start) { startInput.focus(); return null; }
@@ -1959,7 +2051,7 @@ class ScheduleWizardPanel extends HTMLElement {
         await this._hass.callService("schedule_wizard", service, payload);
       } catch (e) {
         const msg = String((e && (e.message || e.code)) || e);
-        if (/every_n_days/.test(msg)) setErr(intervalErr, intervalInput, this._t("sched.err_interval"));
+        if (/every_n_days/.test(msg)) setErr(intervalErr, intervalInput, intervalErrText());
         else if (/start_date/.test(msg)) setErr(startErr, startInput, this._t("sched.err_start_date"));
         else if (/at least one day/.test(msg)) setErr(daysErr, null, this._t("sched.pick_day"));
         else this._toast(msg, "error");
@@ -2369,7 +2461,11 @@ class ScheduleWizardPanel extends HTMLElement {
     const valveStats = {};
     const cycleStats = {};
     const dailyMin = {};
-    const skipReasons = { skipped_rain: 0, skipped_moisture: 0, skipped_overlap: 0, failed_to_open: 0, cancelled: 0 };
+    // Every skipped_* status lands in exactly one tile (Other catches the rest), so the tiles add up.
+    const skipReasons = {
+      skipped_rain: 0, skipped_moisture: 0, skipped_overlap: 0, skipped_seasonal_zero: 0, skipped_other: 0,
+      failed_to_open: 0, cancelled: 0,
+    };
     const water = {};
     let water30 = 0;
     let historyWater = false;
@@ -2382,6 +2478,7 @@ class ScheduleWizardPanel extends HTMLElement {
       if (status === "started") return;
 
       if (status in skipReasons) skipReasons[status]++;
+      else if (status.startsWith("skipped_")) skipReasons.skipped_other++;
 
       const liters = Number(h.liters) || 0;
       if (!isCycleEntry && liters > 0) {
@@ -2525,11 +2622,13 @@ class ScheduleWizardPanel extends HTMLElement {
     }
 
     const skipsCard = el("div", { class: "card" }, [el("h2", {}, this._t("reports.skip_reasons"))]);
-    const skipGrid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;" });
+    const skipGrid = el("div", { style: "display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;" });
     [
       ["skipped_rain", this._t("reports.rain")],
       ["skipped_moisture", this._t("reports.moisture")],
       ["skipped_overlap", this._t("reports.overlap")],
+      ["skipped_seasonal_zero", this._t("reports.temperature")],
+      ["skipped_other", this._t("reports.other")],
       ["failed_to_open", this._t("reports.failed")],
       ["cancelled", this._t("reports.cancelled")],
     ].forEach(([key, label]) => {
@@ -2706,11 +2805,11 @@ class ScheduleWizardPanel extends HTMLElement {
         else if (temp >= high) pct = maxP;
         else { const f = (temp - low) / (high - low); pct = minP + f * (maxP - minP); }
         const example10 = Math.max(1, Math.round(10 * pct / 100));
-        // 0 % skips scheduled watering (matches the backend: only a factor shown as 0 % skips).
+        // 0 % skips scheduled watering. Math.round (half up) matches the backend's seasonal_percent().
         seasonalPreview.appendChild(el("span", {}, Math.round(pct) <= 0
           ? this._tn("settings.preview_skip", { temp: ltr(`${temp}${tempUnit}`), arrow: this._arrow() })
           : this._tn("settings.preview", {
-            temp: ltr(`${temp}${tempUnit}`), arrow: this._arrow(), pct: pct.toFixed(0), n: example10,
+            temp: ltr(`${temp}${tempUnit}`), arrow: this._arrow(), pct: String(Math.round(pct)), n: example10,
           })));
       }).catch(() => {
         if (seq !== previewSeq) return;
