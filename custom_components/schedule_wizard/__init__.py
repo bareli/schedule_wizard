@@ -524,6 +524,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "soaking": scheduler.soaking,
             "flow": scheduler.flow_status,
             "forecast": scheduler.forecast_status,
+            "seasonal": scheduler.seasonal_status,
             "water_total_l": store.water_total_l,
             "week": planner.occurrences(
                 store, options, dt_util.start_of_local_day(), dt_util.start_of_local_day() + _td(days=7),

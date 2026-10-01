@@ -65,3 +65,13 @@ def test_no_em_dash(lang):
 def test_values_are_non_empty_strings(lang):
     bad = [key for key, value in STRINGS[lang].items() if not isinstance(value, str) or not value.strip()]
     assert not bad, f"{lang}: empty values {bad}"
+
+
+def test_seasonal_skip_text_matches_panel():
+    """#31: the skip notification uses the same words as the panel's history status, in every language."""
+    from custom_components.schedule_wizard.scheduler import SEASONAL_SKIP_TEXT
+
+    assert set(SEASONAL_SKIP_TEXT) == set(STRINGS)
+    for lang, text in SEASONAL_SKIP_TEXT.items():
+        assert text == STRINGS[lang]["status.skipped_seasonal_zero"], lang
+        assert STRINGS[lang]["event.skipped_seasonal"].lower() == text.lower(), lang
