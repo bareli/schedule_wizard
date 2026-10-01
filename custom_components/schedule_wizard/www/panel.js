@@ -11,6 +11,27 @@ const STYLES = `
   --sw-danger: var(--error-color, #dc2626);
   --sw-success: var(--success-color, #16a34a);
   --sw-warn: var(--warning-color, #b45309);
+  /* Text and fills derived from the theme colours (BUG-005, BUG-006): HA's default tokens are too light for
+     text (#009ac7 on white is 3.1:1, #ffa600 1.9:1). Text mixes toward the theme's text colour, so it gets
+     darker in a light theme and lighter in a dark one; fills under white text mix toward black. */
+  --sw-primary-text: var(--sw-primary);
+  --sw-success-text: var(--sw-success);
+  --sw-danger-text: var(--sw-danger);
+  --sw-warn-text: var(--sw-warn);
+  --sw-primary-fill: var(--sw-primary);
+  --sw-success-fill: var(--sw-success);
+  --sw-danger-fill: var(--sw-danger);
+}
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  :root, :host {
+    --sw-primary-text: color-mix(in srgb, var(--sw-primary) 65%, var(--sw-text));
+    --sw-success-text: color-mix(in srgb, var(--sw-success) 60%, var(--sw-text));
+    --sw-danger-text: color-mix(in srgb, var(--sw-danger) 70%, var(--sw-text));
+    --sw-warn-text: color-mix(in srgb, var(--sw-warn) 40%, var(--sw-text));
+    --sw-primary-fill: color-mix(in srgb, var(--sw-primary) 75%, #000);
+    --sw-success-fill: color-mix(in srgb, var(--sw-success) 75%, #000);
+    --sw-danger-fill: color-mix(in srgb, var(--sw-danger) 80%, #000);
+  }
 }
 * { box-sizing: border-box; }
 .app {
@@ -43,7 +64,7 @@ const STYLES = `
   color: var(--sw-muted); font: inherit; font-weight: 500;
   border-bottom: 2px solid transparent; white-space: nowrap;
 }
-.tab.active { color: var(--sw-primary); border-bottom-color: var(--sw-primary); }
+.tab.active { color: var(--sw-primary-text); border-bottom-color: var(--sw-primary); }
 .card {
   background: var(--sw-card);
   border: 1px solid var(--sw-border);
@@ -70,20 +91,21 @@ const STYLES = `
 .small { font-size: 13px; }
 .actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .btn {
+  min-height: 24px;
   padding: 7px 14px; border: 1px solid var(--sw-border);
   background: var(--sw-card); color: var(--sw-text);
   border-radius: 999px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 500;
   transition: all 0.15s;
 }
-.btn:hover:not(:disabled) { border-color: var(--sw-primary); color: var(--sw-primary); }
+.btn:hover:not(:disabled) { border-color: var(--sw-primary); color: var(--sw-primary-text); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn.primary { background: var(--sw-primary); color: #fff; border-color: var(--sw-primary); }
+.btn.primary { background: var(--sw-primary-fill); color: #fff; border-color: var(--sw-primary-fill); }
 .btn.primary:hover:not(:disabled) { filter: brightness(1.1); color: #fff; }
-.btn.danger { color: var(--sw-danger); border-color: var(--sw-danger); background: transparent; }
-.btn.danger:hover:not(:disabled) { background: var(--sw-danger); color: #fff; }
-.btn.ghost { border-color: transparent; background: transparent; color: var(--sw-primary); padding-inline: 8px; }
+.btn.danger { color: var(--sw-danger-text); border-color: var(--sw-danger); background: transparent; }
+.btn.danger:hover:not(:disabled) { background: var(--sw-danger-fill); border-color: var(--sw-danger-fill); color: #fff; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--sw-primary-text); padding-inline: 8px; }
 .btn.small { padding: 4px 10px; font-size: 12px; }
-.link-btn { background: none; border: none; color: var(--sw-primary); cursor: pointer; font: inherit; font-size: 13px; padding: 4px 0; text-decoration: underline; }
+.link-btn { min-height: 24px; background: none; border: none; color: var(--sw-primary-text); cursor: pointer; font: inherit; font-size: 13px; padding: 4px 0; text-decoration: underline; }
 button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--sw-primary); outline-offset: 2px; }
 .field { display: block; margin-bottom: 12px; }
 .field > span {
@@ -100,8 +122,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
   font: inherit;
 }
 .field input[type="checkbox"] { width: auto; }
-.field-error { color: var(--sw-danger); font-size: 12px; margin-top: 4px; }
+.field-error { color: var(--sw-danger-text); font-size: 12px; margin-top: 4px; }
 .field input[aria-invalid="true"] { border-color: var(--sw-danger); }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
 .modal [hidden] { display: none !important; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .progress-wrap { height: 8px; background: var(--sw-border); border-radius: 999px; overflow: hidden; }
@@ -111,9 +137,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
   padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500;
   background: var(--sw-border); color: var(--sw-muted); white-space: nowrap;
 }
-.pill.run { background: rgba(3,169,244,0.15); color: var(--sw-primary); }
-.pill.pause { background: rgba(180,83,9,0.15); color: var(--sw-warn); }
-.pill.ok { background: rgba(22,163,74,0.15); color: var(--sw-success); }
+.pill.run { background: rgba(3,169,244,0.15); color: var(--sw-primary-text); }
+.pill.pause { background: rgba(180,83,9,0.15); color: var(--sw-warn-text); }
+.pill.ok { background: rgba(22,163,74,0.15); color: var(--sw-success-text); }
 .pill.idle { background: transparent; border: 1px solid var(--sw-border); }
 .status { display: grid; gap: 12px; }
 .status-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
@@ -128,7 +154,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .zone-head strong { font-weight: 500; font-size: 16px; min-width: 0; overflow-wrap: anywhere; }
 .stepper { display: inline-flex; align-items: center; border: 1px solid var(--sw-border); border-radius: 999px; }
 .stepper button { border: 0; background: none; color: var(--sw-text); width: 32px; height: 34px; font-size: 18px; cursor: pointer; border-radius: 999px; font-family: inherit; }
-.stepper button:hover { color: var(--sw-primary); }
+.stepper button:hover { color: var(--sw-primary-text); }
 .stepper-val { min-width: 58px; text-align: center; font-variant-numeric: tabular-nums; font-size: 14px; }
 details > summary { cursor: pointer; font-weight: 500; }
 .activity-card { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
@@ -144,16 +170,16 @@ details > summary { cursor: pointer; font-weight: 500; }
   padding: 8px 10px; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-bg);
   font-variant-numeric: tabular-nums;
 }
-.switch { width: 40px; height: 22px; border-radius: 999px; background: var(--sw-border); border: 0; position: relative; cursor: pointer; flex: 0 0 auto; }
-.switch::after { content: ""; position: absolute; inset-block-start: 3px; inset-inline-start: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: inset-inline-start .15s; }
-.switch[aria-checked="true"] { background: var(--sw-primary); }
+.switch { width: 42px; height: 24px; border-radius: 999px; background: var(--sw-border); border: 0; position: relative; cursor: pointer; flex: 0 0 auto; }
+.switch::after { content: ""; position: absolute; inset-block-start: 3px; inset-inline-start: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: inset-inline-start .15s; }
+.switch[aria-checked="true"] { background: var(--sw-primary-fill); }
 .switch[aria-checked="true"]::after { inset-inline-start: 21px; }
 .chain { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 14px; }
 .chain .sep { color: var(--sw-muted); }
 .muted { color: var(--sw-muted); }
 bdi { unicode-bidi: isolate; }
 .num { text-align: end; }
-.num .water { display: block; color: var(--sw-primary); font-size: 12px; }
+.num .water { display: block; color: var(--sw-primary-text); font-size: 12px; }
 .report-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; font-variant-numeric: tabular-nums; }
 .report-table th, .report-table td {
   padding: 6px 4px; border-bottom: 1px solid var(--sw-border); text-align: start; vertical-align: top;
@@ -169,14 +195,14 @@ bdi { unicode-bidi: isolate; }
   border-radius: 4px; font-size: 11px; font-weight: 500;
   background: var(--sw-border); color: var(--sw-muted); vertical-align: middle;
 }
-.badge.warn { background: rgba(180,83,9,0.15); color: var(--sw-warn); }
+.badge.warn { background: rgba(180,83,9,0.15); color: var(--sw-warn-text); }
 .wk-wrap { container-type: inline-size; }
 .week { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
 .wk-day { display: grid; gap: 6px; align-content: start; min-width: 0; padding: 8px; border: 1px solid var(--sw-border); border-radius: 10px; background: var(--sw-bg); }
 .wk-day.today { border-color: var(--sw-primary); }
 .wk-head { display: flex; justify-content: space-between; align-items: center; gap: 4px; flex-wrap: wrap; }
 .wk-head strong { font-weight: 500; font-size: 14px; margin-inline-end: 4px; }
-.wk-head .btn { padding: 2px 6px; font-size: 12px; }
+.wk-head .btn { padding: 2px 6px; font-size: 12px; min-height: 24px; }
 .wk-runs { display: flex; flex-direction: column; gap: 6px; }
 .wk-run {
   display: grid; gap: 1px; width: 100%; text-align: start; cursor: pointer;
@@ -190,7 +216,7 @@ bdi { unicode-bidi: isolate; }
 .wk-run.skipped .t, .wk-run.skipped .n { text-decoration: line-through; color: var(--sw-muted); }
 .wk-run.rain { border-color: var(--sw-warn); background: rgba(180,83,9,0.07); }
 .wk-tag { font-size: 11px; font-weight: 500; color: var(--sw-muted); }
-.wk-run.rain .wk-tag, .wk-tag.warn { color: var(--sw-warn); }
+.wk-run.rain .wk-tag, .wk-tag.warn { color: var(--sw-warn-text); }
 .voice-ex { margin: 4px 0 12px; padding-inline-start: 20px; display: grid; gap: 4px; font-size: 14px; font-style: italic; }
 @container (max-width: 860px) {
   .week { grid-template-columns: 1fr; }
@@ -201,7 +227,7 @@ bdi { unicode-bidi: isolate; }
 }
 .alert-banner {
   padding: 12px 14px; margin-bottom: 14px; border-radius: 10px;
-  background: var(--sw-danger); color: #fff; font-weight: 600;
+  background: var(--sw-danger-fill); color: #fff; font-weight: 600;
 }
 .days { display: flex; gap: 6px; flex-wrap: wrap; }
 .day-chip {
@@ -209,7 +235,7 @@ bdi { unicode-bidi: isolate; }
   border-radius: 999px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 500;
   background: var(--sw-card); color: var(--sw-text);
 }
-.day-chip[aria-pressed="true"] { background: var(--sw-primary); border-color: var(--sw-primary); color: #fff; }
+.day-chip[aria-pressed="true"] { background: var(--sw-primary-fill); border-color: var(--sw-primary-fill); color: #fff; }
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.5);
   display: flex; align-items: center; justify-content: center; z-index: 100;
@@ -256,16 +282,18 @@ bdi { unicode-bidi: isolate; }
   border: 1px solid var(--sw-border); border-radius: 8px;
 }
 .entity-row {
-  padding: 8px 10px; cursor: pointer;
-  border-bottom: 1px solid var(--sw-border);
+  width: 100%; padding: 8px 10px; cursor: pointer; text-align: start;
+  border: 0; border-bottom: 1px solid var(--sw-border); border-radius: 0;
+  background: transparent; color: var(--sw-text); font: inherit;
   display: flex; justify-content: space-between; gap: 10px;
 }
+.entity-row:focus-visible { outline-offset: -2px; }
 .entity-row:last-child { border-bottom: none; }
 .entity-row:hover { background: var(--sw-bg); }
-.entity-row.selected { background: rgba(3,169,244,0.12); }
+.entity-row[aria-pressed="true"] { background: rgba(3,169,244,0.12); box-shadow: inset 3px 0 0 var(--sw-primary); }
 .domain {
   font-size: 11px; padding: 2px 6px;
-  border-radius: 4px; background: var(--sw-primary);
+  border-radius: 4px; background: var(--sw-primary-fill);
   color: #fff; text-transform: uppercase; white-space: nowrap;
 }
 .cond-row { display: grid; grid-template-columns: 1.4fr 1fr 0.9fr 0.8fr auto; gap: 6px; align-items: center; padding: 4px 0; }
@@ -297,8 +325,8 @@ details.more > summary { font-size: 16px; }
   border-radius: 18px; font-size: 14px; line-height: 1.4; text-align: center;
   overflow-wrap: anywhere; box-shadow: 0 4px 12px rgba(0,0,0,0.25);
 }
-.toast.error { background: var(--sw-danger); color: #fff; }
-.toast.ok { background: var(--sw-success); color: #fff; }
+.toast.error { background: var(--sw-danger-fill); color: #fff; }
+.toast.ok { background: var(--sw-success-fill); color: #fff; }
 pre { background: var(--sw-bg); padding: 10px; border-radius: 6px; font-size: 12px; overflow-x: auto; }
 @media (max-width: 540px) {
   .field-row { grid-template-columns: 1fr; }
@@ -311,6 +339,13 @@ pre { background: var(--sw-bg); padding: 10px; border-radius: 6px; font-size: 12
   .modal { width: 100%; max-height: calc(100vh - 16px); }
   .wiz-head, .wiz-body, .wiz-foot { padding-inline: 14px; }
   .status-title { font-size: 18px; }
+}
+/* Touch screens: 44 px targets (ENH-002); the switch keeps its look and gets a larger invisible hit area. */
+@media (pointer: coarse) {
+  .btn, .link-btn, .tab, .day-chip, .wk-run, .entity-row, .check-wrap label { min-height: 44px; }
+  .btn.small, .wk-head .btn { min-width: 44px; }
+  .stepper button { width: 44px; height: 44px; }
+  .switch::before { content: ""; position: absolute; inset: -10px -2px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 `;
@@ -444,7 +479,11 @@ function captureFocus(root) {
   const inRow = row ? all.filter(x => rowKey(x) === row) : [];
   const rowPos = inRow.indexOf(n);
   const near = (list, i) => [list[i + 1], list[i - 1]].filter(Boolean).map(x => focusId(all, x));
-  return { pos, row, rowPos, self: focusId(all, n), rowNear: row ? near(inRow, rowPos) : [], near: near(all, pos) };
+  return {
+    pos, row, rowPos, self: focusId(all, n), rowNear: row ? near(inRow, rowPos) : [], near: near(all, pos),
+    // A control can name its successor (Stop names its zone's Water now): data-refocus -> data-focus-id.
+    refocus: n.getAttribute("data-refocus") || "",
+  };
 }
 
 function restoreFocus(root, key) {
@@ -455,7 +494,8 @@ function restoreFocus(root, key) {
     return same[id.nth] || same[0];
   };
   const inRow = key.row ? all.filter(x => rowKey(x) === key.row) : [];
-  const target = find(key.self) || key.rowNear.map(find).find(Boolean) ||
+  const successor = key.refocus ? all.find(x => x.getAttribute("data-focus-id") === key.refocus) : null;
+  const target = find(key.self) || successor || key.rowNear.map(find).find(Boolean) ||
     (inRow.length ? inRow[Math.min(key.rowPos, inRow.length - 1)] : null) ||
     key.near.map(find).find(Boolean) || (all.length ? all[Math.min(key.pos, all.length - 1)] : null);
   if (target) target.focus({ preventScroll: true });
@@ -464,6 +504,40 @@ function restoreFocus(root, key) {
 function focusInside(root) {
   const n = deepActiveElement();
   return !!(root && n && n !== root && root.contains(n));
+}
+
+let uidSeq = 0;
+
+// A unique element id, for aria-labelledby / aria-describedby pairs built per render.
+function uid(prefix) {
+  uidSeq += 1;
+  return `${prefix}-${uidSeq}`;
+}
+
+// Controls a Tab press can reach inside a dialog: enabled, rendered (not in a hidden or display:none part).
+function tabbables(root) {
+  return Array.from(root.querySelectorAll(FOCUSABLE)).filter(n => !n.disabled && n.tabIndex >= 0 &&
+    !n.closest("[hidden]") && n.getClientRects().length > 0);
+}
+
+// Inline field errors (UX-005): the message sits under its field, which is marked invalid and points to it.
+// A group (role="group", e.g. the entity list) is only described by it: aria-invalid does not apply to groups.
+function fieldError(id) {
+  return el("div", { class: "field-error", id, role: "alert", hidden: true });
+}
+
+function setFieldError(node, input, msg) {
+  node.textContent = msg || "";
+  node.hidden = !msg;
+  if (!input) return;
+  const group = input.getAttribute("role") === "group";
+  if (msg) {
+    if (!group) input.setAttribute("aria-invalid", "true");
+    input.setAttribute("aria-describedby", node.id);
+  } else {
+    input.removeAttribute("aria-invalid");
+    input.removeAttribute("aria-describedby");
+  }
 }
 
 // State without the fields that change on every poll, to tell a real change from a clock tick.
@@ -562,6 +636,7 @@ class ScheduleWizardPanel extends HTMLElement {
     this._activityOpen = false;
     this._moreOpen = false;
     this._openGroups = new Set();
+    this._dialog = null;
   }
 
   set hass(hass) {
@@ -571,7 +646,7 @@ class ScheduleWizardPanel extends HTMLElement {
     else {
       this._syncMenuButton();
       if (langChanged) {
-        this._modalRoot.innerHTML = "";
+        this._closeDialog();
         if (this._state) this._render();
       }
     }
@@ -756,6 +831,7 @@ class ScheduleWizardPanel extends HTMLElement {
       this._refresh();
       this._refreshTimer = setInterval(() => this._refresh(), 5000);
     }
+    if (this._dialog) document.addEventListener("keydown", this._dialog.onKey);
   }
 
   disconnectedCallback() {
@@ -763,6 +839,7 @@ class ScheduleWizardPanel extends HTMLElement {
       clearInterval(this._refreshTimer);
       this._refreshTimer = null;
     }
+    if (this._dialog) document.removeEventListener("keydown", this._dialog.onKey);
   }
 
   _init() {
@@ -776,6 +853,9 @@ class ScheduleWizardPanel extends HTMLElement {
     this.appendChild(this._modalRoot);
     this._toastRoot = el("div", { class: "toast-host", role: "status" });
     this.appendChild(this._toastRoot);
+    // One persistent live region outside the re-rendered page (UX-008): run start / stop and rain pause only.
+    this._liveRoot = el("div", { class: "sr-only", role: "status", "aria-live": "polite" });
+    this.appendChild(this._liveRoot);
     this.addEventListener("focusin", (ev) => {
       const t = ev.target;
       this._editing = !!(t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT"));
@@ -796,6 +876,7 @@ class ScheduleWizardPanel extends HTMLElement {
       const { unchanged, ...fresh } = res;
       this._state = unchanged && prev ? { ...prev, ...fresh } : fresh;
       this._stateSig = stateSig(this._state);
+      this._announceChanges(prev, this._state);
       if (this._hadError) {
         this._hadError = false;
         this._render();
@@ -838,7 +919,10 @@ class ScheduleWizardPanel extends HTMLElement {
       if (!r) return;
       const total = Math.max(1, r.ends_at - r.started_at);
       const remaining = Math.max(0, r.ends_at - now);
-      b.style.width = `${Math.min(100, ((total - remaining) / total) * 100)}%`;
+      const pct = Math.min(100, ((total - remaining) / total) * 100);
+      b.style.width = `${pct}%`;
+      const bar = b.parentElement;
+      if (bar && bar.getAttribute("role") === "progressbar") bar.setAttribute("aria-valuenow", String(Math.round(pct)));
     });
     this.querySelectorAll("#app [data-soak]").forEach(n => {
       const s = (st.soaking || []).find(x => x.entity_id === n.getAttribute("data-soak") && x.phase === "soaking");
@@ -900,6 +984,107 @@ class ScheduleWizardPanel extends HTMLElement {
     this._callService(service, data);
   }
 
+  // "Water now: Front lawn": the visible text first (WCAG 2.5.3), then what it acts on, so repeated buttons
+  // differ by name (UX-007).
+  _named(action, name) {
+    return this._t("card.action_for", { action, zone: name });
+  }
+
+  // Announce what changed between two polls (UX-008): a zone starting or stopping, a rain pause starting
+  // or ending. Countdowns and anything else are not announced. Nothing is said for the first state.
+  _announceChanges(prev, cur) {
+    if (!this._liveRoot || !prev || !cur) return;
+    const label = (id) => {
+      const v = (cur.valves || prev.valves || []).find(x => x.entity_id === id);
+      return v ? v.label : id;
+    };
+    const before = new Set((prev.active || []).map(a => a.entity_id));
+    const after = new Set((cur.active || []).map(a => a.entity_id));
+    const msgs = [];
+    (cur.active || []).forEach((a) => {
+      if (before.has(a.entity_id)) return;
+      const n = Math.max(1, Math.round(((a.ends_at || 0) - (a.started_at || 0)) / 60));
+      msgs.push(this._t("live.started", { zone: label(a.entity_id), n }));
+    });
+    (prev.active || []).forEach((a) => {
+      if (!after.has(a.entity_id)) msgs.push(this._t("live.stopped", { zone: label(a.entity_id) }));
+    });
+    const rain = (st) => {
+      const until = parseInt(st.rain_delay_until || 0, 10) || 0;
+      return until > (st.now || 0) ? until : 0;
+    };
+    const r0 = rain(prev);
+    const r1 = rain(cur);
+    if (r1 && r1 !== r0) msgs.push(this._t("home.rain_until", { when: this._fmtWhen(r1) }));
+    else if (r0 && !r1) msgs.push(this._t("live.rain_cleared"));
+    if (msgs.length) this._say(msgs);
+  }
+
+  _say(msgs) {
+    const host = this._liveRoot;
+    host.replaceChildren(...msgs.map((m) => {
+      const line = el("div", {}, m);
+      this._applyDir(line);
+      return line;
+    }));
+  }
+
+  // Modal dialogs (BUG-003): focus moves into the dialog, Tab and Shift+Tab stay inside, Escape closes from
+  // anywhere, the page behind is inert, and on close focus returns to the control that opened the dialog,
+  // or to its replacement when a re-render replaced it meanwhile. Returns the close function.
+  // opts.canClose(): false blocks Escape / overlay click (wizard while saving); opts.focus(): initial target.
+  _openDialog(overlay, modal, opts = {}) {
+    this._closeDialog();
+    const app = this.querySelector("#app");
+    const opener = deepActiveElement();
+    const openerKey = captureFocus(app);
+    const canClose = opts.canClose || (() => true);
+    modal.setAttribute("tabindex", "-1");
+    const onKey = (e) => {
+      if (this._dialog !== handle) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (canClose()) close();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const items = tabbables(modal);
+      if (!items.length) { e.preventDefault(); modal.focus(); return; }
+      const i = items.indexOf(deepActiveElement());
+      if (e.shiftKey && i <= 0) { e.preventDefault(); items[items.length - 1].focus(); }
+      else if (!e.shiftKey && (i === -1 || i === items.length - 1)) { e.preventDefault(); items[0].focus(); }
+    };
+    const close = () => {
+      if (this._dialog !== handle) return;
+      this._dialog = null;
+      document.removeEventListener("keydown", onKey);
+      if (app) app.inert = false;
+      this._modalRoot.innerHTML = "";
+      this._editing = false;
+      if (opener && opener.isConnected && !opener.disabled) opener.focus({ preventScroll: true });
+      else restoreFocus(app, openerKey);
+    };
+    const handle = { close, onKey };
+    this._dialog = handle;
+    overlay.addEventListener("click", (e) => { if (e.target === overlay && canClose()) close(); });
+    this._modalRoot.innerHTML = "";
+    this._applyDir(overlay);
+    this._modalRoot.appendChild(overlay);
+    if (app) app.inert = true;
+    document.addEventListener("keydown", onKey);
+    // opts.focus() may move the focus itself and return null (the wizard draws its first step).
+    const target = opts.focus ? opts.focus()
+      : tabbables(modal).find(n => /^(INPUT|SELECT|TEXTAREA)$/.test(n.tagName)) || tabbables(modal)[0] || modal;
+    if (target) target.focus();
+    return close;
+  }
+
+  _closeDialog() {
+    if (this._dialog) this._dialog.close();
+    else if (this._modalRoot) this._modalRoot.innerHTML = "";
+  }
+
   _render() {
     const app = this.querySelector("#app");
     if (!app || !this._state) return;
@@ -914,19 +1099,43 @@ class ScheduleWizardPanel extends HTMLElement {
       el("div", { class: "title-wrap" }, [this._menuButton(), el("h1", {}, "Schedule Wizard")]),
     ]));
 
+    // ARIA tabs pattern (UX-006): one Tab stop (the selected tab), arrow keys (mirrored in RTL), Home and End
+    // move and select; every tab controls the single tab panel, which is named by the selected tab.
+    const TABS = ["home", "zones", "programs", "settings"];
     const tabs = el("div", { class: "tabs", role: "tablist" });
-    ["home", "zones", "programs", "settings"].forEach((key) => {
+    const onTabKey = (e) => {
+      const i = TABS.indexOf(this._tab);
+      const next = this._rtl ? "ArrowLeft" : "ArrowRight";
+      const prev = this._rtl ? "ArrowRight" : "ArrowLeft";
+      let j = null;
+      if (e.key === next) j = (i + 1) % TABS.length;
+      else if (e.key === prev) j = (i - 1 + TABS.length) % TABS.length;
+      else if (e.key === "Home") j = 0;
+      else if (e.key === "End") j = TABS.length - 1;
+      if (j === null) return;
+      e.preventDefault();
+      this._tab = TABS[j];
+      this._view = null;
+      this._render();
+      const tab = this.querySelector(`#sw-tab-${TABS[j]}`);
+      if (tab) tab.focus();
+    };
+    TABS.forEach((key) => {
       const selected = this._tab === key;
       tabs.appendChild(el("button", {
         class: "tab" + (selected ? " active" : ""),
         role: "tab",
+        id: `sw-tab-${key}`,
         "aria-selected": selected ? "true" : "false",
+        "aria-controls": "sw-tabpanel",
+        tabindex: selected ? "0" : "-1",
         onClick: () => { this._tab = key; this._view = null; this._render(); },
+        onKeydown: onTabKey,
       }, this._t("tab." + key)));
     });
     app.appendChild(tabs);
 
-    const content = el("div", { role: "tabpanel" });
+    const content = el("div", { role: "tabpanel", id: "sw-tabpanel", "aria-labelledby": `sw-tab-${this._tab}` });
     app.appendChild(content);
 
     switch (this._tab) {
@@ -1079,6 +1288,7 @@ class ScheduleWizardPanel extends HTMLElement {
         canSkip ? el("button", {
           class: "btn ghost small",
           title: this._t("week.skip_day_title", { day: info.full }),
+          "aria-label": this._named(this._t("week.skip_day"), info.full),
           onClick: () => {
             if (!confirm(this._t("week.skip_day_confirm", { day: info.full }))) return;
             this._callService("skip_day", { date: key });
@@ -1109,7 +1319,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const info = this._dayInfo(r.day);
     const next = this._nextOccOf(r.schedule_id);
     const isNext = !!next && next.start === r.start;
-    const close = () => { this._modalRoot.innerHTML = ""; this._editing = false; };
+    let close = () => {};
     const act = (service, data) => async () => { if (await this._callService(service, data)) close(); };
 
     const modal = el("div", { class: "modal", role: "dialog", "aria-modal": "true", "aria-labelledby": "sw-run-title" });
@@ -1129,7 +1339,7 @@ class ScheduleWizardPanel extends HTMLElement {
     ])));
     modal.appendChild(zones);
 
-    const actions = [el("button", { class: "btn", onClick: close }, this._t("common.close"))];
+    const actions = [el("button", { class: "btn", onClick: () => close() }, this._t("common.close"))];
     if (r.skip === "skipped_manual") {
       actions.push(el("button", { class: "btn", onClick: act("unskip", { schedule_id: r.schedule_id, date: r.day }) }, this._t("week.undo_skip")));
     } else if (isNext) {
@@ -1143,12 +1353,7 @@ class ScheduleWizardPanel extends HTMLElement {
     modal.appendChild(el("div", { class: "modal-actions" }, actions));
 
     const overlay = el("div", { class: "modal-overlay" }, modal);
-    overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
-    overlay.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
-    this._modalRoot.innerHTML = "";
-    this._applyDir(overlay);
-    this._modalRoot.appendChild(overlay);
-    actions[actions.length - 1].focus();
+    close = this._openDialog(overlay, modal, { focus: () => actions[actions.length - 1] });
   }
 
   _statusCard() {
@@ -1159,7 +1364,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const soaking = st.soaking || [];
     const valves = st.valves || [];
     const rainUntil = parseInt(st.rain_delay_until || 0, 10) || 0;
-    const card = el("section", { class: "card status", "aria-live": "polite" });
+    const card = el("section", { class: "card status" });
 
     let pill;
     let title;
@@ -1204,6 +1409,7 @@ class ScheduleWizardPanel extends HTMLElement {
       if (active.length > 1) subs.push(this._t("home.more_running", { n: active.length - 1 }));
       progress = el("div", {
         class: "progress-wrap", role: "progressbar",
+        "aria-label": this._named(this._t("home.watering_now"), this._valveName(r.entity_id).textContent),
         "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(Math.round(pct)),
       }, el("div", { class: "progress-bar", style: `width:${pct}%` }));
       if (cyc && !cyc.paused) actions.push(pauseBtn(cyc));
@@ -1397,9 +1603,10 @@ class ScheduleWizardPanel extends HTMLElement {
     }
     if (v.rain_exempt) nextLine += " · " + this._t("zone.indoor_suffix");
 
-    const card = el("article", { class: "card zone" + (active ? " running" : ""), "data-entity": id }, [
+    const titleId = uid("sw-zone");
+    const card = el("article", { class: "card zone" + (active ? " running" : ""), "data-entity": id, "aria-labelledby": titleId }, [
       el("div", { class: "zone-head" }, [
-        el("strong", {}, [iso(v.label), v.enabled ? "" : " " + this._t("common.disabled_tag")]),
+        el("strong", { id: titleId }, [iso(v.label), v.enabled ? "" : " " + this._t("common.disabled_tag")]),
         pill,
       ]),
       el("div", { class: "sub small" }, nextLine),
@@ -1409,9 +1616,16 @@ class ScheduleWizardPanel extends HTMLElement {
       const remaining = Math.max(0, active.ends_at - now);
       const total = Math.max(1, active.ends_at - active.started_at);
       const pct = Math.min(100, ((total - remaining) / total) * 100);
-      card.appendChild(el("div", { class: "progress-wrap" }, el("div", { class: "progress-bar", style: `width:${pct}%` })));
+      card.appendChild(el("div", {
+        class: "progress-wrap", role: "progressbar", "aria-label": this._named(this._t("zone.watering"), v.label),
+        "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(Math.round(pct)),
+      }, el("div", { class: "progress-bar", style: `width:${pct}%` })));
       card.appendChild(el("div", { class: "actions" }, [
-        el("button", { class: "btn danger", onClick: () => this._callService("stop_valve", { entity_id: id }) }, this._t("common.stop")),
+        el("button", {
+          class: "btn danger", "aria-label": this._named(this._t("common.stop"), v.label),
+          "data-focus-id": `stop:${id}`, "data-refocus": `water:${id}`,
+          onClick: () => this._callService("stop_valve", { entity_id: id }),
+        }, this._t("common.stop")),
         el("span", { class: "muted small" }, this._tn("run.left", { time: el("span", { "data-left": id }, fmtRemaining(remaining)) })),
       ]));
     } else if (soak) {
@@ -1421,7 +1635,10 @@ class ScheduleWizardPanel extends HTMLElement {
       card.appendChild(el("div", { class: "actions" }, [
         ownerCycle
           ? el("button", { class: "btn danger", onClick: () => this._callService("stop_cycle", { cycle_id: ownerCycle.cycle_id }) }, this._t("run.stop_cycle"))
-          : el("button", { class: "btn danger", onClick: () => this._callService("stop_valve", { entity_id: id }) }, this._t("common.stop")),
+          : el("button", {
+            class: "btn danger", "aria-label": this._named(this._t("common.stop"), v.label), "data-refocus": `water:${id}`,
+            onClick: () => this._callService("stop_valve", { entity_id: id }),
+          }, this._t("common.stop")),
         el("span", { class: "muted small" }, this._tn("home.resumes_in", {
           time: el("span", { "data-soak": id }, fmtRemaining(Math.max(0, (parseInt(soak.resume_at, 10) || 0) - now))),
         })),
@@ -1436,12 +1653,14 @@ class ScheduleWizardPanel extends HTMLElement {
       };
       card.appendChild(el("div", { class: "actions" }, [
         el("span", { class: "stepper" }, [
-          el("button", { type: "button", "aria-label": this._t("zone.less"), title: this._t("zone.less"), onClick: () => change(-1) }, "−"),
+          el("button", { type: "button", "aria-label": this._named(this._t("zone.less"), v.label), title: this._t("zone.less"), onClick: () => change(-1) }, "−"),
           val,
-          el("button", { type: "button", "aria-label": this._t("zone.more"), title: this._t("zone.more"), onClick: () => change(1) }, "+"),
+          el("button", { type: "button", "aria-label": this._named(this._t("zone.more"), v.label), title: this._t("zone.more"), onClick: () => change(1) }, "+"),
         ]),
         el("button", {
           class: "btn primary",
+          "aria-label": this._named(this._t("zone.water_now"), v.label),
+          "data-focus-id": `water:${id}`, "data-refocus": `stop:${id}`,
           onClick: () => this._callService("run_valve", { entity_id: id, duration_minutes: cur() }),
         }, this._t("zone.water_now")),
       ]));
@@ -1577,19 +1796,21 @@ class ScheduleWizardPanel extends HTMLElement {
       badges.push(el("span", { class: "badge", title: this._t("valves.badge_delay_title") }, this._t("valves.badge_delay", { until: this._fmtWhen(vDelay) })));
     }
 
-    const card = el("article", { class: "card" }, [
+    const titleId = uid("sw-zone-admin");
+    const card = el("article", { class: "card", "aria-labelledby": titleId }, [
       el("div", { class: "admin-head" }, [
         el("div", { style: "min-width:0;" }, [
-          el("div", { class: "name" }, [iso(v.label), v.enabled ? "" : " " + this._t("common.disabled_tag"), ...badges]),
+          el("div", { class: "name" }, [el("span", { id: titleId }, iso(v.label)), v.enabled ? "" : " " + this._t("common.disabled_tag"), ...badges]),
           el("div", { class: "sub" }, joinParts([ltr(v.entity_id), this._t("zones.min_per_run", { n: v.default_duration_min })])),
           el("div", { class: "sub" }, lastLine + " • " + week),
           (v.water_total_l || 0) > 0 ? el("div", { class: "sub" }, this._t("valves.water_used", { amount: this._fmtLiters(v.water_total_l) })
             + (v.avg_lpm > 0 ? " · " + this._t("valves.usually_lpm", { lpm: this._fmtLpm(v.avg_lpm) }) : "")) : null,
         ]),
         el("div", { class: "actions" }, [
-          el("button", { class: "btn small", onClick: () => this._openValveModal(v) }, this._t("zones.edit")),
+          el("button", { class: "btn small", "aria-label": this._named(this._t("zones.edit"), v.label), onClick: () => this._openValveModal(v) }, this._t("zones.edit")),
           el("button", {
             class: "btn danger small",
+            "aria-label": this._named(this._t("common.delete"), v.label),
             onClick: () => this._confirmDelete(this._t("valves.delete_confirm", { name: v.label }), "remove_valve", { entity_id: v.entity_id }),
           }, this._t("common.delete")),
         ]),
@@ -1610,6 +1831,7 @@ class ScheduleWizardPanel extends HTMLElement {
     if (!own.length && !plans.length) body.appendChild(el("div", { class: "muted small" }, this._t("zones.no_times")));
     body.appendChild(el("div", {}, el("button", {
       class: "btn ghost",
+      "aria-label": this._named(this._t("zones.add_time"), v.label),
       onClick: () => this._openScheduleModal(null, { kind: "valve", id: v.entity_id }),
     }, this._t("zones.add_time"))));
     card.appendChild(body);
@@ -1621,11 +1843,13 @@ class ScheduleWizardPanel extends HTMLElement {
     const main = [...this._whenNodes(s)];
     if (withDuration) main.push(" · " + this._t("unit.min", { n: s.duration_min }));
     if (!s.enabled) main.push(" " + this._t("common.disabled_tag"));
+    // "Front lawn, Mon, Wed at 06:00": which schedule a control acts on (UX-007).
+    const what = [s.name || ownerName, el("span", {}, this._whenNodes(s)).textContent].filter(Boolean).join(", ");
     const toggle = el("button", {
       class: "switch",
       role: "switch",
       "aria-checked": s.enabled ? "true" : "false",
-      "aria-label": this._t("common.enabled"),
+      "aria-label": this._named(this._t("common.enabled"), what),
       title: this._t(s.enabled ? "common.disable" : "common.enable"),
       onClick: () => this._callService("update_schedule", { schedule_id: s.id, enabled: !s.enabled }),
     });
@@ -1634,11 +1858,13 @@ class ScheduleWizardPanel extends HTMLElement {
     if (skipped) {
       skipBtn = el("button", {
         class: "btn small",
+        "aria-label": this._named(this._t("common.undo"), what),
         onClick: () => this._callService("unskip", { schedule_id: s.id, date: skipped }),
       }, this._t("common.undo"));
     } else if (this._schedActive(s)) {
       skipBtn = el("button", {
         class: "btn small",
+        "aria-label": this._named(this._t("sched.skip_next"), what),
         onClick: () => this._callService("skip_next", { schedule_id: s.id }),
       }, this._t("sched.skip_next"));
     }
@@ -1654,9 +1880,10 @@ class ScheduleWizardPanel extends HTMLElement {
       el("div", { class: "actions" }, [
         skipBtn,
         toggle,
-        el("button", { class: "btn small", onClick: () => this._openScheduleModal(s) }, this._t("common.edit")),
+        el("button", { class: "btn small", "aria-label": this._named(this._t("common.edit"), what), onClick: () => this._openScheduleModal(s) }, this._t("common.edit")),
         el("button", {
           class: "btn danger small",
+          "aria-label": this._named(this._t("common.delete"), what),
           onClick: () => this._confirmDelete(this._t("sched.delete_confirm"), "remove_schedule", { schedule_id: s.id }),
         }, this._t("common.delete")),
       ]),
@@ -1686,8 +1913,9 @@ class ScheduleWizardPanel extends HTMLElement {
     let duration = existing ? existing.default_duration_min : (this._state.options.default_duration || 10);
     let enabled = existing ? !!existing.enabled : true;
 
-    const labelInput = el("input", { type: "text", maxlength: "80", value: label, placeholder: this._t("valves.label_ph") });
-    labelInput.addEventListener("input", () => { label = labelInput.value; });
+    const labelInput = el("input", { type: "text", maxlength: "80", value: label, placeholder: this._t("valves.label_ph"), "aria-required": "true" });
+    const labelErr = fieldError("sw-valve-label-err");
+    labelInput.addEventListener("input", () => { label = labelInput.value; if (label.trim()) setFieldError(labelErr, labelInput, ""); });
 
     const durInput = el("input", { type: "number", min: "1", max: "1440", value: String(duration) });
     const durErr = el("div", { class: "field-error", id: "sw-valve-duration-err", role: "alert", hidden: true });
@@ -1698,6 +1926,7 @@ class ScheduleWizardPanel extends HTMLElement {
       else { durInput.removeAttribute("aria-invalid"); durInput.removeAttribute("aria-describedby"); }
     };
     durInput.addEventListener("input", () => { if (minutesValue(durInput.value) !== null) setDurErr(""); });
+    durInput.setAttribute("aria-required", "true");
 
     const enabledInput = el("input", { type: "checkbox" });
     enabledInput.checked = enabled;
@@ -1706,8 +1935,12 @@ class ScheduleWizardPanel extends HTMLElement {
     const rainExemptInput = el("input", { type: "checkbox" });
     rainExemptInput.checked = !!(existing && existing.rain_exempt);
 
-    const search = el("input", { type: "text", placeholder: this._t("valves.search_ph") });
-    const picker = el("div", { class: "entity-picker" });
+    // Keyboard-operable entity list (BUG-004): each row is a toggle button; the list is a named group and sits
+    // outside the search field's label, so the search box is named by the caption alone.
+    const pickerCap = uid("sw-entity-cap");
+    const search = el("input", { type: "text", placeholder: this._t("valves.search_ph"), "aria-labelledby": pickerCap });
+    const picker = el("div", { class: "entity-picker", role: "group", "aria-labelledby": pickerCap });
+    const entityErr = fieldError("sw-valve-entity-err");
     const renderPicker = () => {
       const q = search.value.trim().toLowerCase();
       picker.innerHTML = "";
@@ -1718,17 +1951,21 @@ class ScheduleWizardPanel extends HTMLElement {
         picker.appendChild(el("div", { class: "empty", style: "padding:10px;" }, this._t("valves.no_matches")));
       }
       filtered.forEach((e) => {
-        const row = el("div", { class: "entity-row" + (chosen === e.entity_id ? " selected" : "") }, [
-          el("div", {}, [
-            el("div", { style: "font-weight:600" }, iso(e.friendly_name)),
-            el("div", { class: "muted", style: "font-size:12px" }, ltr(e.entity_id)),
+        const row = el("button", {
+          type: "button", class: "entity-row", "aria-pressed": chosen === e.entity_id ? "true" : "false",
+        }, [
+          el("span", {}, [
+            el("span", { style: "display:block;font-weight:600" }, iso(e.friendly_name)),
+            el("span", { class: "muted", style: "display:block;font-size:12px" }, ltr(e.entity_id)),
           ]),
           el("span", { class: "domain" }, e.domain),
         ]);
         row.addEventListener("click", () => {
           chosen = e.entity_id;
-          if (!label.trim()) { label = e.friendly_name; labelInput.value = label; }
-          renderPicker();
+          if (!label.trim()) { label = e.friendly_name; labelInput.value = label; setFieldError(labelErr, labelInput, ""); }
+          // Update in place: rebuilding the list would drop the focus from the pressed row.
+          picker.querySelectorAll(".entity-row").forEach(r => r.setAttribute("aria-pressed", r === row ? "true" : "false"));
+          setFieldError(entityErr, picker, "");
         });
         picker.appendChild(row);
       });
@@ -1745,10 +1982,12 @@ class ScheduleWizardPanel extends HTMLElement {
 
     const flowRateRaw = (existing && existing.flow_rate_lpm !== null && existing.flow_rate_lpm !== undefined) ? String(existing.flow_rate_lpm) : "";
     const flowRateInput = el("input", { type: "number", min: "0", max: "10000", step: "any", inputmode: "decimal", value: flowRateRaw });
+    const flowErr = fieldError("sw-valve-flow-err");
+    flowRateInput.addEventListener("input", () => setFieldError(flowErr, flowRateInput, ""));
 
     const hasAdvanced = !!(existing && ((existing.soak_run_min || 0) > 0 || (existing.soak_pause_min || 0) > 0 || existing.moisture_entity || flowRateRaw));
     const advBody = el("div", { style: hasAdvanced ? "" : "display:none;" }, [
-      el("label", { class: "field" }, [el("span", {}, this._t("valves.flow_rate")), flowRateInput]),
+      el("label", { class: "field" }, [el("span", {}, this._t("valves.flow_rate")), flowRateInput, flowErr]),
       el("p", { class: "muted", style: "font-size:12px;margin:-6px 0 12px;" }, [
         this._t("valves.flow_rate_hint"),
         existing && existing.avg_lpm > 0 ? el("br") : null,
@@ -1774,8 +2013,8 @@ class ScheduleWizardPanel extends HTMLElement {
     });
 
     const fields = [
-      el("label", { class: "field" }, [el("span", {}, this._t("valves.label")), labelInput]),
-      el("label", { class: "field" }, [el("span", {}, this._t("valves.search")), search, picker]),
+      el("label", { class: "field" }, [el("span", {}, this._t("valves.label")), labelInput, labelErr]),
+      el("div", { class: "field" }, [el("span", { id: pickerCap }, this._t("valves.search")), search, picker, entityErr]),
       el("div", { class: "field-row" }, [
         el("label", { class: "field" }, [el("span", {}, this._t("valves.default_duration")), durInput, durErr]),
         el("label", { class: "field" }, [el("span", {}, this._t("common.enabled")), enabledInput]),
@@ -1786,22 +2025,32 @@ class ScheduleWizardPanel extends HTMLElement {
     ];
 
     this._showModal(this._t(existing ? "valves.edit_title" : "valves.add_title"), fields, async () => {
-      if (!chosen) { this._toast(this._t("valves.pick_entity"), "error"); return false; }
-      if (!label.trim()) { this._toast(this._t("valves.label_required"), "error"); return false; }
+      // Every problem is shown next to its field; focus goes to the first one, the toast repeats it (UX-005).
+      const invalid = [];
+      const check = (bad, node, input, msg, focusTarget) => {
+        setFieldError(node, input, bad ? msg : "");
+        if (bad) invalid.push([focusTarget || input, msg]);
+      };
+      check(!label.trim(), labelErr, labelInput, this._t("valves.label_required"));
+      check(!chosen, entityErr, picker, this._t("valves.pick_entity"), picker.querySelector(".entity-row") || search);
       const duration = minutesValue(durInput.value);
       if (duration === null || durInput.validity.badInput) {
         setDurErr(this._t("valves.err_duration"));
-        durInput.focus();
-        return false;
+        invalid.push([durInput, this._t("valves.err_duration")]);
+      } else {
+        setDurErr("");
       }
-      setDurErr("");
       const clampMin = (input) => Math.min(1440, Math.max(0, parseInt(input.value, 10) || 0));
       const thrRaw = vMoistThreshold.value.trim();
       const thr = thrRaw === "" ? null : parseFloat(thrRaw);
       const flowRaw = flowRateInput.value.trim();
       const flowRate = flowRaw === "" ? null : parseFloat(flowRaw);
-      if (flowRateInput.validity.badInput || (flowRaw !== "" && (isNaN(flowRate) || flowRate <= 0 || flowRate > 10000))) {
-        this._toast(this._t("valves.flow_rate_invalid"), "error");
+      const flowBad = flowRateInput.validity.badInput || (flowRaw !== "" && (isNaN(flowRate) || flowRate <= 0 || flowRate > 10000));
+      if (flowBad && advBody.style.display === "none") advToggle.click();
+      check(flowBad, flowErr, flowRateInput, this._t("valves.flow_rate_invalid"));
+      if (invalid.length) {
+        invalid[0][0].focus();
+        this._toast(invalid[0][1], "error");
         return false;
       }
       const ok = await this._callService("add_valve", {
@@ -1897,22 +2146,21 @@ class ScheduleWizardPanel extends HTMLElement {
       statusLine = this._t("plans.zone_of", { step: ac.step, total: ac.total_steps });
     }
 
+    const planName = c.name || c.id;
+    const btn = (cls, text, onClick) => el("button", { class: cls, "aria-label": this._named(text, planName), onClick }, text);
     const actions = [];
     if (!ac) {
-      actions.push(el("button", { class: "btn primary small", onClick: () => this._callService("run_cycle", { cycle_id: c.id }) }, this._t("plans.run_now")));
+      actions.push(btn("btn primary small", this._t("plans.run_now"), () => this._callService("run_cycle", { cycle_id: c.id })));
     } else {
       actions.push(ac.paused
-        ? el("button", { class: "btn primary small", onClick: () => this._callService("resume_cycle", { cycle_id: c.id }) }, this._t("cycle.resume"))
-        : el("button", { class: "btn small", onClick: () => this._callService("pause_cycle", { cycle_id: c.id }) }, this._t("cycle.pause")));
-      actions.push(el("button", { class: "btn danger small", onClick: () => this._callService("stop_cycle", { cycle_id: c.id }) }, this._t("common.stop")));
+        ? btn("btn primary small", this._t("cycle.resume"), () => this._callService("resume_cycle", { cycle_id: c.id }))
+        : btn("btn small", this._t("cycle.pause"), () => this._callService("pause_cycle", { cycle_id: c.id })));
+      actions.push(btn("btn danger small", this._t("common.stop"), () => this._callService("stop_cycle", { cycle_id: c.id })));
     }
     actions.push(
-      el("button", { class: "btn small", onClick: () => this._openCycleModal(c) }, this._t("common.edit")),
-      el("button", { class: "btn small", onClick: () => this._callService("update_cycle", { cycle_id: c.id, enabled: !c.enabled }) }, this._t(c.enabled ? "common.disable" : "common.enable")),
-      el("button", {
-        class: "btn danger small",
-        onClick: () => this._confirmDelete(this._t("cycles.delete_confirm", { name: c.name }), "remove_cycle", { cycle_id: c.id }),
-      }, this._t("common.delete")),
+      btn("btn small", this._t("common.edit"), () => this._openCycleModal(c)),
+      btn("btn small", this._t(c.enabled ? "common.disable" : "common.enable"), () => this._callService("update_cycle", { cycle_id: c.id, enabled: !c.enabled })),
+      btn("btn danger small", this._t("common.delete"), () => this._confirmDelete(this._t("cycles.delete_confirm", { name: c.name }), "remove_cycle", { cycle_id: c.id })),
     );
 
     const chain = el("div", { class: "chain" });
@@ -1921,10 +2169,11 @@ class ScheduleWizardPanel extends HTMLElement {
       chain.appendChild(el("span", {}, [this._valveName(s.entity_id), " (" + this._t("unit.min", { n: s.duration_min }) + ")"]));
     });
 
-    const card = el("article", { class: "card" }, [
+    const planTitleId = uid("sw-plan");
+    const card = el("article", { class: "card", "aria-labelledby": planTitleId }, [
       el("div", { class: "admin-head" }, [
         el("div", { style: "min-width:0;" }, [
-          el("div", { class: "name" }, head),
+          el("div", { class: "name", id: planTitleId }, head),
           statusLine ? el("div", { class: "sub" }, statusLine) : null,
         ]),
         pill,
@@ -1936,6 +2185,7 @@ class ScheduleWizardPanel extends HTMLElement {
     if (!times.length) body.appendChild(el("div", { class: "muted small" }, this._t("plans.no_times")));
     body.appendChild(el("div", {}, el("button", {
       class: "btn ghost",
+      "aria-label": this._named(this._t("zones.add_time"), planName),
       onClick: () => this._openScheduleModal(null, { kind: "cycle", id: c.id }),
     }, this._t("zones.add_time"))));
     body.appendChild(chain);
@@ -1956,14 +2206,17 @@ class ScheduleWizardPanel extends HTMLElement {
       steps.push({ entity_id: v.entity_id, duration_min: v.default_duration_min });
     }
 
-    const nameInput = el("input", { type: "text", maxlength: "80", value: name, placeholder: this._t("cycles.name_ph") });
-    nameInput.addEventListener("input", () => { name = nameInput.value; });
+    const nameInput = el("input", { type: "text", maxlength: "80", value: name, placeholder: this._t("cycles.name_ph"), "aria-required": "true" });
+    const nameErr = fieldError("sw-plan-name-err");
+    nameInput.addEventListener("input", () => { name = nameInput.value; if (name.trim()) setFieldError(nameErr, nameInput, ""); });
 
     const enabledInput = el("input", { type: "checkbox" });
     enabledInput.checked = enabled;
     enabledInput.addEventListener("change", () => { enabled = enabledInput.checked; });
 
-    const stepsWrap = el("div");
+    const stepsCap = uid("sw-steps-cap");
+    const stepsWrap = el("div", { role: "group", "aria-labelledby": stepsCap });
+    const stepsErr = fieldError("sw-plan-steps-err");
     const renderSteps = () => {
       stepsWrap.innerHTML = "";
       steps.forEach((s, idx) => {
@@ -2018,6 +2271,7 @@ class ScheduleWizardPanel extends HTMLElement {
         onClick: () => {
           const v = this._state.valves[0];
           steps.push({ entity_id: v.entity_id, duration_min: v.default_duration_min });
+          setFieldError(stepsErr, stepsWrap, "");
           renderSteps();
         },
       }, this._t("cycles.add_step")));
@@ -2025,14 +2279,23 @@ class ScheduleWizardPanel extends HTMLElement {
     renderSteps();
 
     const fields = [
-      el("label", { class: "field" }, [el("span", {}, this._t("cycles.name")), nameInput]),
-      el("div", { class: "field" }, [el("span", {}, this._t("cycles.steps")), stepsWrap]),
+      el("label", { class: "field" }, [el("span", {}, this._t("cycles.name")), nameInput, nameErr]),
+      el("div", { class: "field" }, [el("span", { id: stepsCap }, this._t("cycles.steps")), stepsWrap, stepsErr]),
       el("label", { class: "field" }, [el("span", {}, this._t("common.enabled")), enabledInput]),
     ];
 
     this._showModal(this._t(existing ? "cycles.edit_title" : "cycles.add_title"), fields, async () => {
-      if (!name.trim()) { this._toast(this._t("cycles.name_required"), "error"); return false; }
-      if (!steps.length) { this._toast(this._t("cycles.one_step"), "error"); return false; }
+      // Inline errors next to the field, focus on the first one, the toast repeats it (UX-005).
+      const invalid = [];
+      setFieldError(nameErr, nameInput, name.trim() ? "" : this._t("cycles.name_required"));
+      if (!name.trim()) invalid.push([nameInput, this._t("cycles.name_required")]);
+      setFieldError(stepsErr, stepsWrap, steps.length ? "" : this._t("cycles.one_step"));
+      if (!steps.length) invalid.push([stepsWrap.querySelector("button:last-of-type") || stepsWrap, this._t("cycles.one_step")]);
+      if (invalid.length) {
+        invalid[0][0].focus();
+        this._toast(invalid[0][1], "error");
+        return false;
+      }
       const payload = {
         name,
         enabled,
@@ -2221,7 +2484,8 @@ class ScheduleWizardPanel extends HTMLElement {
       return out;
     };
 
-    const days = el("div", { class: "days", role: "group", "aria-describedby": daysErr.id });
+    const daysCap = uid("sw-days-cap");
+    const days = el("div", { class: "days", role: "group", "aria-labelledby": daysCap, "aria-describedby": daysErr.id });
     DAYS.forEach((_, i) => {
       const tog = el("button", {
         type: "button",
@@ -2289,7 +2553,7 @@ class ScheduleWizardPanel extends HTMLElement {
     intervalInput.addEventListener("input", () => { if (intervalValue() !== null) setErr(intervalErr, intervalInput, ""); updateFirstRun(); });
     startInput.addEventListener("input", () => { if (startValue()) setErr(startErr, startInput, ""); updateFirstRun(); });
     timeInput.addEventListener("input", updateFirstRun);
-    const daysField = el("div", { class: "field" }, [el("span", {}, this._t("sched.days")), days, daysErr]);
+    const daysField = el("div", { class: "field" }, [el("span", { id: daysCap }, this._t("sched.days")), days, daysErr]);
     const intervalRow = el("div", {}, [
       el("div", { class: "field-row" }, [
         el("label", { class: "field" }, [el("span", {}, this._t("sched.interval_days")), intervalInput, intervalErr]),
@@ -2347,30 +2611,34 @@ class ScheduleWizardPanel extends HTMLElement {
       operator: c.operator || "equals",
       value: c.value === null || c.value === undefined ? "" : String(c.value),
     }));
-    const condWrap = el("div");
+    const condCap = uid("sw-cond-cap");
+    const condWrap = el("div", { role: "group", "aria-labelledby": condCap });
     const renderConditions = () => {
       condWrap.innerHTML = "";
       conditions.forEach((c, idx) => {
-        const entInput = el("input", { type: "text", dir: "ltr", placeholder: "sensor.example", value: c.entity_id });
+        // Each field is named, with its row number, beyond its placeholder (BUG-007).
+        const n = idx + 1;
+        const named = (key) => this._t("sched.cond_field", { field: this._t(key), n });
+        const entInput = el("input", { type: "text", dir: "ltr", placeholder: "sensor.example", value: c.entity_id, "aria-label": named("sched.cond_entity") });
         entInput.addEventListener("input", () => { c.entity_id = entInput.value; });
-        const attrInput = el("input", { type: "text", maxlength: "255", placeholder: this._t("sched.attr_ph"), value: c.attribute });
+        const attrInput = el("input", { type: "text", maxlength: "255", placeholder: this._t("sched.attr_ph"), value: c.attribute, "aria-label": named("common.attribute_optional") });
         attrInput.addEventListener("input", () => { c.attribute = attrInput.value; });
-        const opSel = el("select", {});
+        const opSel = el("select", { "aria-label": named("sched.cond_operator") });
         OPERATORS.forEach(([val, lbl]) => {
           const opt = el("option", { value: val }, lbl);
           if (val === c.operator) opt.selected = true;
           opSel.appendChild(opt);
         });
         opSel.addEventListener("change", () => { c.operator = opSel.value; });
-        const valInput = el("input", { type: "text", maxlength: "255", placeholder: this._t("sched.value_ph"), value: c.value });
+        const valInput = el("input", { type: "text", maxlength: "255", placeholder: this._t("sched.value_ph"), value: c.value, "aria-label": named("sched.cond_value") });
         valInput.addEventListener("input", () => { c.value = valInput.value; });
         condWrap.appendChild(el("div", { class: "cond-row" }, [
           entInput, attrInput, opSel, valInput,
           el("button", {
             class: "btn danger small",
             type: "button",
-            title: this._t("sched.remove_condition"),
-            "aria-label": this._t("sched.remove_condition"),
+            title: this._t("sched.remove_condition_n", { n }),
+            "aria-label": this._t("sched.remove_condition_n", { n }),
             onClick: () => { conditions.splice(idx, 1); renderConditions(); },
           }, "✕"),
         ]));
@@ -2407,7 +2675,7 @@ class ScheduleWizardPanel extends HTMLElement {
       sunRow,
       durRow,
       el("label", { class: "field" }, [el("span", {}, this._t("common.name")), nameInput]),
-      el("div", { class: "field" }, [el("span", {}, this._t("sched.conditions")), condWrap]),
+      el("div", { class: "field" }, [el("span", { id: condCap }, this._t("sched.conditions")), condWrap]),
       el("label", { class: "field" }, [el("span", {}, this._t("common.enabled")), enabledInput]),
     ];
 
@@ -2485,9 +2753,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const foot = el("div", { class: "wiz-foot" });
     modal.append(head, body, foot);
     const overlay = el("div", { class: "modal-overlay" }, modal);
-    const close = () => { this._modalRoot.innerHTML = ""; this._editing = false; };
-    overlay.addEventListener("click", (e) => { if (e.target === overlay && !wz.saving) close(); });
-    overlay.addEventListener("keydown", (e) => { if (e.key === "Escape" && !wz.saving) close(); });
+    let close = () => {};
 
     let nextBtn = null;
     const refreshNext = () => { if (nextBtn) nextBtn.disabled = wz.saving || !valid(stepKeys()[wz.idx]); };
@@ -2498,16 +2764,16 @@ class ScheduleWizardPanel extends HTMLElement {
       head.innerHTML = "";
       head.appendChild(el("div", { class: "wiz-steps", "aria-hidden": "true" }, keys.map((_, i) => el("i", { class: i <= wz.idx ? "on" : "" }))));
       head.appendChild(el("div", { class: "muted small" }, t("wiz.step_of", { n: wz.idx + 1, total: keys.length })));
-      head.appendChild(el("h3", { id: "sw-wiz-title" }, t(TITLES[keys[wz.idx]])));
+      head.appendChild(el("h3", { id: "sw-wiz-title", tabindex: "-1" }, t(TITLES[keys[wz.idx]])));
     };
 
     const minutesStepper = (id) => {
       const val = el("span", { class: "stepper-val", "aria-live": "polite" }, t("unit.min", { n: minOf(id) }));
       const change = (dir) => { wz.mins[id] = stepMinutes(minOf(id), dir); val.textContent = t("unit.min", { n: wz.mins[id] }); };
       return el("span", { class: "stepper" }, [
-        el("button", { type: "button", "aria-label": t("zone.less"), title: t("zone.less"), onClick: () => change(-1) }, "−"),
+        el("button", { type: "button", "aria-label": this._named(t("zone.less"), nameOf(id)), title: t("zone.less"), onClick: () => change(-1) }, "−"),
         val,
-        el("button", { type: "button", "aria-label": t("zone.more"), title: t("zone.more"), onClick: () => change(1) }, "+"),
+        el("button", { type: "button", "aria-label": this._named(t("zone.more"), nameOf(id)), title: t("zone.more"), onClick: () => change(1) }, "+"),
       ]);
     };
 
@@ -2572,7 +2838,9 @@ class ScheduleWizardPanel extends HTMLElement {
     };
 
     const bodyWhen = () => {
-      const days = el("div", { class: "days" });
+      const daysCap = uid("sw-wiz-days");
+      const minsCap = uid("sw-wiz-mins");
+      const days = el("div", { class: "days", role: "group", "aria-labelledby": daysCap });
       DAYS.forEach((_, i) => {
         const chip = el("button", {
           type: "button", class: "day-chip",
@@ -2588,12 +2856,12 @@ class ScheduleWizardPanel extends HTMLElement {
       });
       const timeInput = el("input", { type: "time", value: wz.time, required: true });
       timeInput.addEventListener("input", () => { wz.time = timeInput.value; refreshNext(); });
-      const mins = el("div", { class: "list" });
+      const mins = el("div", { class: "list", role: "group", "aria-labelledby": minsCap });
       wz.picked.forEach(id => mins.appendChild(el("div", { class: "zmin" }, [iso(nameOf(id)), minutesStepper(id)])));
       body.append(
-        el("div", { class: "field", style: "margin:0;" }, [el("span", {}, t("wiz.which_days")), days]),
+        el("div", { class: "field", style: "margin:0;" }, [el("span", { id: daysCap }, t("wiz.which_days")), days]),
         el("label", { class: "field", style: "margin:0;" }, [el("span", {}, t("wiz.start_time")), timeInput]),
-        el("div", { class: "field", style: "margin:0;" }, [el("span", {}, t("wiz.minutes_per_zone")), mins]),
+        el("div", { class: "field", style: "margin:0;" }, [el("span", { id: minsCap }, t("wiz.minutes_per_zone")), mins]),
       );
     };
 
@@ -2723,14 +2991,12 @@ class ScheduleWizardPanel extends HTMLElement {
       if (wz.idx > 0) right.unshift(el("button", { class: "btn ghost", type: "button", onClick: () => { if (!wz.saving) close(); } }, t("common.cancel")));
       foot.append(backBtn, el("div", { class: "actions" }, right));
       refreshNext();
-      const first = body.querySelector("input, button");
+      // A step without a field (the check step) puts focus on its heading, not on the page behind (BUG-003).
+      const first = body.querySelector("input, button") || head.querySelector("h3");
       if (first) first.focus();
     };
 
-    this._modalRoot.innerHTML = "";
-    this._applyDir(overlay);
-    this._modalRoot.appendChild(overlay);
-    draw();
+    close = this._openDialog(overlay, modal, { canClose: () => !wz.saving, focus: () => { draw(); return null; } });
   }
 
   // ---------- Reports ----------
@@ -2901,8 +3167,8 @@ class ScheduleWizardPanel extends HTMLElement {
         const s = cycleStats[c.id] || { completed: 0, cancelled: 0, skipped: 0, runs_30d: 0 };
         t.tbody.appendChild(el("tr", {}, [
           el("th", { scope: "row" }, iso(c.name)),
-          el("td", { class: "num", style: "color:var(--sw-success);" }, String(s.completed)),
-          el("td", { class: "num", style: "color:var(--sw-warn);" }, String(s.cancelled)),
+          el("td", { class: "num", style: "color:var(--sw-success-text);" }, String(s.completed)),
+          el("td", { class: "num", style: "color:var(--sw-warn-text);" }, String(s.cancelled)),
           el("td", { class: "num", style: "color:var(--sw-muted);" }, String(s.skipped)),
           el("td", { class: "num", style: "font-weight:600;" }, String(s.runs_30d)),
         ]));
@@ -3041,7 +3307,9 @@ class ScheduleWizardPanel extends HTMLElement {
     const currentTargets = new Set(Array.isArray(opts.notify_targets) ? opts.notify_targets : (opts.notify_targets ? String(opts.notify_targets).split(",").map(s => s.trim()).filter(Boolean) : []));
     const currentEvents = new Set(Array.isArray(opts.notify_events) ? opts.notify_events : (opts.notify_events ? String(opts.notify_events).split(",").map(s => s.trim()).filter(Boolean) : []));
 
-    const targetsWrap = el("div", { class: "check-wrap" });
+    const targetsCap = uid("sw-notify-to");
+    const eventsCap = uid("sw-notify-when");
+    const targetsWrap = el("div", { class: "check-wrap", role: "group", "aria-labelledby": targetsCap });
     if (!availableTargets.length) {
       targetsWrap.appendChild(el("div", { class: "empty", style: "padding:4px;" }, this._t("settings.no_notify")));
     } else {
@@ -3052,7 +3320,7 @@ class ScheduleWizardPanel extends HTMLElement {
         targetsWrap.appendChild(el("label", {}, [cb, ltr(name)]));
       });
     }
-    const eventsWrap = el("div", { class: "check-wrap" });
+    const eventsWrap = el("div", { class: "check-wrap", role: "group", "aria-labelledby": eventsCap });
     const eventLabel = (ev) => (this._t.has("event." + ev) ? this._t("event." + ev) : ev);
     availableEvents.forEach(ev => {
       const cb = el("input", { type: "checkbox" });
@@ -3060,8 +3328,8 @@ class ScheduleWizardPanel extends HTMLElement {
       cb.addEventListener("change", () => { if (cb.checked) currentEvents.add(ev); else currentEvents.delete(ev); });
       eventsWrap.appendChild(el("label", {}, [cb, eventLabel(ev)]));
     });
-    ess.appendChild(el("div", { class: "field" }, [el("span", {}, this._t("settings.notify_services")), targetsWrap]));
-    ess.appendChild(el("div", { class: "field" }, [el("span", {}, this._t("settings.notify_when")), eventsWrap]));
+    ess.appendChild(el("div", { class: "field" }, [el("span", { id: targetsCap }, this._t("settings.notify_services")), targetsWrap]));
+    ess.appendChild(el("div", { class: "field" }, [el("span", { id: eventsCap }, this._t("settings.notify_when")), eventsWrap]));
     const curReminder = Math.max(0, parseInt(opts.reminder_minutes, 10) || 0);
     const reminderVals = [0, 10, 15, 30, 60];
     if (!reminderVals.includes(curReminder)) reminderVals.push(curReminder);
@@ -3107,10 +3375,10 @@ class ScheduleWizardPanel extends HTMLElement {
       lookup.then(s => {
         if (seq !== previewSeq) return;
         seasonalPreview.innerHTML = "";
-        if (!s) { seasonalPreview.appendChild(el("span", { style: "color:var(--sw-danger)" }, this._tn("settings.preview_not_found", { entity: ltr(entityId) }))); return; }
+        if (!s) { seasonalPreview.appendChild(el("span", { style: "color:var(--sw-danger-text)" }, this._tn("settings.preview_not_found", { entity: ltr(entityId) }))); return; }
         let temp = null;
         try { temp = parseFloat(attr ? s.attributes[attr] : s.state); } catch {}
-        if (temp == null || isNaN(temp)) { seasonalPreview.appendChild(el("span", { style: "color:var(--sw-danger)" }, this._tn("settings.preview_not_numeric", { state: ltr(s.state) }))); return; }
+        if (temp == null || isNaN(temp)) { seasonalPreview.appendChild(el("span", { style: "color:var(--sw-danger-text)" }, this._tn("settings.preview_not_numeric", { state: ltr(s.state) }))); return; }
         const low = parseFloat(seasonalLow.value) || 0;
         const high = parseFloat(seasonalHigh.value) || 0;
         const minP = parseFloat(seasonalMin.value) || 0;
@@ -3466,13 +3734,13 @@ class ScheduleWizardPanel extends HTMLElement {
   }
 
   _showModal(title, fields, onSave) {
-    this._modalRoot.innerHTML = "";
-    const modal = el("div", { class: "modal", role: "dialog", "aria-modal": "true" });
-    modal.appendChild(el("h3", {}, title));
+    const titleId = uid("sw-dialog-title");
+    const modal = el("div", { class: "modal", role: "dialog", "aria-modal": "true", "aria-labelledby": titleId });
+    modal.appendChild(el("h3", { id: titleId }, title));
     fields.forEach((f) => modal.appendChild(f));
 
-    const close = () => { this._modalRoot.innerHTML = ""; this._editing = false; };
-    const cancelBtn = el("button", { class: "btn", onClick: close }, this._t("common.cancel"));
+    let close = () => {};
+    const cancelBtn = el("button", { class: "btn", onClick: () => close() }, this._t("common.cancel"));
     const saveBtn = el("button", { class: "btn primary", onClick: async () => {
       saveBtn.disabled = true;
       try {
@@ -3486,9 +3754,7 @@ class ScheduleWizardPanel extends HTMLElement {
     modal.appendChild(el("div", { class: "modal-actions" }, [cancelBtn, saveBtn]));
 
     const overlay = el("div", { class: "modal-overlay" }, modal);
-    overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
-    overlay.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
-    this._modalRoot.appendChild(overlay);
+    close = this._openDialog(overlay, modal);
   }
 }
 

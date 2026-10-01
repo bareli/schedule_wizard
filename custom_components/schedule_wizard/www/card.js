@@ -1,7 +1,20 @@
 const I18N = await import(new URL("./i18n.js" + new URL(import.meta.url).search, import.meta.url).href);
 
 const CARD_STYLES = `
-:host { display: block; }
+:host {
+  display: block;
+  /* Text and fills that reach 4.5:1 with HA's default theme (BUG-006); same rule as the panel. */
+  --sw-primary-text: var(--primary-color, #03a9f4);
+  --sw-danger-text: var(--error-color, #dc2626);
+  --sw-primary-fill: var(--primary-color, #03a9f4);
+}
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  :host {
+    --sw-primary-text: color-mix(in srgb, var(--primary-color, #03a9f4) 65%, var(--primary-text-color, #212121));
+    --sw-danger-text: color-mix(in srgb, var(--error-color, #dc2626) 70%, var(--primary-text-color, #212121));
+    --sw-primary-fill: color-mix(in srgb, var(--primary-color, #03a9f4) 75%, #000);
+  }
+}
 .card {
   background: var(--ha-card-background, var(--card-background-color, #fff));
   border-radius: var(--ha-card-border-radius, 12px);
@@ -58,6 +71,7 @@ input[type="number"] {
   font: inherit;
 }
 button {
+  min-height: 24px;
   padding: 4px 10px;
   border: 1px solid var(--divider-color);
   background: var(--card-background-color);
@@ -65,17 +79,19 @@ button {
   border-radius: 6px; cursor: pointer; font-size: 12px; font-family: inherit;
   transition: all 0.15s;
 }
-button.run { background: var(--primary-color); color: #fff; border-color: var(--primary-color); }
-button.stop { color: var(--error-color, #dc2626); border-color: var(--error-color, #dc2626); }
+button.run { background: var(--sw-primary-fill); color: #fff; border-color: var(--sw-primary-fill); }
+button.stop { color: var(--sw-danger-text); border-color: var(--error-color, #dc2626); }
+/* Touch screens: 44 px targets (ENH-002). */
+@media (pointer: coarse) { button { min-height: 44px; min-width: 44px; } }
 button:hover:not(:disabled) { filter: brightness(1.1); }
 button:disabled { opacity: 0.4; cursor: not-allowed; }
 .empty { color: var(--secondary-text-color); font-style: italic; font-size: 13px; padding: 6px 0; }
 .active-runs { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--divider-color); }
-.active-runs .name { color: var(--primary-color); }
+.active-runs .name { color: var(--sw-primary-text); }
 bdi { unicode-bidi: isolate; }
 .error-msg {
   margin-top: 8px; padding: 6px 10px; border-radius: 6px; font-size: 12px;
-  background: rgba(220,38,38,0.12); color: var(--error-color, #dc2626);
+  background: rgba(220,38,38,0.12); color: var(--sw-danger-text);
 }
 `;
 
