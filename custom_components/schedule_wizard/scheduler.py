@@ -36,6 +36,7 @@ from .const import (
     LOW_FLOW_RATIO,
     EVENT_MOISTURE_SKIPPED,
     EVENT_RAIN_SKIPPED,
+    EVENT_SEASONAL_SKIPPED,
     EVENT_VALVE_ENDED,
     EVENT_VALVE_FAILED,
     EVENT_VALVE_SOAKING,
@@ -62,6 +63,7 @@ SKIP_EVENTS = {
     "rain_delay": EVENT_RAIN_SKIPPED,
     "moisture": EVENT_MOISTURE_SKIPPED,
     "condition": EVENT_CONDITION_SKIPPED,
+    "seasonal_zero": EVENT_SEASONAL_SKIPPED,
 }
 REMINDER_TEXT = {
     "en": {"title": "Watering soon", "body": "{name} starts at {time} ({minutes} min).", "skip": "Skip today", "run": "Water now"},
@@ -75,7 +77,9 @@ SKIP_TEXT = {
     "rain_delay": "rain delay active",
     "moisture": "soil moisture above threshold",
     "condition": "schedule condition not met",
+    "seasonal_zero": "temperature adjustment 0 %",
 }
+NOTIFY_FOR_SKIP = {"rain_delay": "skipped_rain", "forecast": "skipped_rain", "seasonal_zero": "skipped_seasonal"}
 
 
 class Scheduler:
@@ -426,6 +430,10 @@ class Scheduler:
                                   source, ref, base_min, sched)
                 return
             factor = self._seasonal_factor()
+            if self._seasonal_skips(factor):
+                self._record_skip("seasonal_zero", "valve", entity_id, self._entity_label(entity_id),
+                                  source, ref, base_min, sched)
+                return
             minutes = self._scale_minutes(base_min, factor)
             note = ref + (f"|seasonal:{round(factor * 100)}%" if factor != 1.0 else "")
             if len(self._soak_chunks(entity_id, minutes)) > 1:
@@ -476,6 +484,10 @@ class Scheduler:
                                   source, ref, 0, sched)
                 return
             factor = self._seasonal_factor()
+            if self._seasonal_skips(factor):
+                self._record_skip("seasonal_zero", "cycle", cycle_id, cycle.get("name", cycle_id),
+                                  source, ref, 0, sched)
+                return
             note = ref + (f"|seasonal:{round(factor * 100)}%" if factor != 1.0 else "")
             await self.async_run_cycle(cycle_id, source=source, note=note, duration_factor=factor)
         except asyncio.CancelledError:
@@ -541,7 +553,7 @@ class Scheduler:
         payload["name" if kind == "cycle" else "label"] = name
         self.hass.bus.async_fire(SKIP_EVENTS[reason], payload)
         what = f"cycle {name}" if kind == "cycle" else name
-        notify_event = "skipped_rain" if reason in ("rain_delay", "forecast") else f"skipped_{reason}"
+        notify_event = NOTIFY_FOR_SKIP.get(reason, f"skipped_{reason}")
         self.hass.async_create_task(self._notify(
             notify_event, "Schedule Wizard", f"Skipped {what}: {SKIP_TEXT[reason]}",
         ))
@@ -780,9 +792,16 @@ class Scheduler:
         return max(0.0, pct / 100.0)
 
     @staticmethod
+    def _seasonal_skips(factor: float) -> bool:
+        """A factor shown as 0 % means no watering (#26); any higher factor keeps a 1-minute minimum."""
+        return round(factor * 100) <= 0
+
+    @staticmethod
     def _scale_minutes(base: int, factor: float) -> int:
         if factor == 1.0:
             return int(base)
+        if Scheduler._seasonal_skips(factor):
+            return 0
         return max(1, int(round(base * factor)))
 
     def _is_rain_delay_active(self) -> int:

@@ -107,6 +107,7 @@ NOTIFY_EVENTS = (
     "skipped_rain",
     "skipped_moisture",
     "skipped_condition",
+    "skipped_seasonal",
     "valve_failed",
     "rain_delay",
     "leak_detected",
@@ -142,6 +143,7 @@ EVENT_CYCLE_PAUSED = f"{DOMAIN}_cycle_paused"
 EVENT_CYCLE_RESUMED = f"{DOMAIN}_cycle_resumed"
 EVENT_MOISTURE_SKIPPED = f"{DOMAIN}_moisture_skipped"
 EVENT_CONDITION_SKIPPED = f"{DOMAIN}_condition_skipped"
+EVENT_SEASONAL_SKIPPED = f"{DOMAIN}_seasonal_skipped"
 EVENT_VALVE_SOAKING = f"{DOMAIN}_valve_soaking"
 EVENT_LEAK_DETECTED = f"{DOMAIN}_leak_detected"
 EVENT_LOW_FLOW = f"{DOMAIN}_low_flow"
