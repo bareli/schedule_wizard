@@ -4,7 +4,7 @@
 |---|---|
 | Type | Bug |
 | Severity | low |
-| Status | Open |
+| Status | VERIFIED 2026-10-01 on 8172, closed ([#97](https://github.com/bareli/schedule_wizard/issues/97)) |
 | Issue | [#97](https://github.com/bareli/schedule_wizard/issues/97) |
 | Feature | Tests |
 | Test case | SCH |

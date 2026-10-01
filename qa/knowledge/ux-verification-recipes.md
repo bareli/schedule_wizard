@@ -18,3 +18,15 @@
   "Last watering" line and Reports counts of later runs on the same instance).
 - **Bash heredocs with backticks** (Markdown code spans) must be quoted (`<<'EOF'`); long Hebrew comment bodies were
   safer through the Write tool.
+
+## Added 2026-10-01 (final batch verification, #66 #67 #91-#97)
+
+- **Rain check line reads states as they were when Settings rendered.** POST the test state (binary_sensor on, weather rainy)
+  *before* opening the panel, or re-selecting the source still shows the old "Now:". A state that changes while Settings is
+  open is not reflected until the page re-renders.
+- **A skip row on demand:** set `rain_entity` to a binary_sensor that is `on`, `add_schedule` for a spare zone at now+2 min on
+  today's weekday, wait for `schedule_wizard_rain_skipped` over WS (about 2 min), then `remove_schedule` and clear `rain_entity`.
+- **A saved own rain source (#91):** only reachable through `.storage/core.config_entries` with HA stopped (the server refuses
+  new ones). Back the file up first; the option is cleared again with `update_options rain_entity ""`.
+- **8172 history has `cancelled` rows without `planned_min`** (written before #52 by an older build, holding the planned
+  length): they inflate "Last watering" / day totals (130 min on 2026-10-01). Do not read that number as a regression of new code.
