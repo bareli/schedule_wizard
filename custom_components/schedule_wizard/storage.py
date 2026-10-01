@@ -67,6 +67,7 @@ class WizardStore:
             "schedules": [],
             "history": [],
             "active_runs": [],
+            "pending_closes": [],
             "cycles": [],
             "skips": {},
             "cycle_state": {},
@@ -86,6 +87,7 @@ class WizardStore:
                 sched.setdefault("start_date", "")
             self._data["history"] = data.get("history", [])
             self._data["active_runs"] = data.get("active_runs", [])
+            self._data["pending_closes"] = data.get("pending_closes", []) or []
             self._data["cycles"] = data.get("cycles", [])
             self._data["skips"] = data.get("skips", {}) or {}
             self._data["cycle_state"] = data.get("cycle_state", {}) or {}
@@ -154,6 +156,11 @@ class WizardStore:
         return list(self._data["active_runs"])
 
     @property
+    def pending_closes(self) -> list[dict]:
+        """Valves whose close command could not be delivered yet (#80)."""
+        return list(self._data.get("pending_closes") or [])
+
+    @property
     def water_total_l(self) -> float:
         return float(self._data.get("water_total_l") or 0)
 
@@ -180,6 +187,10 @@ class WizardStore:
 
     async def async_set_active_runs(self, runs: list[dict]) -> None:
         self._data["active_runs"] = list(runs)
+        await self.async_save()
+
+    async def async_set_pending_closes(self, closes: list[dict]) -> None:
+        self._data["pending_closes"] = list(closes)
         await self.async_save()
 
     def get_valve(self, entity_id: str) -> Optional[dict]:
