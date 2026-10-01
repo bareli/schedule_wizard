@@ -161,6 +161,57 @@ def test_minutes_value_rules():
     assert json.loads(out.stdout) == [None] * 8 + [1, 45, 1440]
 
 
+# ---------------------------------------------------------------- PERF-001 #74: light poll
+
+
+async def test_get_state_poll_sends_live_part_only(hass: HomeAssistant, hass_ws_client):
+    entry = await setup_wizard(hass)
+    await add_valve(hass, Z1, "Front")
+    await add_valve(hass, Z2, "Back")
+    for hhmm in ("05:00", "06:00", "07:00", "20:00"):
+        for zone in (Z1, Z2):
+            await hass.services.async_call(
+                DOMAIN, "add_schedule",
+                {"valve_entity_id": zone, "time": hhmm, "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+                 "duration_minutes": 5},
+                blocking=True,
+            )
+    store = data(hass, entry)["store"]
+    for i in range(500):
+        await store.async_record_run(Z1, "manual", 5, "completed", f"row {i}")
+    await hass.services.async_call(DOMAIN, "run_valve", {"entity_id": Z1, "duration_minutes": 5}, blocking=True)
+    await settle(hass)
+
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": f"{DOMAIN}/get_state"})
+    full = (await client.receive_json())["result"]
+    assert len(full["history"]) == 500 and full["week"] and full["rev"]
+    assert "unchanged" not in full
+
+    await client.send_json({"id": 2, "type": f"{DOMAIN}/get_state", "rev": full["rev"]})
+    light = (await client.receive_json())["result"]
+    assert light["unchanged"] is True and light["rev"] == full["rev"]
+    assert {"history", "week", "valves", "schedules", "controllable", "options"}.isdisjoint(light)
+    assert [a["entity_id"] for a in light["active"]] == [Z1]
+    assert len(json.dumps(light)) < 20_000 < len(json.dumps(full))
+
+    # Any change outside the live part sends everything again.
+    await hass.services.async_call(DOMAIN, "add_valve", {"entity_id": Z2, "label": "Back yard"}, blocking=True)
+    await client.send_json({"id": 3, "type": f"{DOMAIN}/get_state", "rev": full["rev"]})
+    again = (await client.receive_json())["result"]
+    assert "unchanged" not in again and again["rev"] != full["rev"]
+    assert any(v["label"] == "Back yard" for v in again["valves"])
+    await hass.services.async_call(DOMAIN, "stop_all", {}, blocking=True)
+    await settle(hass)
+
+
+def test_panel_poll_uses_rev_and_pauses_when_hidden():
+    body = _method(PANEL, "_refresh")
+    assert body.index("document.hidden") < body.index("callWS(")
+    assert "rev: prev.rev" in body
+    assert "unchanged && prev ? { ...prev, ...fresh } : fresh" in body
+
+
 # ---------------------------------------------------------------- PERF-002 #75: calendar range not capped
 
 

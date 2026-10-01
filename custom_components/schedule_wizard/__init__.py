@@ -1,6 +1,8 @@
 """Schedule Wizard integration."""
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import os
 import secrets
@@ -124,6 +126,21 @@ CARD_RESOURCE_URL = f"{PANEL_STATIC_URL}/card.js"
 # same action for the same zone is answered without acting again.
 WEBHOOK_MAX_PER_MINUTE = 30
 WEBHOOK_REPEAT_SECONDS = 2
+# get_state keys that change while watering; a poll that sends the last `rev` gets only these (PERF-001).
+LIVE_STATE_KEYS = (
+    "active", "active_cycles", "soaking", "flow", "forecast", "seasonal", "water_total_l", "rain_delay_until", "now",
+)
+
+
+def _state_rev(state: dict[str, Any]) -> str:
+    """Fingerprint of get_state without the live keys and the per-second next-run countdowns."""
+    heavy = {k: v for k, v in state.items() if k not in LIVE_STATE_KEYS}
+    heavy["valves"] = [
+        {**v, "next_run": {k: x for k, x in v["next_run"].items() if k != "in_seconds"} if v.get("next_run") else None}
+        for v in heavy.get("valves") or []
+    ]
+    raw = json.dumps(heavy, sort_keys=True, default=str, separators=(",", ":"))
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
 
 
 def _entity_in_supported_domain(value: str) -> str:
@@ -414,7 +431,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
     if hass.data.get(WS_COMMANDS_REGISTERED_KEY):
         return
 
-    @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/get_state"})
+    @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/get_state", vol.Optional("rev"): str})
     @websocket_api.async_response
     async def _ws_get_state(hass_inner, connection, msg):
         domain_data = hass_inner.data.get(DOMAIN, {})
@@ -544,7 +561,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             # Secrets for admins only (#35): the webhook id and the notify targets (device names).
             options = {k: v for k, v in options.items() if k != CONF_NOTIFY_TARGETS}
 
-        connection.send_result(msg["id"], {
+        state = {
             "valves": valves_enriched,
             "schedules": store.schedules,
             "cycles": store.cycles,
@@ -569,7 +586,13 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "rain_delay_until": options.get(CONF_RAIN_DELAY_UNTIL, 0),
             "webhook_id": data.get("webhook_id", "") if is_admin else "",
             "now": int(time.time()),
-        })
+        }
+        rev = _state_rev(state)
+        if msg.get("rev") == rev:
+            # Nothing but the live part changed since this client's last full copy (PERF-001).
+            connection.send_result(msg["id"], {**{k: state[k] for k in LIVE_STATE_KEYS}, "rev": rev, "unchanged": True})
+            return
+        connection.send_result(msg["id"], {**state, "rev": rev})
 
     @websocket_api.websocket_command({
         vol.Required("type"): f"{DOMAIN}/update_options",

@@ -739,8 +739,15 @@ class ScheduleWizardPanel extends HTMLElement {
   }
 
   async _refresh() {
+    if (document.hidden && this._state) return; // no polling in a background tab (PERF-001)
     try {
-      this._state = await this._hass.callWS({ type: "schedule_wizard/get_state" });
+      // With the last rev the server answers only the live part when nothing else changed (PERF-001).
+      const prev = this._state;
+      const res = await this._hass.callWS(prev && prev.rev
+        ? { type: "schedule_wizard/get_state", rev: prev.rev }
+        : { type: "schedule_wizard/get_state" });
+      const { unchanged, ...fresh } = res;
+      this._state = unchanged && prev ? { ...prev, ...fresh } : fresh;
       this._stateSig = stateSig(this._state);
       if (this._hadError) {
         this._hadError = false;
