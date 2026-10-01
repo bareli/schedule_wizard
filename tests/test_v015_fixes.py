@@ -64,6 +64,53 @@ async def test_voice_starts_zone_once(hass: HomeAssistant, lang, label, text, mi
     await settle(hass)
 
 
+# ---------------------------------------------------------------- BUG-016 #55: zone minutes 0 / empty
+
+
+async def test_add_valve_rejects_zero_minutes_and_keeps_value(hass: HomeAssistant):
+    """Server side: 0 or 1441 minutes is refused and the stored value stays."""
+    entry = await setup_wizard(hass)
+    await add_valve(hass, Z1, "Front", default_duration_minutes=45)
+    for bad in (0, -5, 1441):
+        with pytest.raises(vol.Invalid):
+            await add_valve(hass, Z1, "Front", default_duration_minutes=bad)
+    assert data(hass, entry)["store"].get_valve(Z1)["default_duration_min"] == 45
+
+
+def test_zone_editor_validates_minutes_inline():
+    """Panel: no silent fallback to 10; an inline error under Minutes per run and the dialog stays open."""
+    body = _method(PANEL, "_openValveModal")
+    assert "|| 10;" not in body
+    assert 'id: "sw-valve-duration-err"' in body
+    save = body[body.index("this._showModal("):]
+    check = save.index("minutesValue(durInput.value)")
+    assert save.index('this._t("valves.err_duration")', check) < save.index('this._callService("add_valve"')
+    assert "return false;" in save[check:save.index('this._callService("add_valve"')]
+    assert "default_duration_minutes: duration," in save
+
+
+def test_schedule_editor_validates_minutes_inline():
+    body = _method(PANEL, "_openScheduleModal")
+    assert "parseInt(durInput.value, 10) || 10" not in body
+    assert 'id: "sw-sched-duration-err"' in body
+    assert 'setErr(durErr, durInput, this._t("valves.err_duration"))' in body
+
+
+def test_minutes_value_rules():
+    """The panel's minutesValue() under Node: whole minutes 1 to 1440, else null."""
+    import shutil
+    import subprocess
+
+    if shutil.which("node") is None:
+        pytest.skip("node is not installed")
+    fn = re.search(r"\nfunction minutesValue\(raw\) \{\n.*?\n\}\n", PANEL, re.S)
+    assert fn, "minutesValue() not found in panel.js"
+    cases = ["0", "", " ", "-5", "2000", "1441", "1.5", "abc", "1", "45", "1440"]
+    script = fn.group(0) + f"process.stdout.write(JSON.stringify({json.dumps(cases)}.map(minutesValue)));"
+    out = subprocess.run(["node", "-e", script], capture_output=True, check=True, timeout=30)
+    assert json.loads(out.stdout) == [None] * 8 + [1, 45, 1440]
+
+
 # ---------------------------------------------------------------- PERF-002 #75: calendar range not capped
 
 
