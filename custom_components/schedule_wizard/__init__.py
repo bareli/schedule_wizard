@@ -924,6 +924,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return {"schedule": sched}
 
     async def _svc_list(call: ServiceCall) -> ServiceResponse:
+        list_options = options
+        user_id = call.context.user_id
+        if user_id:
+            # Calls with a user context: notify targets (device names) for admins only (#35).
+            user = await hass.auth.async_get_user(user_id)
+            if user is None or not user.is_admin:
+                list_options = {k: v for k, v in options.items() if k != CONF_NOTIFY_TARGETS}
         return {
             "valves": store.valves,
             "schedules": store.schedules,
@@ -939,7 +946,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "soaking": scheduler.soaking,
             "flow": scheduler.flow_status,
             "history": store.history[:20],
-            "options": options,
+            "options": list_options,
         }
 
     hass.services.async_register(DOMAIN, SERVICE_RUN_VALVE, _svc_run, schema=SCHEMA_RUN)

@@ -279,3 +279,39 @@ async def test_stored_master_valve_of_wrong_domain_is_never_called(hass: HomeAss
     assert is_on(hass, Z1)
     await _stop_runs(hass)
     assert calls == []
+
+
+# ---------------------------------------------------------------- #35 (reopened): list_config service
+
+
+async def test_list_config_hides_notify_targets_from_non_admin(
+    hass: HomeAssistant, hass_ws_client, hass_read_only_access_token,
+):
+    from homeassistant.core import Context
+
+    entry = await setup_wizard(hass, {"notify_targets": ["mobile_app_phone"]})
+    wh = data(hass, entry)["webhook_id"]
+
+    user = await hass_ws_client(hass, hass_read_only_access_token)
+    msg = await _ws(user, 1, {
+        "type": "call_service", "domain": DOMAIN, "service": "list_config",
+        "service_data": {}, "return_response": True,
+    })
+    assert msg["success"], msg
+    resp = msg["result"]["response"]
+    assert "notify_targets" not in resp["options"]
+    assert wh not in str(resp)
+
+    admin = await hass_ws_client(hass)
+    msg = await _ws(admin, 1, {
+        "type": "call_service", "domain": DOMAIN, "service": "list_config",
+        "service_data": {}, "return_response": True,
+    })
+    assert msg["result"]["response"]["options"]["notify_targets"] == ["mobile_app_phone"]
+
+    # Automations / scripts (no user) keep the full options; shared options untouched.
+    resp = await hass.services.async_call(
+        DOMAIN, "list_config", {}, blocking=True, return_response=True, context=Context(),
+    )
+    assert resp["options"]["notify_targets"] == ["mobile_app_phone"]
+    assert data(hass, entry)["options"]["notify_targets"] == ["mobile_app_phone"]
