@@ -9,7 +9,9 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
 
-from .const import REPEAT_INTERVAL, REPEAT_WEEKDAYS, SIGNAL_CONFIG_CHANGED, STORAGE_KEY, STORAGE_VERSION
+from .const import (
+    REPEAT_INTERVAL, REPEAT_WEEKDAYS, SIGNAL_CONFIG_CHANGED, STORAGE_KEY, STORAGE_VERSION, TIME_MODE_CLOCK,
+)
 
 MAX_HISTORY = 500
 # History rows, water totals and plan step progress are written at most every SAVE_DELAY seconds
@@ -86,6 +88,10 @@ class WizardStore:
         }
         self._loaded = False
         self._pending = False
+
+    @property
+    def hass(self) -> HomeAssistant:
+        return self._hass
 
     async def async_load(self) -> None:
         data = await self._store.async_load()
@@ -316,8 +322,11 @@ class WizardStore:
         repeat: str = REPEAT_WEEKDAYS,
         interval_days: int = 0,
         start_date: str = "",
+        time_mode: str = TIME_MODE_CLOCK,
+        sun_offset_min: int = 0,
     ) -> dict:
         interval = repeat == REPEAT_INTERVAL
+        clock = time_mode == TIME_MODE_CLOCK
         sched = {
             "id": uuid.uuid4().hex[:12],
             "valve_entity_id": valve_entity_id or "",
@@ -328,6 +337,8 @@ class WizardStore:
             "interval_days": int(interval_days) if interval else 0,
             "start_date": start_date if interval else "",
             "time_hhmm": time_hhmm,
+            "time_mode": time_mode,
+            "sun_offset_min": 0 if clock else int(sun_offset_min),
             "duration_min": int(duration_min),
             "enabled": bool(enabled),
             "conditions": _clean_conditions(conditions),
@@ -341,9 +352,10 @@ class WizardStore:
         sched = self.get_schedule(schedule_id)
         if not sched:
             return None
-        for k in ("name", "days_mask", "time_hhmm", "duration_min", "enabled", "repeat", "interval_days", "start_date"):
+        for k in ("name", "days_mask", "time_hhmm", "duration_min", "enabled", "repeat", "interval_days", "start_date",
+                  "time_mode", "sun_offset_min"):
             if k in fields and fields[k] is not None:
-                if k in ("days_mask", "duration_min", "interval_days"):
+                if k in ("days_mask", "duration_min", "interval_days", "sun_offset_min"):
                     sched[k] = int(fields[k])
                 elif k == "enabled":
                     sched[k] = bool(fields[k])
@@ -355,6 +367,8 @@ class WizardStore:
             sched["repeat"] = REPEAT_WEEKDAYS
             sched["interval_days"] = 0
             sched["start_date"] = ""
+        if (sched.get("time_mode") or TIME_MODE_CLOCK) == TIME_MODE_CLOCK:
+            sched["sun_offset_min"] = 0
         await self._async_save_config()
         return sched
 

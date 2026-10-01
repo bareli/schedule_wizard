@@ -21,6 +21,7 @@ from homeassistant.helpers.event import (
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    DEFAULT_MAX_EXTERNAL_MINUTES,
     DOMAIN,
     EVENT_CONDITION_SKIPPED,
     EVENT_CYCLE_ENDED,
@@ -50,6 +51,7 @@ from .const import (
     SUPPORTED_DOMAINS,
 )
 from . import planner
+from .notify_text import APP_TITLE, fmt_number, notify_text
 from .storage import WizardStore
 
 LOG = logging.getLogger(__name__)
@@ -69,12 +71,6 @@ SKIP_EVENTS = {
     "condition": EVENT_CONDITION_SKIPPED,
     "seasonal_zero": EVENT_SEASONAL_SKIPPED,
 }
-REMINDER_TEXT = {
-    "en": {"title": "Watering soon", "body": "{name} starts at {time} ({minutes} min).", "skip": "Skip today", "run": "Water now"},
-    "de": {"title": "Bewässerung gleich", "body": "{name} startet um {time} ({minutes} Min.).", "skip": "Heute überspringen", "run": "Jetzt bewässern"},
-    "he": {"title": "השקיה בקרוב", "body": "{name} מתחיל ב־{time} ({minutes} דק׳).", "skip": "דילוג היום", "run": "השקיה עכשיו"},
-}
-
 SKIP_TEXT = {
     "rain": "rain active",
     "forecast": "rain forecast",
@@ -524,7 +520,8 @@ class Scheduler:
             # Local calendar date, not elapsed seconds: every-N-days stays on time across DST changes.
             if not planner.runs_on(sched, local.date()):
                 continue
-            if sched.get("time_hhmm") != hhmm:
+            # Clock time, or today's sunrise / sunset plus the offset (#59).
+            if planner.fire_hhmm(sched, local.date(), self.hass) != hhmm:
                 continue
             ref = f"schedule:{sched['id']}"
             if self.store.is_skipped(sched["id"], today):
@@ -590,9 +587,9 @@ class Scheduler:
         else:
             await self.async_run_valve(target["id"], target["minutes"], source=source, note=f"schedule:{schedule_id}")
 
-    def _reminder_lang(self) -> str:
-        lang = (getattr(self.hass.config, "language", "en") or "en").split("-")[0].lower()
-        return lang if lang in REMINDER_TEXT else "en"
+    def _text(self, key: str, **params: Any) -> str:
+        """A notification text in the HA language (#68)."""
+        return notify_text(panel_lang(getattr(self.hass.config, "language", "en")), key, **params)
 
     @callback
     def _send_due_reminders(self, local: datetime) -> None:
@@ -609,18 +606,17 @@ class Scheduler:
             self.hass.async_create_task(self._async_send_reminder(occ))
 
     async def _async_send_reminder(self, occ: dict) -> None:
-        text = REMINDER_TEXT[self._reminder_lang()]
         when = dt_util.as_local(dt_util.utc_from_timestamp(occ["start"])).strftime("%H:%M")
-        body = text["body"].format(name=occ["name"], time=when, minutes=occ["minutes"])
+        body = self._text("reminder_body", name=occ["name"], time=when, n=occ["minutes"])
         key = f"{occ['schedule_id']}_{occ['day']}"
         for target in self._notify_targets():
-            data: dict[str, Any] = {"title": text["title"], "message": body}
+            data: dict[str, Any] = {"title": self._text("reminder_title"), "message": body}
             if target.startswith("mobile_app_"):
                 data["data"] = {
                     "tag": f"schedule_wizard_{key}",
                     "actions": [
-                        {"action": f"{NOTIFICATION_ACTION_PREFIX}SKIP_{key}", "title": text["skip"]},
-                        {"action": f"{NOTIFICATION_ACTION_PREFIX}RUN_{key}", "title": text["run"]},
+                        {"action": f"{NOTIFICATION_ACTION_PREFIX}SKIP_{key}", "title": self._text("reminder_skip")},
+                        {"action": f"{NOTIFICATION_ACTION_PREFIX}RUN_{key}", "title": self._text("reminder_run")},
                     ],
                 }
             try:
@@ -655,8 +651,26 @@ class Scheduler:
     def _is_valve_busy(self, entity_id: str) -> bool:
         return entity_id in self._active or entity_id in self._soak
 
+    def external_cap(self) -> int:
+        """#79: the longest run a webhook call or a calendar event may start (minutes)."""
+        try:
+            cap = int(self.options.get("max_external_minutes") or DEFAULT_MAX_EXTERNAL_MINUTES)
+        except (TypeError, ValueError):
+            cap = DEFAULT_MAX_EXTERNAL_MINUTES
+        return max(1, min(MAX_RUN_MINUTES, cap))
+
+    def _calendar_title(self, summary: str) -> Optional[str]:
+        """#78: the part of an event title to match zones against, or None when the keyword is missing."""
+        keyword = str(self.options.get("calendar_keyword") or "").strip()
+        if not keyword:
+            return summary
+        if not summary.lower().startswith(keyword.lower()):
+            return None
+        return summary[len(keyword):].strip()
+
     async def _async_trigger_valve(
         self, entity_id: str, base_min: int, source: str, ref: str, sched: Optional[dict] = None,
+        max_min: Optional[int] = None,
     ) -> None:
         """Gate and start a scheduled/calendar valve run. All checks happen at fire time."""
         try:
@@ -681,6 +695,10 @@ class Scheduler:
                 return
             minutes = self._scale_minutes(base_min, factor)
             note = ref + (f"|seasonal:{seasonal_percent(factor)}%" if factor != 1.0 else "")
+            if max_min and minutes > max_min:
+                # #79: shortened to the "Longest external run" setting; the note keeps what was asked.
+                note += f"|capped:{minutes}"
+                minutes = max_min
             if len(self._soak_chunks(entity_id, minutes)) > 1:
                 await self._async_run_sequence(entity_id, minutes, source, note, owner="standalone")
             else:
@@ -800,12 +818,11 @@ class Scheduler:
             # Same words as the panel history row "<name>: <status>" (#31), in the HA language.
             message = f"{name}: {SEASONAL_SKIP_TEXT[panel_lang(getattr(self.hass.config, 'language', 'en'))]}"
         else:
-            what = f"cycle {name}" if kind == "cycle" else name
-            message = f"Skipped {what}: {SKIP_TEXT[reason]}"
+            message = self._text(f"skip_{reason}", name=name)
         payload["message"] = message
         self.hass.bus.async_fire(SKIP_EVENTS[reason], payload)
         notify_event = NOTIFY_FOR_SKIP.get(reason, f"skipped_{reason}")
-        self.hass.async_create_task(self._notify(notify_event, "Schedule Wizard", message))
+        self.hass.async_create_task(self._notify(notify_event, name, message))
 
     # ------------------------------------------------------------------ calendar
 
@@ -862,11 +879,15 @@ class Scheduler:
             if key in self._known_calendar_events or key in self._calendar_pending:
                 continue
 
-            cycle = self._match_cycle(summary, cycles)
+            title = self._calendar_title(summary)
+            if not title:
+                LOG.debug("calendar event '%s' ignored: no calendar keyword", summary)
+                continue
+            cycle = self._match_cycle(title, cycles)
             if cycle:
                 fire = self._make_calendar_fire(key, "cycle", cycle["id"], 0)
             else:
-                valve = self._match_valve(summary, valves)
+                valve = self._match_valve(title, valves)
                 if not valve:
                     LOG.debug("no valve or cycle match for calendar event '%s'", summary)
                     continue
@@ -899,7 +920,7 @@ class Scheduler:
             coro = (
                 self._async_trigger_cycle(target, "calendar", key)
                 if kind == "cycle"
-                else self._async_trigger_valve(target, duration, "calendar", key)
+                else self._async_trigger_valve(target, duration, "calendar", key, max_min=self.external_cap())
             )
             self.hass.async_create_background_task(coro, f"{DOMAIN}_calendar_{key}")
         return _fire
@@ -1235,9 +1256,7 @@ class Scheduler:
                 "duration_min": duration_min,
             })
             self.hass.async_create_task(self._notify(
-                "valve_failed",
-                "Schedule Wizard",
-                f"Valve failed to open: {label}",
+                "valve_failed", label, self._text("valve_failed", zone=label),
             ))
             await self.store.async_record_run(entity_id, source, duration_min, "failed_to_open", note)
             await self._async_master_maybe_close()
@@ -1265,9 +1284,7 @@ class Scheduler:
             "note": note,
         })
         self.hass.async_create_task(self._notify(
-            "valve_start",
-            "Schedule Wizard",
-            f"Opened {label} for {duration_min} min ({source})",
+            "valve_start", label, self._text("valve_start", zone=label, n=duration_min),
         ))
         return run
 
@@ -1350,11 +1367,11 @@ class Scheduler:
             "duration_min": row.get("planned_min", row.get("duration_min", 0)),
             "note": row.get("note", ""),
         })
-        self.hass.async_create_task(self._notify(
-            "valve_end",
-            "Schedule Wizard",
-            f"Closed {label} ({status})",
-        ))
+        if status == "completed":
+            text = self._text("valve_done", zone=label, n=row.get("duration_min", 0))
+        else:
+            text = self._text("valve_stopped", zone=label)
+        self.hass.async_create_task(self._notify("valve_end", label, text))
 
     async def _async_wait_run(self, entity_id: str, run: dict, minutes: int) -> None:
         """Block until `run` ends; close it if the waiting task is cancelled."""
@@ -1479,10 +1496,10 @@ class Scheduler:
             "started_at": state["started_at"],
             "note": note,
         })
+        name = cycle.get("name") or cycle_id
+        total = sum(self._scale_minutes(int(st.get("duration_min") or 0), duration_factor) for st in steps)
         self.hass.async_create_task(self._notify(
-            "cycle_start",
-            "Schedule Wizard",
-            f"Cycle started: {cycle.get('name', cycle_id)}, {len(steps)} steps ({source})",
+            "cycle_start", name, self._text("cycle_start", plan=name, n=total),
         ))
         return {k: v for k, v in state.items() if k != "task"}
 
@@ -1510,11 +1527,8 @@ class Scheduler:
                 "status": "completed",
                 "source": state.get("source", "manual"),
             })
-            self.hass.async_create_task(self._notify(
-                "cycle_end",
-                "Schedule Wizard",
-                f"Cycle completed: {cycle.get('name', cycle_id)}",
-            ))
+            name = cycle.get("name") or cycle_id
+            self.hass.async_create_task(self._notify("cycle_end", name, self._text("cycle_done", plan=name)))
         except asyncio.CancelledError:
             if not state.get("paused") and not self._stopping:
                 await self._async_record_cycle_cancelled(cycle_id, cycle.get("name", ""), state)
@@ -1538,11 +1552,8 @@ class Scheduler:
             "status": "cancelled",
             "source": state.get("source", "manual"),
         })
-        self.hass.async_create_task(self._notify(
-            "cycle_end",
-            "Schedule Wizard",
-            f"Cycle cancelled: {name or cycle_id}",
-        ))
+        name = name or cycle_id
+        self.hass.async_create_task(self._notify("cycle_end", name, self._text("cycle_stopped", plan=name)))
 
     @staticmethod
     async def _async_cancel_task(task: Optional[asyncio.Task]) -> None:
@@ -2041,6 +2052,12 @@ class Scheduler:
             return None
         return self._read_numeric(entity_id, (self.options.get("flow_attribute") or "").strip())
 
+    def _flow_shown(self, value: Optional[float], entity_id: str) -> str:
+        """Flow reading for a notification: number and the sensor's unit (#68)."""
+        state = self.hass.states.get(entity_id) if entity_id else None
+        unit = str((state.attributes.get("unit_of_measurement") if state else "") or "").strip()
+        return f"{fmt_number(value)} {unit}".strip()
+
     def _flow_lpm(self) -> Optional[float]:
         """Flow in litres per minute, converted from the sensor's unit (L/min assumed if unknown)."""
         value = self._flow_value()
@@ -2095,8 +2112,8 @@ class Scheduler:
                     "lpm": round(run_lpm, 1), "expected_lpm": round(float(avg), 1),
                 })
                 self.hass.async_create_task(self._notify(
-                    "low_flow", "Schedule Wizard",
-                    f"Low flow on {label}: {run_lpm:.1f} L/min, usually {float(avg):.1f}. Check the filter, valve or pipe.",
+                    "low_flow", label,
+                    self._text("low_flow", zone=label, lpm=fmt_number(run_lpm), avg=fmt_number(avg)),
                 ))
                 run_lpm = None  # don't learn from an abnormal run
         await self.store.async_add_water(entity_id, liters, run_lpm)
@@ -2153,14 +2170,15 @@ class Scheduler:
             entity_id, "flow", 0, "leak_detected" if kind == "leak" else "high_flow",
             f"value:{value}" + (f"|running:{','.join(running)}" if running else ""),
         )
+        shown = self._flow_shown(value, entity_id)
         message = (
-            f"Possible leak: flow {value} with no valve running"
+            self._text("leak", value=shown)
             if kind == "leak"
-            else f"High flow {value} while running {', '.join(self._entity_label(e) for e in running)}"
+            else self._text("high_flow", value=shown, zones=", ".join(self._entity_label(e) for e in running))
         )
         if stop_all:
-            message += ". All watering stopped."
-        self.hass.async_create_task(self._notify("leak_detected", "Schedule Wizard", message))
+            message += " " + self._text("stopped_all")
+        self.hass.async_create_task(self._notify("leak_detected", APP_TITLE, message))
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
         if stop_all:
             await self.async_stop_all(kind)

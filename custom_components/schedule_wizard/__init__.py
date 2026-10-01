@@ -102,10 +102,13 @@ from .const import (
     SUPPORTED_DOMAINS,
 )
 from . import issues, planner
+from .notify_text import APP_TITLE, fmt_number
 from .scheduler import Scheduler
 from .storage import WizardStore
 from .voice import VoiceCommands
 from .const import MAX_CYCLES, MAX_NAME_LENGTH, MAX_SCHEDULES, MAX_TEXT_LENGTH, MAX_VALVES
+from .const import SUN_OFFSET_MAX, TIME_MODE_CLOCK, TIME_MODES
+from .const import CONF_CALENDAR_KEYWORD, CONF_MAX_EXTERNAL_MINUTES, MAX_CALENDAR_KEYWORD_LENGTH
 
 NAME = vol.All(cv.string, vol.Length(max=MAX_NAME_LENGTH, msg=f"at most {MAX_NAME_LENGTH} characters"))
 TEXT = vol.All(cv.string, vol.Length(max=MAX_TEXT_LENGTH, msg=f"at most {MAX_TEXT_LENGTH} characters"))
@@ -208,10 +211,16 @@ SCHEMA_REMOVE_VALVE = vol.Schema({
     vol.Required("entity_id"): _entity_in_supported_domain,
 })
 
+SUN_OFFSET = vol.All(vol.Coerce(int), vol.Range(
+    min=-SUN_OFFSET_MAX, max=SUN_OFFSET_MAX, msg=f"sun_offset_minutes must be -{SUN_OFFSET_MAX} to {SUN_OFFSET_MAX}",
+))
+
 SCHEMA_ADD_SCHEDULE = vol.Schema({
     vol.Optional("valve_entity_id"): _entity_in_supported_domain,
     vol.Optional("cycle_id"): cv.string,
-    vol.Required("time"): _hhmm,
+    vol.Optional("time"): _hhmm,
+    vol.Optional("time_mode"): vol.In(TIME_MODES),
+    vol.Optional("sun_offset_minutes"): SUN_OFFSET,
     vol.Optional("duration_minutes", default=1): vol.All(int, vol.Range(min=1, max=1440)),
 vol.Optional("days"): vol.All(cv.ensure_list, [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])], vol.Length(min=1, msg="pick at least one day")),
     vol.Optional("every_n_days"): vol.All(vol.Coerce(int), vol.Range(min=INTERVAL_MIN_DAYS, max=INTERVAL_MAX_DAYS, msg="every_n_days must be 2 to 30")),
@@ -296,6 +305,8 @@ SCHEMA_UPDATE_SCHEDULE = vol.Schema({
     vol.Required("schedule_id"): cv.string,
     vol.Optional("name"): NAME,
     vol.Optional("time"): _hhmm,
+    vol.Optional("time_mode"): vol.In(TIME_MODES),
+    vol.Optional("sun_offset_minutes"): SUN_OFFSET,
     vol.Optional("duration_minutes"): vol.All(int, vol.Range(min=1, max=1440)),
 vol.Optional("days"): vol.All(cv.ensure_list, [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])], vol.Length(min=1, msg="pick at least one day")),
     vol.Optional("every_n_days"): vol.All(vol.Coerce(int), vol.Range(min=INTERVAL_MIN_DAYS, max=INTERVAL_MAX_DAYS, msg="every_n_days must be 2 to 30")),
@@ -353,6 +364,41 @@ def _repeat_fields(data: dict, current: dict | None = None) -> dict[str, Any]:
     if current is None:
         raise HomeAssistantError("either days or every_n_days is required")
     return {}
+
+
+def _time_fields(data: dict, current: dict | None = None) -> dict[str, Any]:
+    """Validate time / time_mode / sun_offset_minutes of add_schedule or update_schedule (#59).
+
+    A time without a time_mode on update means a clock time. The stored clock time is kept for
+    sunrise / sunset schedules, so switching back to a clock time restores it.
+    """
+    cur_mode = (current or {}).get("time_mode") or TIME_MODE_CLOCK
+    if "time_mode" in data:
+        mode = data["time_mode"]
+    elif "time" in data:
+        mode = TIME_MODE_CLOCK
+    else:
+        mode = cur_mode
+    out: dict[str, Any] = {}
+    if "time" in data:
+        out["time_hhmm"] = data["time"]
+    elif current is None:
+        if mode == TIME_MODE_CLOCK:
+            raise HomeAssistantError("time is required (or time_mode sunrise / sunset)")
+        out["time_hhmm"] = "06:00"
+    if mode == TIME_MODE_CLOCK:
+        if "sun_offset_minutes" in data:
+            raise HomeAssistantError("sun_offset_minutes only applies with time_mode sunrise or sunset")
+        if current is not None or "time_mode" in data:
+            out["time_mode"] = mode
+        out["sun_offset_min"] = 0
+        return out
+    out["time_mode"] = mode
+    if "sun_offset_minutes" in data:
+        out["sun_offset_min"] = int(data["sun_offset_minutes"])
+    elif cur_mode == TIME_MODE_CLOCK:
+        out["sun_offset_min"] = 0
+    return out
 
 
 def _days_to_mask(days: list[str]) -> int:
@@ -531,7 +577,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
                                 break
                 if not matches:
                     continue
-                fire = planner.next_fire(s, now_dt)
+                fire = planner.next_fire(s, now_dt, hass=hass_inner)
                 if fire is None:
                     continue
                 delta_sec = int((fire - now_dt).total_seconds())
@@ -633,6 +679,13 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         vol.Optional(CONF_FORECAST_SKIP_MM): vol.Any(float, int, None),
         vol.Optional(CONF_FORECAST_HOURS): vol.All(int, vol.Range(min=1, max=72)),
         vol.Optional(CONF_INTERLEAVE_SOAK): cv.boolean,
+        vol.Optional(CONF_CALENDAR_KEYWORD): vol.All(
+            vol.Any(None, str), lambda v: (v or "").strip(),
+            vol.Length(max=MAX_CALENDAR_KEYWORD_LENGTH, msg=f"calendar keyword: at most {MAX_CALENDAR_KEYWORD_LENGTH} characters"),
+        ),
+        vol.Optional(CONF_MAX_EXTERNAL_MINUTES): vol.All(
+            int, vol.Range(min=1, max=MAX_RUN_MINUTES, msg=f"longest external run must be 1 to {MAX_RUN_MINUTES} minutes"),
+        ),
     })
     @websocket_api.require_admin
     @websocket_api.async_response
@@ -685,7 +738,42 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         hass_inner.config_entries.async_update_entry(entry, data={**entry.data, "webhook_id": new_id})
         connection.send_result(msg["id"], {"webhook_id": new_id})
 
+    @websocket_api.websocket_command({
+        vol.Required("type"): f"{DOMAIN}/preview_schedule",
+        vol.Optional("repeat", default=REPEAT_WEEKDAYS): vol.In([REPEAT_WEEKDAYS, REPEAT_INTERVAL]),
+        vol.Optional("days_mask", default=127): vol.All(int, vol.Range(min=0, max=127)),
+        vol.Optional("interval_days", default=0): vol.All(int, vol.Range(min=0, max=INTERVAL_MAX_DAYS)),
+        vol.Optional("start_date", default=""): vol.Any("", cv.date),
+        vol.Optional("time", default="06:00"): _hhmm,
+        vol.Optional("time_mode", default=TIME_MODE_CLOCK): vol.In(TIME_MODES),
+        vol.Optional("sun_offset_minutes", default=0): SUN_OFFSET,
+        vol.Optional("count", default=3): vol.All(int, vol.Range(min=1, max=7)),
+    })
+    @callback
+    def _ws_preview_schedule(hass_inner, connection, msg):
+        """Next start times of a schedule being edited (#59: sunrise / sunset need the HA location)."""
+        start = msg["start_date"]
+        sched = {
+            "repeat": msg["repeat"],
+            "days_mask": msg["days_mask"],
+            "interval_days": msg["interval_days"],
+            "start_date": start.isoformat() if start else "",
+            "time_hhmm": msg["time"],
+            "time_mode": msg["time_mode"],
+            "sun_offset_min": msg["sun_offset_minutes"],
+        }
+        out: list[int] = []
+        after = dt_util.now()
+        for _ in range(msg["count"]):
+            fire = planner.next_fire(sched, after, hass=hass_inner)
+            if fire is None:
+                break
+            out.append(int(fire.timestamp()))
+            after = fire
+        connection.send_result(msg["id"], {"next": out})
+
     websocket_api.async_register_command(hass, _ws_get_state)
+    websocket_api.async_register_command(hass, _ws_preview_schedule)
     websocket_api.async_register_command(hass, _ws_update_options)
     websocket_api.async_register_command(hass, _ws_rotate_webhook)
     hass.data[WS_COMMANDS_REGISTERED_KEY] = True
@@ -773,12 +861,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 duration = max(1, min(MAX_RUN_MINUTES, int(duration)))
             except (TypeError, ValueError, OverflowError):
                 return web.json_response({"error": "duration_minutes must be an integer"}, status=400)
+            # #79: webhook runs stop at the "Longest external run" setting; history notes the cut.
+            requested = duration
+            duration = min(duration, scheduler.external_cap())
+            note = f"capped:{requested}" if duration < requested else ""
+            body = {"ok": True, "action": "run", "entity_id": entity_id, "duration_minutes": duration}
+            if note:
+                body["shortened_from"] = requested
             if _repeat(("run", entity_id, duration)):
-                return web.json_response({
-                    "ok": True, "action": "run", "entity_id": entity_id, "duration_minutes": duration, "duplicate": True,
-                })
-            await _act(("run", entity_id, duration), scheduler.async_run_valve(entity_id, duration, source="webhook"))
-            return web.json_response({"ok": True, "action": "run", "entity_id": entity_id, "duration_minutes": duration})
+                return web.json_response({**body, "duplicate": True})
+            await _act(("run", entity_id, duration), scheduler.async_run_valve(entity_id, duration, source="webhook", note=note))
+            return web.json_response(body)
         except Exception:
             LOG.exception("webhook handler failed")
             return web.json_response({"error": "internal error"}, status=500)
@@ -837,6 +930,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if len(store.schedules) >= MAX_SCHEDULES:
             raise HomeAssistantError(f"at most {MAX_SCHEDULES} watering times")
         repeat = _repeat_fields(call.data)
+        timing = _time_fields(call.data)
         sched = await store.async_add_schedule(
             valve_entity_id=valve_entity_id or None,
             cycle_id=cycle_id or None,
@@ -844,7 +938,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             repeat=repeat["repeat"],
             interval_days=repeat.get("interval_days", 0),
             start_date=repeat.get("start_date", ""),
-            time_hhmm=call.data["time"],
+            time_hhmm=timing["time_hhmm"],
+            time_mode=timing.get("time_mode", TIME_MODE_CLOCK),
+            sun_offset_min=timing.get("sun_offset_min", 0),
             duration_min=int(call.data.get("duration_minutes", 1)),
             name=call.data.get("name", ""),
             enabled=bool(call.data.get("enabled", True)),
@@ -933,7 +1029,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         new_options[CONF_RAIN_DELAY_UNTIL] = until_ts
         hass.config_entries.async_update_entry(entry, options=new_options)
         hass.bus.async_fire(EVENT_RAIN_DELAY_SET, {"until": until_ts, "hours": hours})
-        await scheduler._notify("rain_delay", "Schedule Wizard", f"Rain delay set for {hours}h")
+        await scheduler._notify("rain_delay", APP_TITLE, scheduler._text("rain_pause_all", hours=fmt_number(hours)))
 
     async def _async_valve_rain_delay(entity_ids: list[str], until_ts: int, hours: float) -> None:
         missing = [e for e in entity_ids if not store.get_valve(e)]
@@ -942,8 +1038,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await store.async_set_valves_rain_delay(entity_ids, until_ts)
         hass.bus.async_fire(EVENT_RAIN_DELAY_SET, {"until": until_ts, "hours": hours, "entity_ids": entity_ids})
         labels = ", ".join(scheduler._entity_label(e) for e in entity_ids)
-        text = f"Rain delay set for {hours}h: {labels}" if until_ts else f"Rain delay cleared: {labels}"
-        await scheduler._notify("rain_delay", "Schedule Wizard", text)
+        text = (
+            scheduler._text("rain_pause_zones", zones=labels, hours=fmt_number(hours))
+            if until_ts else scheduler._text("rain_pause_end_zones", zones=labels)
+        )
+        await scheduler._notify("rain_delay", APP_TITLE, text)
 
     async def _svc_clear_rain_delay(call: ServiceCall) -> None:
         entity_ids = call.data.get("entity_id")
@@ -954,7 +1053,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         new_options[CONF_RAIN_DELAY_UNTIL] = 0
         hass.config_entries.async_update_entry(entry, options=new_options)
         hass.bus.async_fire(EVENT_RAIN_DELAY_SET, {"until": 0, "hours": 0})
-        await scheduler._notify("rain_delay", "Schedule Wizard", "Rain delay cleared")
+        await scheduler._notify("rain_delay", APP_TITLE, scheduler._text("rain_pause_end_all"))
 
     async def _svc_pause_cycle(call: ServiceCall) -> None:
         await scheduler.async_pause_cycle(call.data["cycle_id"])
@@ -969,14 +1068,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         fields: dict[str, Any] = {}
         if "name" in call.data:
             fields["name"] = call.data["name"]
-        if "time" in call.data:
-            fields["time_hhmm"] = call.data["time"]
         if "duration_minutes" in call.data:
             fields["duration_min"] = int(call.data["duration_minutes"])
         current = store.get_schedule(call.data["schedule_id"])
         if current is None:
             raise HomeAssistantError("schedule not found")
         fields.update(_repeat_fields(call.data, current))
+        if any(k in call.data for k in ("time", "time_mode", "sun_offset_minutes")):
+            fields.update(_time_fields(call.data, current))
         if "enabled" in call.data:
             fields["enabled"] = bool(call.data["enabled"])
         if "conditions" in call.data:

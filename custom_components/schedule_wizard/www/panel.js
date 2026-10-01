@@ -317,6 +317,8 @@ pre { background: var(--sw-bg); padding: 10px; border-radius: 6px; font-size: 12
 
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const DAY_BITS = [1, 2, 4, 8, 16, 32, 64];
+// Largest sunrise / sunset offset in minutes (server: const.SUN_OFFSET_MAX).
+const SUN_OFFSET_MAX = 180;
 
 // Reports tables (BUG-009, BUG-010): header cells scoped to their column; fixed layout so long words wrap
 // inside the column instead of widening the page.
@@ -481,6 +483,14 @@ function repeatPayload(s) {
   return s.repeat === "interval"
     ? { every_n_days: s.interval_days, start_date: s.start_date }
     : { days: daysFromMaskNames(s.days_mask) };
+}
+
+// Service fields that recreate a stored schedule's start time: clock, or sunrise / sunset + offset (#59).
+function timePayload(s) {
+  const mode = s.time_mode === "sunrise" || s.time_mode === "sunset" ? s.time_mode : "clock";
+  return mode === "clock"
+    ? { time: s.time_hhmm }
+    : { time: s.time_hhmm, time_mode: mode, sun_offset_minutes: parseInt(s.sun_offset_min, 10) || 0 };
 }
 
 // Today's date (YYYY-MM-DD) in Home Assistant's time zone.
@@ -667,7 +677,22 @@ class ScheduleWizardPanel extends HTMLElement {
     return I18N.fmtDate(ts, this._lang, { hass: this._hass, timeZone: "UTC", year: "numeric", month: "short", day: "numeric" });
   }
 
+  // "30 min before sunrise" for a sunrise / sunset schedule (#59), else null.
+  _sunWhen(s) {
+    const mode = s.time_mode;
+    if (mode !== "sunrise" && mode !== "sunset") return null;
+    const off = parseInt(s.sun_offset_min, 10) || 0;
+    if (!off) return this._t(`sched.at_${mode}`);
+    return this._t(`sched.${off < 0 ? "before" : "after"}_${mode}`, { n: Math.abs(off) });
+  }
+
   _whenNodes(s) {
+    const sunWhen = this._sunWhen(s);
+    if (sunWhen) {
+      return s.repeat === "interval"
+        ? this._tn("sched.every_n_sun", { n: s.interval_days, date: this._fmtDay(s.start_date), when: sunWhen })
+        : this._tn("sched.days_sun", { days: this._daysFromMask(s.days_mask), when: sunWhen });
+    }
     if (s.repeat === "interval") {
       return this._tn("sched.every_n_at", { n: s.interval_days, date: this._fmtDay(s.start_date), time: ltr(s.time_hhmm) });
     }
@@ -1451,11 +1476,17 @@ class ScheduleWizardPanel extends HTMLElement {
     return this._tn("home.act_status", { name, status: this._statusLabel(h.status) });
   }
 
+  // "shortened from 300 min" when a webhook or calendar run was cut to the longest external run (#79).
+  _cappedLabel(note) {
+    const m = /(?:^|\|)capped:(\d+)/.exec(String(note || ""));
+    return m ? this._t("home.act_capped", { n: Number(m[1]) }) : null;
+  }
+
   _activityItem(g) {
     const h = g.entry;
     const left = el("div", { style: "min-width:0;" }, [
       el("div", {}, [...this._activitySentence(h), h.liters > 0 ? " · " + this._fmtLiters(h.liters) : null]),
-      el("div", { class: "sub" }, this._sourceLabel(h.source, h.plan_name)),
+      el("div", { class: "sub" }, joinParts([this._sourceLabel(h.source, h.plan_name), this._cappedLabel(h.note)])),
     ]);
     if (g.kind === "cycle") {
       (g.children || []).filter(c => c.status !== "started").forEach(c => {
@@ -1791,7 +1822,7 @@ class ScheduleWizardPanel extends HTMLElement {
         for (const s of oldSchedules) {
           const payload = {
             valve_entity_id: chosen,
-            time: s.time_hhmm,
+            ...timePayload(s),
             ...repeatPayload(s),
             duration_minutes: s.duration_min,
             name: s.name || "",
@@ -2039,6 +2070,8 @@ class ScheduleWizardPanel extends HTMLElement {
     let mask = existing && existing.repeat !== "interval" ? existing.days_mask : 127;
     let repeat = existing && existing.repeat === "interval" ? "interval" : "weekdays";
     let enabled = existing ? !!existing.enabled : true;
+    let timeMode = existing && (existing.time_mode === "sunrise" || existing.time_mode === "sunset") ? existing.time_mode : "clock";
+    const offset0 = existing ? parseInt(existing.sun_offset_min, 10) || 0 : 0;
 
     const targetSel = el("select", { disabled: locked });
     if (hasValves) targetSel.appendChild(el("option", { value: "valve" }, this._t("sched.single_valve")));
@@ -2066,6 +2099,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const durRow = el("div", { class: "field-row" });
     const timeInput = el("input", { type: "time", value: time });
     timeInput.addEventListener("input", () => { time = timeInput.value; });
+    const timeField = el("label", { class: "field" }, [el("span", {}, this._t("sched.time")), timeInput]);
     const durInput = el("input", { type: "number", min: "1", max: "1440", value: String(duration) });
     const durErr = el("div", { class: "field-error", id: "sw-sched-duration-err", role: "alert", hidden: true });
     durInput.addEventListener("input", () => {
@@ -2077,10 +2111,10 @@ class ScheduleWizardPanel extends HTMLElement {
       durRow.innerHTML = "";
       if (targetKind === "cycle") {
         targetFieldHost.appendChild(el("label", { class: "field" }, [el("span", {}, this._t("sched.cycle")), cycleSel]));
-        durRow.appendChild(el("label", { class: "field" }, [el("span", {}, this._t("sched.time")), timeInput]));
+        durRow.appendChild(timeField);
       } else {
         targetFieldHost.appendChild(el("label", { class: "field" }, [el("span", {}, this._t("sched.valve")), valveSel]));
-        durRow.appendChild(el("label", { class: "field" }, [el("span", {}, this._t("sched.time")), timeInput]));
+        durRow.appendChild(timeField);
         durRow.appendChild(el("label", { class: "field" }, [el("span", {}, this._t("sched.duration")), durInput, durErr]));
       }
     };
@@ -2106,6 +2140,86 @@ class ScheduleWizardPanel extends HTMLElement {
     const daysErr = errNode("sw-sched-days-err");
     const intervalErr = errNode("sw-sched-interval-err");
     const startErr = errNode("sw-sched-start-err");
+    const offsetErr = errNode("sw-sched-offset-err");
+
+    // Start at a clock time, or at sunrise / sunset plus or minus some minutes (#59).
+    const modeSel = el("select", {});
+    modeSel.appendChild(el("option", { value: "clock" }, this._t("sched.mode_clock")));
+    modeSel.appendChild(el("option", { value: "sunrise" }, this._t("sched.mode_sunrise")));
+    modeSel.appendChild(el("option", { value: "sunset" }, this._t("sched.mode_sunset")));
+    modeSel.value = timeMode;
+    const offsetInput = el("input", {
+      type: "number", min: "0", max: String(SUN_OFFSET_MAX), step: "1", inputmode: "numeric",
+      value: String(Math.abs(offset0)),
+    });
+    const dirSel = el("select", {});
+    dirSel.appendChild(el("option", { value: "before" }, this._t("sched.offset_before")));
+    dirSel.appendChild(el("option", { value: "after" }, this._t("sched.offset_after")));
+    dirSel.value = offset0 < 0 ? "before" : "after";
+    const offsetValue = () => {
+      const raw = String(offsetInput.value).trim();
+      const n = Number(raw);
+      return raw !== "" && Number.isInteger(n) && n >= 0 && n <= SUN_OFFSET_MAX ? n : null;
+    };
+    const signedOffset = (n) => (dirSel.value === "before" ? -n : n);
+    // The next start times come from the server: they need the Home Assistant location.
+    const sunPreview = el("div", { class: "muted small", "aria-live": "polite", style: "margin:-4px 0 12px;" });
+    let sunSeq = 0;
+    let sunTimer = null;
+    const updateSunPreview = () => {
+      clearTimeout(sunTimer);
+      const seq = ++sunSeq;
+      sunPreview.innerHTML = "";
+      const off = offsetValue();
+      if (timeMode === "clock" || off === null) return;
+      const msg = { type: "schedule_wizard/preview_schedule", time_mode: timeMode, sun_offset_minutes: signedOffset(off), count: 3 };
+      if (repeat === "interval") {
+        const n = intervalValue();
+        const start = startValue();
+        if (n === null || !start) return;
+        Object.assign(msg, { repeat: "interval", interval_days: n, start_date: start });
+      } else {
+        if (!mask) return;
+        Object.assign(msg, { repeat: "weekdays", days_mask: mask });
+      }
+      sunTimer = setTimeout(() => {
+        this._hass.callWS(msg).then((res) => {
+          if (seq !== sunSeq) return;
+          const list = (res && res.next) || [];
+          if (!list.length) { sunPreview.textContent = this._t("sched.sun_none"); return; }
+          const text = list.map(ts => this._fmtDT(ts, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })).join(" · ");
+          sunPreview.append(...this._tn("sched.next_runs", { list: text }));
+        }).catch(() => { if (seq === sunSeq) sunPreview.innerHTML = ""; });
+      }, 250);
+    };
+    const startField = el("label", { class: "field" }, [el("span", {}, this._t("sched.start_at")), modeSel]);
+    const sunRow = el("div", {}, [
+      el("label", { class: "field" }, [
+        el("span", {}, this._t("sched.offset_min")),
+        el("div", { style: "display:flex;gap:8px;" }, [offsetInput, dirSel]),
+        offsetErr,
+      ]),
+      el("p", { class: "muted small", style: "margin:-6px 0 8px;" }, this._t("sched.sun_hint")),
+      sunPreview,
+    ]);
+    const syncMode = () => {
+      timeField.hidden = timeMode !== "clock";
+      sunRow.hidden = timeMode === "clock";
+      updateFirstRun();
+    };
+    modeSel.addEventListener("change", () => { timeMode = modeSel.value; setErr(offsetErr, offsetInput, ""); syncMode(); });
+    offsetInput.addEventListener("input", () => { if (offsetValue() !== null) setErr(offsetErr, offsetInput, ""); updateSunPreview(); });
+    dirSel.addEventListener("change", updateSunPreview);
+    // Service fields for the start time, or null after showing an inline error.
+    const timeFields = () => {
+      setErr(offsetErr, offsetInput, "");
+      if (timeMode === "clock") return { time, time_mode: "clock" };
+      const off = offsetValue();
+      if (off === null) { setErr(offsetErr, offsetInput, this._t("sched.err_offset")); offsetInput.focus(); return null; }
+      const out = { time_mode: timeMode, sun_offset_minutes: signedOffset(off) };
+      if (/^\d{2}:\d{2}$/.test(String(time))) out.time = time;
+      return out;
+    };
 
     const days = el("div", { class: "days", role: "group", "aria-describedby": daysErr.id });
     DAYS.forEach((_, i) => {
@@ -2119,6 +2233,7 @@ class ScheduleWizardPanel extends HTMLElement {
         mask ^= DAY_BITS[i];
         tog.setAttribute("aria-pressed", (mask & DAY_BITS[i]) ? "true" : "false");
         if (mask) setErr(daysErr, null, "");
+        updateSunPreview();
       });
       days.appendChild(tog);
     });
@@ -2145,6 +2260,8 @@ class ScheduleWizardPanel extends HTMLElement {
     const firstRunLine = el("div", { class: "muted small", "aria-live": "polite", style: "margin:-4px 0 12px;" });
     const updateFirstRun = () => {
       firstRunLine.innerHTML = "";
+      updateSunPreview();
+      if (timeMode !== "clock") return;
       const n = intervalValue();
       const start = startValue();
       const hhmm = /^\d{2}:\d{2}$/.test(String(timeInput.value)) ? timeInput.value : null;
@@ -2188,6 +2305,7 @@ class ScheduleWizardPanel extends HTMLElement {
     };
     repeatSel.addEventListener("change", () => { repeat = repeatSel.value; syncRepeat(); });
     syncRepeat();
+    syncMode();
 
     // Service fields for the repeat rule, or null after showing inline errors.
     const repeatFields = () => {
@@ -2210,7 +2328,8 @@ class ScheduleWizardPanel extends HTMLElement {
         await this._hass.callService("schedule_wizard", service, payload);
       } catch (e) {
         const msg = String((e && (e.message || e.code)) || e);
-        if (/every_n_days/.test(msg)) setErr(intervalErr, intervalInput, intervalErrText());
+        if (/sun_offset/.test(msg)) setErr(offsetErr, offsetInput, this._t("sched.err_offset"));
+        else if (/every_n_days/.test(msg)) setErr(intervalErr, intervalInput, intervalErrText());
         else if (/start_date/.test(msg)) setErr(startErr, startInput, this._t("sched.err_start_date"));
         else if (/at least one day/.test(msg)) setErr(daysErr, null, this._t("sched.pick_day"));
         else this._toast(msg, "error");
@@ -2284,6 +2403,8 @@ class ScheduleWizardPanel extends HTMLElement {
       el("label", { class: "field" }, [el("span", {}, this._t("sched.repeat")), repeatSel]),
       daysField,
       intervalRow,
+      startField,
+      sunRow,
       durRow,
       el("label", { class: "field" }, [el("span", {}, this._t("common.name")), nameInput]),
       el("div", { class: "field" }, [el("span", {}, this._t("sched.conditions")), condWrap]),
@@ -2293,6 +2414,8 @@ class ScheduleWizardPanel extends HTMLElement {
     this._showModal(this._t(existing ? "sched.edit_title" : "sched.add_title"), fields, async () => {
       const rep = repeatFields();
       if (!rep) return false;
+      const timing = timeFields();
+      if (!timing) return false;
       if (targetKind === "valve" && (minutesValue(durInput.value) === null || durInput.validity.badInput)) {
         setErr(durErr, durInput, this._t("valves.err_duration"));
         durInput.focus();
@@ -2303,7 +2426,7 @@ class ScheduleWizardPanel extends HTMLElement {
         return await submit("update_schedule", {
           schedule_id: existing.id,
           name,
-          time,
+          ...timing,
           duration_minutes: targetKind === "valve" ? duration : 1,
           ...rep,
           enabled,
@@ -2311,7 +2434,7 @@ class ScheduleWizardPanel extends HTMLElement {
         });
       }
       const base = {
-        time,
+        ...timing,
         ...rep,
         name,
         enabled,
@@ -2878,6 +3001,31 @@ class ScheduleWizardPanel extends HTMLElement {
     const lookInput = el("input", { type: "number", min: "1", max: "1440", value: String(opts.calendar_lookahead_min || 10) });
     const pollInput = el("input", { type: "number", min: "10", max: "3600", value: String(opts.poll_interval || 60) });
     const defDurInput = el("input", { type: "number", min: "1", max: "1440", value: String(opts.default_duration || 10) });
+    // #78: optional title keyword for calendar events; #79: longest calendar / webhook run.
+    const calKeywordInput = el("input", { type: "text", maxlength: "40", placeholder: "\u2066water:\u2069", value: String(opts.calendar_keyword || "") });
+    const calKeywordErr = el("div", { class: "field-error", id: "sw-set-cal-keyword-err", role: "alert", hidden: true });
+    const maxExtInput = el("input", { type: "number", min: "1", max: "1440", step: "1", inputmode: "numeric", value: String(opts.max_external_minutes || 120) });
+    const maxExtErr = el("div", { class: "field-error", id: "sw-set-max-ext-err", role: "alert", hidden: true });
+    const showSetErr = (node, input, msg) => {
+      node.textContent = msg || "";
+      node.hidden = !msg;
+      if (msg) { input.setAttribute("aria-invalid", "true"); input.setAttribute("aria-describedby", node.id); }
+      else { input.removeAttribute("aria-invalid"); input.removeAttribute("aria-describedby"); }
+    };
+    const maxExtValue = () => {
+      const raw = String(maxExtInput.value).trim();
+      const n = Number(raw);
+      return raw !== "" && Number.isInteger(n) && n >= 1 && n <= 1440 ? n : null;
+    };
+    const externalCheck = () => {
+      const kwBad = calKeywordInput.value.trim().length > 40;
+      const extBad = maxExtValue() === null;
+      showSetErr(calKeywordErr, calKeywordInput, kwBad ? this._t("set.cal_keyword_err") : "");
+      showSetErr(maxExtErr, maxExtInput, extBad ? this._t("set.max_external_err") : "");
+      return kwBad ? calKeywordInput : (extBad ? maxExtInput : null);
+    };
+    calKeywordInput.addEventListener("input", () => { if (calKeywordErr.textContent) externalCheck(); });
+    maxExtInput.addEventListener("input", () => { if (maxExtErr.textContent) externalCheck(); });
     const rainEntityInput = el("input", { type: "text", dir: "ltr", placeholder: this._t("settings.rain_entity_ph"), value: String(opts.rain_entity || "") });
     const rainStatesInput = el("input", { type: "text", dir: "ltr", placeholder: "rainy,pouring,snowy,lightning-rainy", value: String(opts.rain_skip_states || "") });
     const rainAttrInput = el("input", { type: "text", placeholder: this._t("settings.rain_attr_ph"), value: String(opts.rain_attribute || "") });
@@ -3200,6 +3348,10 @@ class ScheduleWizardPanel extends HTMLElement {
           field(this._t("settings.poll"), pollInput),
         ]),
         field(this._t("settings.default_duration"), defDurInput),
+        el("label", { class: "field" }, [el("span", {}, this._t("set.cal_keyword")), calKeywordInput, calKeywordErr]),
+        hint(this._t("set.cal_keyword_hint")),
+        el("label", { class: "field" }, [el("span", {}, this._t("set.max_external")), maxExtInput, maxExtErr]),
+        hint(this._t("set.max_external_hint")),
       ]),
       this._optGroup("rain", this._t("set.g_rain"), this._t("set.g_rain_d"), null, [
         hint(this._t("settings.rain_hint")),
@@ -3226,6 +3378,14 @@ class ScheduleWizardPanel extends HTMLElement {
         if (group) group.open = true;
         masterEntity.focus();
         this._toast(masterErr.textContent, "error");
+        return;
+      }
+      const badExternal = externalCheck();
+      if (badExternal) {
+        more.open = true;
+        const group = badExternal.closest("details");
+        if (group) group.open = true;
+        badExternal.focus();
         return;
       }
       saveBtn.disabled = true;
@@ -3286,6 +3446,8 @@ class ScheduleWizardPanel extends HTMLElement {
           reminder_minutes: Math.min(720, Math.max(0, parseInt(reminderSel.value, 10) || 0)),
           voice_enabled: voiceOn,
           interleave_soak: interleaveOn,
+          calendar_keyword: calKeywordInput.value.trim(),
+          max_external_minutes: maxExtValue(),
         });
         feedback.textContent = this._t("settings.saved_at", {
           time: this._fmtTime(Math.floor(Date.now() / 1000), { hour: "numeric", minute: "2-digit", second: "2-digit" }),

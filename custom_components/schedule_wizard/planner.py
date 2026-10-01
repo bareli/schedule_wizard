@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 from homeassistant.util import dt as dt_util
 
-from .const import INTERVAL_MAX_DAYS
+from .const import INTERVAL_MAX_DAYS, SUN_OFFSET_MAX, TIME_MODE_CLOCK, TIME_MODES
 from .storage import WizardStore
 
 # Far enough to find the next run of an every-N-days schedule (N up to 30).
@@ -51,6 +51,84 @@ def _hhmm(sched: dict) -> Optional[tuple[int, int]]:
     return hh, mm
 
 
+# (event, local date, location) -> local datetime of the event (None = no such event that day).
+_SUN_CACHE: dict[tuple, Optional[datetime]] = {}
+_SUN_CACHE_MAX = 2000
+
+
+def time_mode(sched: dict) -> str:
+    mode = sched.get("time_mode") or TIME_MODE_CLOCK
+    return mode if mode in TIME_MODES else TIME_MODE_CLOCK
+
+
+def sun_offset(sched: dict) -> int:
+    try:
+        n = int(sched.get("sun_offset_min") or 0)
+    except (TypeError, ValueError):
+        return 0
+    return max(-SUN_OFFSET_MAX, min(SUN_OFFSET_MAX, n))
+
+
+def _sun_event(hass, event: str, day: date) -> Optional[datetime]:
+    """Local time of sunrise/sunset on this local date at the HA location (None at polar day/night)."""
+    from homeassistant.helpers.sun import get_astral_event_date
+
+    cfg = hass.config
+    key = (event, day, cfg.latitude, cfg.longitude, cfg.elevation, str(_tz()))
+    if key in _SUN_CACHE:
+        return _SUN_CACHE[key]
+    found = None
+    # Astral works on UTC dates: the event of a local date can sit on the UTC day before or after.
+    for shift in (0, -1, 1):
+        try:
+            when = get_astral_event_date(hass, event, day + timedelta(days=shift))
+        except Exception:  # bad location data
+            when = None
+        if when is not None and dt_util.as_local(when).date() == day:
+            found = dt_util.as_local(when)
+            break
+    if len(_SUN_CACHE) >= _SUN_CACHE_MAX:
+        _SUN_CACHE.clear()
+    _SUN_CACHE[key] = found
+    return found
+
+
+def fire_at(sched: dict, day: date, hass=None) -> Optional[datetime]:
+    """Local start time of a schedule on a local date, to the minute (ignores repeat rules and skips).
+
+    Sunrise / sunset schedules follow the sun at the HA location plus the offset; a start pushed
+    past midnight by the offset is kept on its own day (00:00 or 23:59). No hass or no sun event: None.
+    """
+    mode = time_mode(sched)
+    if mode == TIME_MODE_CLOCK:
+        hm = _hhmm(sched)
+        if not hm:
+            return None
+        try:
+            return datetime.combine(day, dtime(*hm), tzinfo=_tz())
+        except ValueError:
+            return None
+    if hass is None:
+        return None
+    event = _sun_event(hass, mode, day)
+    if event is None:
+        return None
+    # Offset in real minutes (UTC), then back to local wall time, to the minute.
+    when = dt_util.as_local(dt_util.as_utc(event) + timedelta(minutes=sun_offset(sched)))
+    when = when.replace(second=0, microsecond=0)
+    if when.date() < day:
+        return datetime.combine(day, dtime(0, 0), tzinfo=_tz())
+    if when.date() > day:
+        return datetime.combine(day, dtime(23, 59), tzinfo=_tz())
+    return when
+
+
+def fire_hhmm(sched: dict, day: date, hass=None) -> Optional[str]:
+    """"HH:MM" the cron loop matches for this schedule on this local date."""
+    when = fire_at(sched, day, hass)
+    return when.strftime("%H:%M") if when else None
+
+
 def _first_day(sched: dict, day: date) -> date:
     """Where a next-run search starts: an every-N-days schedule has no run before its start date."""
     if sched.get("repeat") == "interval":
@@ -60,18 +138,16 @@ def _first_day(sched: dict, day: date) -> date:
     return day
 
 
-def next_fire(sched: dict, now: Optional[datetime] = None, days: int = NEXT_RUN_DAYS) -> Optional[datetime]:
+def next_fire(sched: dict, now: Optional[datetime] = None, days: int = NEXT_RUN_DAYS, hass=None) -> Optional[datetime]:
     """Next local start time of a schedule strictly after `now` (ignores enabled flags and skips)."""
-    hm = _hhmm(sched)
-    if not hm:
+    if time_mode(sched) == TIME_MODE_CLOCK and not _hhmm(sched):
         return None
     now_l = dt_util.as_local(now or dt_util.now())
-    tz = _tz()
     day = _first_day(sched, now_l.date())
     for _ in range(days + 1):
         if runs_on(sched, day):
-            fire = datetime.combine(day, dtime(*hm), tzinfo=tz)
-            if fire > now_l:
+            fire = fire_at(sched, day, hass)
+            if fire is not None and fire > now_l:
                 return fire
         day += timedelta(days=1)
     return None
@@ -149,7 +225,7 @@ def occurrences(
     store: WizardStore, options: dict, start: datetime, end: datetime, limit: Optional[int] = 500,
 ) -> list[dict[str, Any]]:
     """All schedule runs whose start falls in [start, end), sorted by time; the first `limit` (None: all)."""
-    tz = _tz()
+    hass = store.hass
     start_l = dt_util.as_local(start)
     end_l = dt_util.as_local(end)
     out: list[dict[str, Any]] = []
@@ -157,15 +233,13 @@ def occurrences(
         target = schedule_target(store, sched)
         if not target:
             continue
-        hm = _hhmm(sched)
-        if not hm:
+        if time_mode(sched) == TIME_MODE_CLOCK and not _hhmm(sched):
             continue
-        hh, mm = hm
         day = start_l.date()
         while day <= end_l.date():
             if runs_on(sched, day):
-                fire = datetime.combine(day, dtime(hh, mm), tzinfo=tz)
-                if start_l <= fire < end_l:
+                fire = fire_at(sched, day, hass)
+                if fire is not None and start_l <= fire < end_l:
                     fire_ts = int(fire.timestamp())
                     day_s = day.isoformat()
                     out.append({

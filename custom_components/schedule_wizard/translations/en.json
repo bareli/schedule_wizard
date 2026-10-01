@@ -58,6 +58,14 @@
         "start_date": {
           "name": "Start date",
           "description": "First day of an every-N-days schedule. Defaults to today."
+        },
+        "time_mode": {
+          "name": "Start at",
+          "description": "clock (use the time), sunrise or sunset at the Home Assistant location."
+        },
+        "sun_offset_minutes": {
+          "name": "Minutes from sunrise or sunset",
+          "description": "Negative = before, positive = after (-180 to 180). Only with sunrise or sunset."
         }
       }
     },
@@ -72,6 +80,14 @@
         "start_date": {
           "name": "Start date",
           "description": "First day of an every-N-days schedule. Defaults to today."
+        },
+        "time_mode": {
+          "name": "Start at",
+          "description": "clock (use the time), sunrise or sunset at the Home Assistant location."
+        },
+        "sun_offset_minutes": {
+          "name": "Minutes from sunrise or sunset",
+          "description": "Negative = before, positive = after (-180 to 180). Only with sunrise or sunset."
         }
       }
     },
