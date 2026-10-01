@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.15.0: sunrise / sunset start, security, valves closed after outages, accessibility
+
+- **Webhook only runs your zones** (#34, #37): the webhook used to switch any switch, light, cover, valve or input_boolean in Home Assistant, including ones that are not zones, and recorded runs for entities that do not exist. It now accepts only zones set up in Schedule Wizard (`404 unknown zone` otherwise, nothing switched or recorded) and refuses to run a disabled zone (`409`). Automations that call the webhook for a zone keep working; calls for other entities stop working.
+- **Webhook URL for administrators only, and a New URL button** (#35): non-admin users no longer receive the webhook ID or the notification targets from the panel or the `list_config` service. Settings → More options → Webhook has **New URL**, which replaces the secret; the old URL stops working at once.
+- **Webhook errors** (#36): a body that is not a JSON object, a non-text or unknown `action`, or a bad `entity_id` now gets `400` with a short message; unexpected errors return `internal error` instead of Python exception text.
+- **Main valve must be a valve** (#40): Settings accepts only an existing switch, valve, light, cover or input_boolean as main valve / pump, checked in the panel and on the server. A main valve of another domain saved earlier (for example a script) is ignored and logged instead of being turned on and off around every run.
+- **Calendar runs match whole words in the event title** (#38): a calendar event starts a zone only when its title contains the zone name as a whole word (case does not matter); the description and location no longer count, and a 1 or 2 letter zone name must be the whole title. "Front lawns" or "Storefront" no longer start the zone "Front". If your calendar auto-accepts invitations, use a dedicated calendar for watering.
+- **Input limits** (#39): names and labels are capped at 80 characters, at most 200 zones, 200 watering times and 200 plans; the Skip day button in a notification only accepts a real date; history CSV cells that start with `=`, `+`, `-` or `@` are escaped so spreadsheets do not run them.
+- **A valve stays under control across a restart** (#54): if a zone was watering when Home Assistant restarted and its switch was not available yet when Schedule Wizard loaded, the run was dropped and the valve could stay open. The run is now kept and the valve is closed at its planned end, or as soon as it reports in if that time has passed.
+- **Keyboard focus is kept** (#41): the panel and the card no longer throw keyboard focus back to the top of the page every 5 seconds or after pressing a button; after Water now, focus moves to that zone's Stop.
+- **Messages are visible** (#51): errors (for example Save with an empty zone name) and confirmations now show on screen, inside the open dialog when there is one, also in Hebrew and on narrow phones.
+- **Deleted plans keep their name in history** (#57) instead of showing an internal id; older rows show "Deleted plan".
+- "1 run" instead of "1 runs" in the zone summary, in all 17 languages (#56).
+- **Bigger touch targets** (#58): on phones and tablets the week view's Skip day, the panel menu button and text fields are at least 44 px high.
+- **Readable colours** (#45, #81): the card's "1 running" pill and past runs in the week view now reach 4.5:1 contrast in light and dark themes; past runs are greyed with a muted colour instead of see-through.
+- **Messages in dialogs** (#83): an error now shows right under the dialog title instead of over it, and pressing Save again replaces the message instead of stacking another one.
+- **Card** (#84, #85): the card picker describes the card in your language; after Stop, keyboard focus moves to that zone's Water now (and back to Stop after Water now).
+- **Screen readers** (#82, #86): no more 1 px sideways scroll in Hebrew on narrow screens; Settings' More options and each option group are announced with their names.
+- **Run history kept on shutdown** (#87): a valve closed late (it was unavailable at the run's end) keeps its "completed" row even if Home Assistant stops at that moment, and the row is never written twice.
+- **German and other languages** (#88): voice replies say "1 Minute" / "1 Tag" (also English and Hebrew singular), and numbers in notifications use the language's decimal comma, for example "1,5 Std.".
+- **Totals include replaced runs** (#89): when Water now replaces a running zone, the minutes the first run watered now count in Reports and the zone summary (rows from before 0.15.0 are left out, they hold the planned length).
+- **Reports say the period** (#90): the per-zone columns read "Last 7 days" and "Last 30 days" instead of "7d" / "30d".
+- **Rain source check line** (#66): a rain binary sensor now reads "Skips while the sensor is on. Now: off." instead of the weather states; a sensor that reports a number points to the numeric threshold under More options.
+- **Schedule Wizard's own sensors are no rain source** (#91): they are left out of the rain source list and refused on save (one saved earlier keeps working).
+- **Last watering** (#67): the line above the zones shows when the most recent real watering finished (completed, or stopped after watering some minutes), not a start that was cancelled; a later skip reads "Skipped (rain), today 6:00 AM".
+- **Each zone's own start** (#94): in a plan that waters one zone at a time, zone cards and the card show when that zone starts (for example 6:00, 6:10, 6:25 AM), following cycle & soak, instead of the plan's start for every zone.
+- **No runs from before a plan existed** (#93): a plan created in the evening no longer shows this morning's run as a past run in This week or the watering calendar.
+- The every-N-days "First run" line uses the same time format as the rest of the page ("6:00 AM", #92); the card counts down in whole units like the panel ("in 3d" for 3 days 12 hours, #95); the zone card's button reads "Delete zone" (#96).
+- **Hebrew "one minute" by voice**: "השקה את הגינה למשך דקה" and "...דקה אחת" now water for 1 minute instead of the zone's default.
+- **Card in German on a narrow phone**: long words such as "Regenverzögerung" wrap inside the zone's text column; at 320 px the minutes field and button move to their own line under the name.
+- **Times in plan lists** and in the wizard's Check step use the same clock format as the rest of the page ("6:00 AM" or "6:00") instead of the stored "06:00".
+- **Stopped runs from before 0.15.0** (#101): a run stopped in 0.14.x was saved with its planned length, so the Last watering line, day totals, Reports and the zone summary counted it at full length (for example 130 min when 2 min watered). Its minutes are now left out, like replaced runs from before 0.15.0; it still counts as a run.
+- **Rain check line stays current** (#102): in Settings the "Now:" under the rain source follows the sensor when you pick it again and when its state changes, without redrawing the form.
+
 ## 0.14.0: water every N days, 0 % temperature adjustment skips the run
 
 - **Every N days** (#27): a watering time can repeat every 2 to 30 days from a start date, as an alternative to days of the week. Same time, zone or plan, skips and conditions as before. Pick it in the editor under **Repeat**; lists show "Every 2 days from ... at ...". Runs follow your HA time zone's calendar days, so they keep their clock time across daylight saving changes. Next-run times, the week view, the watering calendar and the next schedule sensor include these runs. Services `add_schedule` / `update_schedule` take `every_n_days` and `start_date` (default today). Existing schedules are unchanged.

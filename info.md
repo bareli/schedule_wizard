@@ -5,7 +5,7 @@ Calendar and time-driven scheduler for irrigation valves, switches, lights, and 
 ## Features
 
 - Recurring schedules per valve (HH:MM + days of week, or every N days from a start date)
-- Calendar-driven runs (event summary contains valve label, description holds duration in minutes)
+- Calendar-driven runs (event summary contains valve label as whole words, description holds duration in minutes)
 - Manual run/stop via services
 - Auto-close after configured duration
 - Cycles (zone sequencing) with pause / resume
@@ -27,5 +27,5 @@ Calendar and time-driven scheduler for irrigation valves, switches, lights, and 
 
 ## Calendar event format
 
-- **Summary** must contain the valve label (case-insensitive substring).
+- **Summary** must contain the valve label or plan name as whole words (case-insensitive). A label of 1 or 2 characters must be the whole summary.
 - **Description** is the duration: `15 min`, `15 דקות`, or just `15`. Falls back to event length, then to the valve's default. All-day events are ignored.

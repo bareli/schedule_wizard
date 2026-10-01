@@ -57,7 +57,9 @@ class WateringCalendar(WizardEntity, CalendarEntity):
 
     async def async_get_events(self, hass: HomeAssistant, start_date: datetime, end_date: datetime) -> list[CalendarEvent]:
         end_date = min(end_date, start_date + timedelta(days=MAX_RANGE_DAYS))
-        # Include runs that started before start_date but are still going.
-        occs = planner.occurrences(self.store, self.scheduler.options, start_date - timedelta(days=1), end_date)
+        # Include runs that started before start_date but are still going. No cap: the range is (PERF-002).
+        occs = planner.occurrences(
+            self.store, self.scheduler.options, start_date - timedelta(days=1), end_date, limit=None,
+        )
         start_ts = start_date.timestamp()
         return [_to_event(o) for o in occs if o["end"] > start_ts]

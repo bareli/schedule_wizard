@@ -11,6 +11,27 @@ const STYLES = `
   --sw-danger: var(--error-color, #dc2626);
   --sw-success: var(--success-color, #16a34a);
   --sw-warn: var(--warning-color, #b45309);
+  /* Text and fills derived from the theme colours (BUG-005, BUG-006): HA's default tokens are too light for
+     text (#009ac7 on white is 3.1:1, #ffa600 1.9:1). Text mixes toward the theme's text colour, so it gets
+     darker in a light theme and lighter in a dark one; fills under white text mix toward black. */
+  --sw-primary-text: var(--sw-primary);
+  --sw-success-text: var(--sw-success);
+  --sw-danger-text: var(--sw-danger);
+  --sw-warn-text: var(--sw-warn);
+  --sw-primary-fill: var(--sw-primary);
+  --sw-success-fill: var(--sw-success);
+  --sw-danger-fill: var(--sw-danger);
+}
+@supports (color: color-mix(in srgb, red 50%, blue)) {
+  :root, :host {
+    --sw-primary-text: color-mix(in srgb, var(--sw-primary) 65%, var(--sw-text));
+    --sw-success-text: color-mix(in srgb, var(--sw-success) 60%, var(--sw-text));
+    --sw-danger-text: color-mix(in srgb, var(--sw-danger) 70%, var(--sw-text));
+    --sw-warn-text: color-mix(in srgb, var(--sw-warn) 40%, var(--sw-text));
+    --sw-primary-fill: color-mix(in srgb, var(--sw-primary) 75%, #000);
+    --sw-success-fill: color-mix(in srgb, var(--sw-success) 75%, #000);
+    --sw-danger-fill: color-mix(in srgb, var(--sw-danger) 80%, #000);
+  }
 }
 * { box-sizing: border-box; }
 .app {
@@ -43,7 +64,7 @@ const STYLES = `
   color: var(--sw-muted); font: inherit; font-weight: 500;
   border-bottom: 2px solid transparent; white-space: nowrap;
 }
-.tab.active { color: var(--sw-primary); border-bottom-color: var(--sw-primary); }
+.tab.active { color: var(--sw-primary-text); border-bottom-color: var(--sw-primary); }
 .card {
   background: var(--sw-card);
   border: 1px solid var(--sw-border);
@@ -70,20 +91,21 @@ const STYLES = `
 .small { font-size: 13px; }
 .actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .btn {
+  min-height: 24px;
   padding: 7px 14px; border: 1px solid var(--sw-border);
   background: var(--sw-card); color: var(--sw-text);
   border-radius: 999px; cursor: pointer; font: inherit; font-size: 14px; font-weight: 500;
   transition: all 0.15s;
 }
-.btn:hover:not(:disabled) { border-color: var(--sw-primary); color: var(--sw-primary); }
+.btn:hover:not(:disabled) { border-color: var(--sw-primary); color: var(--sw-primary-text); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn.primary { background: var(--sw-primary); color: #fff; border-color: var(--sw-primary); }
+.btn.primary { background: var(--sw-primary-fill); color: #fff; border-color: var(--sw-primary-fill); }
 .btn.primary:hover:not(:disabled) { filter: brightness(1.1); color: #fff; }
-.btn.danger { color: var(--sw-danger); border-color: var(--sw-danger); background: transparent; }
-.btn.danger:hover:not(:disabled) { background: var(--sw-danger); color: #fff; }
-.btn.ghost { border-color: transparent; background: transparent; color: var(--sw-primary); padding-inline: 8px; }
+.btn.danger { color: var(--sw-danger-text); border-color: var(--sw-danger); background: transparent; }
+.btn.danger:hover:not(:disabled) { background: var(--sw-danger-fill); border-color: var(--sw-danger-fill); color: #fff; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--sw-primary-text); padding-inline: 8px; }
 .btn.small { padding: 4px 10px; font-size: 12px; }
-.link-btn { background: none; border: none; color: var(--sw-primary); cursor: pointer; font: inherit; font-size: 13px; padding: 4px 0; text-decoration: underline; }
+.link-btn { min-height: 24px; background: none; border: none; color: var(--sw-primary-text); cursor: pointer; font: inherit; font-size: 13px; padding: 4px 0; text-decoration: underline; }
 button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--sw-primary); outline-offset: 2px; }
 .field { display: block; margin-bottom: 12px; }
 .field > span {
@@ -100,8 +122,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
   font: inherit;
 }
 .field input[type="checkbox"] { width: auto; }
-.field-error { color: var(--sw-danger); font-size: 12px; margin-top: 4px; }
+.field-error { color: var(--sw-danger-text); font-size: 12px; margin-top: 4px; }
 .field input[aria-invalid="true"] { border-color: var(--sw-danger); }
+/* Pinned to the physical top left with no negative margin (BUG-021): with margin -1px and no inset its static
+   position in RTL sat 1 px past the right edge and scrolled the page sideways. */
+.sr-only {
+  position: absolute; top: 0; left: 0; width: 1px; height: 1px; padding: 0; margin: 0;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+}
 .modal [hidden] { display: none !important; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .progress-wrap { height: 8px; background: var(--sw-border); border-radius: 999px; overflow: hidden; }
@@ -111,9 +139,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
   padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500;
   background: var(--sw-border); color: var(--sw-muted); white-space: nowrap;
 }
-.pill.run { background: rgba(3,169,244,0.15); color: var(--sw-primary); }
-.pill.pause { background: rgba(180,83,9,0.15); color: var(--sw-warn); }
-.pill.ok { background: rgba(22,163,74,0.15); color: var(--sw-success); }
+.pill.run { background: rgba(3,169,244,0.15); color: var(--sw-primary-text); }
+.pill.pause { background: rgba(180,83,9,0.15); color: var(--sw-warn-text); }
+.pill.ok { background: rgba(22,163,74,0.15); color: var(--sw-success-text); }
 .pill.idle { background: transparent; border: 1px solid var(--sw-border); }
 .status { display: grid; gap: 12px; }
 .status-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
@@ -128,11 +156,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .zone-head strong { font-weight: 500; font-size: 16px; min-width: 0; overflow-wrap: anywhere; }
 .stepper { display: inline-flex; align-items: center; border: 1px solid var(--sw-border); border-radius: 999px; }
 .stepper button { border: 0; background: none; color: var(--sw-text); width: 32px; height: 34px; font-size: 18px; cursor: pointer; border-radius: 999px; font-family: inherit; }
-.stepper button:hover { color: var(--sw-primary); }
+.stepper button:hover { color: var(--sw-primary-text); }
 .stepper-val { min-width: 58px; text-align: center; font-variant-numeric: tabular-nums; font-size: 14px; }
 details > summary { cursor: pointer; font-weight: 500; }
-.activity-card { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
-.activity-card details { flex: 1 1 260px; min-width: 0; }
 .log { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; font-size: 14px; }
 .log li { display: flex; justify-content: space-between; gap: 12px; }
 .log .when { color: var(--sw-muted); white-space: nowrap; font-size: 12px; }
@@ -144,29 +170,39 @@ details > summary { cursor: pointer; font-weight: 500; }
   padding: 8px 10px; border: 1px solid var(--sw-border); border-radius: 8px; background: var(--sw-bg);
   font-variant-numeric: tabular-nums;
 }
-.switch { width: 40px; height: 22px; border-radius: 999px; background: var(--sw-border); border: 0; position: relative; cursor: pointer; flex: 0 0 auto; }
-.switch::after { content: ""; position: absolute; inset-block-start: 3px; inset-inline-start: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: inset-inline-start .15s; }
-.switch[aria-checked="true"] { background: var(--sw-primary); }
+.switch { width: 42px; height: 24px; border-radius: 999px; background: var(--sw-border); border: 0; position: relative; cursor: pointer; flex: 0 0 auto; }
+.switch::after { content: ""; position: absolute; inset-block-start: 3px; inset-inline-start: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: inset-inline-start .15s; }
+.switch[aria-checked="true"] { background: var(--sw-primary-fill); }
 .switch[aria-checked="true"]::after { inset-inline-start: 21px; }
 .chain { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 14px; }
 .chain .sep { color: var(--sw-muted); }
 .muted { color: var(--sw-muted); }
 bdi { unicode-bidi: isolate; }
 .num { text-align: end; }
-.num .water { display: block; color: var(--sw-primary); font-size: 12px; }
+.num .water { display: block; color: var(--sw-primary-text); font-size: 12px; }
+.report-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; font-variant-numeric: tabular-nums; }
+.report-table th, .report-table td {
+  padding: 6px 4px; border-bottom: 1px solid var(--sw-border); text-align: start; vertical-align: top;
+  overflow-wrap: anywhere; hyphens: auto;
+}
+.report-table thead th { font-size: 12px; font-weight: 600; color: var(--sw-muted); }
+.report-table tbody th { font-weight: 400; }
+.report-table .num { text-align: end; }
+.chart-values { margin-top: 8px; }
+.chart-values .report-table { margin-top: 6px; }
 .badge {
   display: inline-block; margin-inline-start: 6px; padding: 1px 6px;
   border-radius: 4px; font-size: 11px; font-weight: 500;
   background: var(--sw-border); color: var(--sw-muted); vertical-align: middle;
 }
-.badge.warn { background: rgba(180,83,9,0.15); color: var(--sw-warn); }
+.badge.warn { background: rgba(180,83,9,0.15); color: var(--sw-warn-text); }
 .wk-wrap { container-type: inline-size; }
 .week { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
 .wk-day { display: grid; gap: 6px; align-content: start; min-width: 0; padding: 8px; border: 1px solid var(--sw-border); border-radius: 10px; background: var(--sw-bg); }
 .wk-day.today { border-color: var(--sw-primary); }
 .wk-head { display: flex; justify-content: space-between; align-items: center; gap: 4px; flex-wrap: wrap; }
 .wk-head strong { font-weight: 500; font-size: 14px; margin-inline-end: 4px; }
-.wk-head .btn { padding: 2px 6px; font-size: 12px; }
+.wk-head .btn { padding: 2px 6px; font-size: 12px; min-height: 24px; }
 .wk-runs { display: flex; flex-direction: column; gap: 6px; }
 .wk-run {
   display: grid; gap: 1px; width: 100%; text-align: start; cursor: pointer;
@@ -176,11 +212,25 @@ bdi { unicode-bidi: isolate; }
 .wk-run:hover { border-color: var(--sw-primary); }
 .wk-run .t { font-weight: 600; font-variant-numeric: tabular-nums; }
 .wk-run .n { overflow-wrap: anywhere; }
-.wk-run.past { opacity: 0.55; }
+/* Past runs: muted text, not opacity (BUG-020): they are still buttons, and opacity took the text under 4.5:1. */
+.wk-run.past { color: var(--sw-muted); }
 .wk-run.skipped .t, .wk-run.skipped .n { text-decoration: line-through; color: var(--sw-muted); }
 .wk-run.rain { border-color: var(--sw-warn); background: rgba(180,83,9,0.07); }
 .wk-tag { font-size: 11px; font-weight: 500; color: var(--sw-muted); }
-.wk-run.rain .wk-tag, .wk-tag.warn { color: var(--sw-warn); }
+.wk-run.rain .wk-tag, .wk-tag.warn { color: var(--sw-warn-text); }
+.times { display: grid; gap: 8px; padding-inline-start: 10px; border-inline-start: 3px solid var(--sw-border); }
+.times-h { margin: 4px 0 0; font-size: 13px; font-weight: 600; color: var(--sw-muted); }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.seg .btn[aria-pressed="true"] { background: var(--sw-primary-fill); border-color: var(--sw-primary-fill); color: #fff; }
+.act-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.act-head h2 { margin: 0; }
+.act-day { margin: 10px 0 0; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.act-day .muted { font-weight: 400; }
+.log li.skip > div:first-child { color: var(--sw-muted); }
+.last-line { margin: -4px 0 12px; font-size: 14px; }
+.check-line { font-size: 12px; margin: 4px 0 0; line-height: 1.45; }
+.check-line.warn { color: var(--sw-danger-text); }
+.switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .voice-ex { margin: 4px 0 12px; padding-inline-start: 20px; display: grid; gap: 4px; font-size: 14px; font-style: italic; }
 @container (max-width: 860px) {
   .week { grid-template-columns: 1fr; }
@@ -191,15 +241,16 @@ bdi { unicode-bidi: isolate; }
 }
 .alert-banner {
   padding: 12px 14px; margin-bottom: 14px; border-radius: 10px;
-  background: var(--sw-danger); color: #fff; font-weight: 600;
+  background: var(--sw-danger-fill); color: #fff; font-weight: 600;
 }
-.days { display: flex; gap: 6px; flex-wrap: wrap; }
+/* One row of seven at 320 px too (UX-017), in the order the user's week runs. */
+.days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; max-width: 420px; }
 .day-chip {
-  min-width: 44px; height: 36px; padding: 0 8px; border: 1px solid var(--sw-border);
+  min-width: 0; height: 36px; padding: 0 2px; border: 1px solid var(--sw-border);
   border-radius: 999px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 500;
   background: var(--sw-card); color: var(--sw-text);
 }
-.day-chip[aria-pressed="true"] { background: var(--sw-primary); border-color: var(--sw-primary); color: #fff; }
+.day-chip[aria-pressed="true"] { background: var(--sw-primary-fill); border-color: var(--sw-primary-fill); color: #fff; }
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.5);
   display: flex; align-items: center; justify-content: center; z-index: 100;
@@ -246,16 +297,18 @@ bdi { unicode-bidi: isolate; }
   border: 1px solid var(--sw-border); border-radius: 8px;
 }
 .entity-row {
-  padding: 8px 10px; cursor: pointer;
-  border-bottom: 1px solid var(--sw-border);
+  width: 100%; padding: 8px 10px; cursor: pointer; text-align: start;
+  border: 0; border-bottom: 1px solid var(--sw-border); border-radius: 0;
+  background: transparent; color: var(--sw-text); font: inherit;
   display: flex; justify-content: space-between; gap: 10px;
 }
+.entity-row:focus-visible { outline-offset: -2px; }
 .entity-row:last-child { border-bottom: none; }
 .entity-row:hover { background: var(--sw-bg); }
-.entity-row.selected { background: rgba(3,169,244,0.12); }
+.entity-row[aria-pressed="true"] { background: rgba(3,169,244,0.12); box-shadow: inset 3px 0 0 var(--sw-primary); }
 .domain {
   font-size: 11px; padding: 2px 6px;
-  border-radius: 4px; background: var(--sw-primary);
+  border-radius: 4px; background: var(--sw-primary-fill);
   color: #fff; text-transform: uppercase; white-space: nowrap;
 }
 .cond-row { display: grid; grid-template-columns: 1.4fr 1fr 0.9fr 0.8fr auto; gap: 6px; align-items: center; padding: 4px 0; }
@@ -274,15 +327,26 @@ bdi { unicode-bidi: isolate; }
 details.more > summary { font-size: 16px; }
 .check-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
 .check-wrap label { display: flex; gap: 6px; align-items: center; font-size: 13px; padding: 4px 8px; border: 1px solid var(--sw-border); border-radius: 999px; cursor: pointer; }
-.toast {
-  position: fixed; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); inset-inline: 0; margin-inline: auto;
-  width: max-content; max-width: calc(100% - 32px);
-  padding: 10px 16px; background: var(--sw-text); color: var(--sw-bg);
-  border-radius: 999px; font-size: 13px;
-  z-index: 200; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+.toast-host {
+  position: fixed; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); inset-inline: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding-inline: 16px; z-index: 200; pointer-events: none;
 }
-.toast.error { background: var(--sw-danger); color: #fff; }
-.toast.ok { background: var(--sw-success); color: #fff; }
+/* In a dialog the message sits in the flow right under the title (BUG-022): clear of the title and of Save /
+   Cancel, and it stays in view (sticky) when the form is scrolled. */
+.modal .toast-host { position: sticky; top: 0; bottom: auto; inset-inline: auto; padding-inline: 0; margin-bottom: 10px; z-index: 2; }
+.modal.wizard > .toast-host { margin: 0; padding: 10px 20px 0; }
+.modal .toast { max-width: 100%; }
+/* A field focused after Save is scrolled clear of that message, with its caption in view. */
+.modal input, .modal select, .modal textarea, .modal .entity-row { scroll-margin-top: 84px; }
+.toast {
+  max-width: min(560px, 100%);
+  padding: 10px 16px; background: var(--sw-text); color: var(--sw-bg);
+  border-radius: 18px; font-size: 14px; line-height: 1.4; text-align: center;
+  overflow-wrap: anywhere; box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+}
+.toast.error { background: var(--sw-danger-fill); color: #fff; }
+.toast.ok { background: var(--sw-success-fill); color: #fff; }
 pre { background: var(--sw-bg); padding: 10px; border-radius: 6px; font-size: 12px; overflow-x: auto; }
 @media (max-width: 540px) {
   .field-row { grid-template-columns: 1fr; }
@@ -296,11 +360,77 @@ pre { background: var(--sw-bg); padding: 10px; border-radius: 6px; font-size: 12
   .wiz-head, .wiz-body, .wiz-foot { padding-inline: 14px; }
   .status-title { font-size: 18px; }
 }
+/* Touch screens: 44 px targets (ENH-002); the switch keeps its look and gets a larger invisible hit area. */
+@media (pointer: coarse) {
+  .btn, .link-btn, .tab, .day-chip, .wk-run, .entity-row, .check-wrap label, .wk-head .btn { min-height: 44px; }
+  .btn.small, .wk-head .btn { min-width: 44px; }
+  .menu-btn { min-width: 44px; min-height: 44px; }
+  .app input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), .app select, .app textarea,
+  .modal input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), .modal select, .modal textarea { min-height: 44px; }
+  .stepper button { width: 44px; height: 44px; }
+  .switch::before { content: ""; position: absolute; inset: -10px -2px; }
+}
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 `;
 
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+// Entities a rain source can be (server: RAIN_SOURCE_DOMAINS).
+const RAIN_DOMAINS = ["weather", "sensor", "binary_sensor"];
+const DEFAULT_RAIN_STATES = "rainy,pouring,snowy,lightning-rainy";
+
+// The rain details in use, as the server reads them (scheduler._should_skip_for_rain).
+function rainRules(statesRaw, attribute, thresholdRaw) {
+  const thr = parseFloat(String(thresholdRaw == null ? "" : thresholdRaw).trim());
+  return {
+    states: String(statesRaw == null ? DEFAULT_RAIN_STATES : statesRaw).split(",").map(x => x.trim()).filter(Boolean),
+    attribute: String(attribute || "").trim(),
+    threshold: isNaN(thr) ? 0 : thr,
+  };
+}
+
+// Whether this state counts as rain right now, same rules as the server (UX-011 inline check).
+function rainWouldSkip(st, r) {
+  if (!st) return false;
+  if (r.threshold > 0) {
+    const raw = r.attribute ? (st.attributes || {})[r.attribute] : st.state;
+    const n = parseFloat(raw);
+    if (!isNaN(n)) return n >= r.threshold;
+    if (r.attribute) return false;
+  }
+  if (r.states.includes(st.state)) return true;
+  return String(st.entity_id || "").startsWith("binary_sensor.") && st.state === "on";
+}
+// The check line under the rain source, in the words of the rule the server applies to this source (#66):
+// a number against the threshold, a binary sensor while "on", a weather or text state against the states list
+// (with a hint when a number can never match it). tn(key, vars) gives nodes, t(key) text.
+function rainCheckParts(st, r, tn, t) {
+  const domain = String(st.entity_id || "").split(".")[0];
+  const raw = r.attribute ? (st.attributes || {})[r.attribute] : st.state;
+  const numeric = raw !== undefined && raw !== null && raw !== "" && !isNaN(Number(raw));
+  if (r.threshold > 0 && (r.attribute || numeric)) {
+    return tn("set.rain_check_threshold", { n: r.threshold, state: ltr(raw === undefined || raw === null ? "" : raw) });
+  }
+  const now = ltr(st.state);
+  if (domain === "binary_sensor") return tn("set.rain_check_on", { state: now });
+  const parts = tn("set.rain_check_states", { states: ltr(r.states.join(", ")), state: now });
+  if (numeric && !r.states.includes(String(st.state))) parts.push(" ", t("set.rain_check_numeric"));
+  return parts;
+}
 const DAY_BITS = [1, 2, 4, 8, 16, 32, 64];
+// Largest sunrise / sunset offset in minutes (server: const.SUN_OFFSET_MAX).
+const SUN_OFFSET_MAX = 180;
+
+// Reports tables (BUG-009, BUG-010): header cells scoped to their column; fixed layout so long words wrap
+// inside the column instead of widening the page.
+function reportTable(firstWidth, headers) {
+  const tbody = el("tbody");
+  const table = el("table", { class: "report-table" }, [
+    el("colgroup", {}, headers.map((h, i) => el("col", i ? {} : { style: `width:${firstWidth}` }))),
+    el("thead", {}, el("tr", {}, headers.map((h, i) => el("th", i ? { scope: "col", class: "num" } : { scope: "col" }, h)))),
+    tbody,
+  ]);
+  return { table, tbody };
+}
 
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
@@ -376,6 +506,113 @@ function deepActiveElement() {
   return node;
 }
 
+// Focus across re-renders (#41): a control is identified by what it is (tag, role, label, text) and the
+// zone row it sits in, plus its index among equals; its replacement gets focus back after the rebuild.
+const FOCUSABLE = "button, input, select, textarea, summary, a[href], [tabindex]";
+
+function rowKey(n) {
+  const row = n.closest("[data-entity], [data-soak]");
+  return row ? (row.getAttribute("data-entity") || row.getAttribute("data-soak")) : "";
+}
+
+function focusDesc(n) {
+  const field = n.tagName === "INPUT" || n.tagName === "SELECT" || n.tagName === "TEXTAREA";
+  return [
+    n.tagName, n.getAttribute("role") || "", n.getAttribute("aria-label") || "", n.getAttribute("type") || "",
+    field ? "" : (n.textContent || "").trim().slice(0, 80),
+    rowKey(n),
+  ].join("|");
+}
+
+function focusables(root) {
+  return Array.from(root.querySelectorAll(FOCUSABLE)).filter(n => !n.disabled);
+}
+
+function focusId(all, n) {
+  const desc = focusDesc(n);
+  return { desc, nth: all.filter(x => focusDesc(x) === desc).indexOf(n) };
+}
+
+// The focused control plus fallbacks for when it is gone or disabled after the rebuild (Water now becomes
+// Stop): its neighbours in the same zone row, the same slot in that row, its neighbours on the page.
+function captureFocus(root) {
+  const n = deepActiveElement();
+  if (!root || !n || n === root || !root.contains(n) || !n.matches(FOCUSABLE)) return null;
+  const all = focusables(root);
+  const pos = all.indexOf(n);
+  const row = rowKey(n);
+  const inRow = row ? all.filter(x => rowKey(x) === row) : [];
+  const rowPos = inRow.indexOf(n);
+  const near = (list, i) => [list[i + 1], list[i - 1]].filter(Boolean).map(x => focusId(all, x));
+  return {
+    pos, row, rowPos, self: focusId(all, n), rowNear: row ? near(inRow, rowPos) : [], near: near(all, pos),
+    // A control can name its successor (Stop names its zone's Water now): data-refocus -> data-focus-id.
+    refocus: n.getAttribute("data-refocus") || "",
+  };
+}
+
+function restoreFocus(root, key) {
+  if (!root || !key) return;
+  const all = focusables(root);
+  const find = (id) => {
+    const same = all.filter(x => focusDesc(x) === id.desc);
+    return same[id.nth] || same[0];
+  };
+  const inRow = key.row ? all.filter(x => rowKey(x) === key.row) : [];
+  const successor = key.refocus ? all.find(x => x.getAttribute("data-focus-id") === key.refocus) : null;
+  const target = find(key.self) || successor || key.rowNear.map(find).find(Boolean) ||
+    (inRow.length ? inRow[Math.min(key.rowPos, inRow.length - 1)] : null) ||
+    key.near.map(find).find(Boolean) || (all.length ? all[Math.min(key.pos, all.length - 1)] : null);
+  if (target) target.focus({ preventScroll: true });
+}
+
+function focusInside(root) {
+  const n = deepActiveElement();
+  return !!(root && n && n !== root && root.contains(n));
+}
+
+let uidSeq = 0;
+
+// A unique element id, for aria-labelledby / aria-describedby pairs built per render.
+function uid(prefix) {
+  uidSeq += 1;
+  return `${prefix}-${uidSeq}`;
+}
+
+// Controls a Tab press can reach inside a dialog: enabled, rendered (not in a hidden or display:none part).
+function tabbables(root) {
+  return Array.from(root.querySelectorAll(FOCUSABLE)).filter(n => !n.disabled && n.tabIndex >= 0 &&
+    !n.closest("[hidden]") && n.getClientRects().length > 0);
+}
+
+// Inline field errors (UX-005): the message sits under its field, which is marked invalid and points to it.
+// A group (role="group", e.g. the entity list) is only described by it: aria-invalid does not apply to groups.
+function fieldError(id) {
+  return el("div", { class: "field-error", id, role: "alert", hidden: true });
+}
+
+function setFieldError(node, input, msg) {
+  node.textContent = msg || "";
+  node.hidden = !msg;
+  if (!input) return;
+  const group = input.getAttribute("role") === "group";
+  if (msg) {
+    if (!group) input.setAttribute("aria-invalid", "true");
+    input.setAttribute("aria-describedby", node.id);
+  } else {
+    input.removeAttribute("aria-invalid");
+    input.removeAttribute("aria-describedby");
+  }
+}
+
+// State without the fields that change on every poll, to tell a real change from a clock tick.
+function stateSig(st) {
+  return JSON.stringify(st, (k, v) => (k === "now" || k === "in_seconds" ? undefined : v));
+}
+
+// A full rebuild still happens this often while focus is inside, so relative times stay current.
+const FOCUSED_RERENDER_MS = 60000;
+
 function daysFromMaskNames(mask) {
   return DAYS.filter((_, i) => mask & DAY_BITS[i]);
 }
@@ -385,6 +622,14 @@ function repeatPayload(s) {
   return s.repeat === "interval"
     ? { every_n_days: s.interval_days, start_date: s.start_date }
     : { days: daysFromMaskNames(s.days_mask) };
+}
+
+// Service fields that recreate a stored schedule's start time: clock, or sunrise / sunset + offset (#59).
+function timePayload(s) {
+  const mode = s.time_mode === "sunrise" || s.time_mode === "sunset" ? s.time_mode : "clock";
+  return mode === "clock"
+    ? { time: s.time_hhmm }
+    : { time: s.time_hhmm, time_mode: mode, sun_offset_minutes: parseInt(s.sun_offset_min, 10) || 0 };
 }
 
 // Today's date (YYYY-MM-DD) in Home Assistant's time zone.
@@ -420,6 +665,13 @@ function dayFromNum(n) {
   return new Date(n * 86400000).toISOString().slice(0, 10);
 }
 
+// Whole minutes 1 to 1440 as typed, or null (BUG-016: 0 and empty used to become 10).
+function minutesValue(raw) {
+  const text = String(raw).trim();
+  const n = Number(text);
+  return text !== "" && Number.isInteger(n) && n >= 1 && n <= 1440 ? n : null;
+}
+
 const INTERVAL_MIN = 2;
 const INTERVAL_MAX = 30;
 
@@ -446,9 +698,11 @@ class ScheduleWizardPanel extends HTMLElement {
     this._narrow = false;
     this._rainTarget = "";
     this._rainOpen = false;
-    this._activityOpen = false;
+    this._actFilter = "week";
     this._moreOpen = false;
     this._openGroups = new Set();
+    this._dialog = null;
+    this._rainPickers = new Set();
   }
 
   set hass(hass) {
@@ -457,18 +711,27 @@ class ScheduleWizardPanel extends HTMLElement {
     if (!this._initialized) this._init();
     else {
       this._syncMenuButton();
+      this._refreshRainChecks();
       if (langChanged) {
-        this._modalRoot.innerHTML = "";
+        this._closeDialog();
         if (this._state) this._render();
       }
     }
+  }
+
+  // Keeps the rain source check lines of open forms in step with Home Assistant (BUG-038): only the line is
+  // rewritten, and only when its text changed, so the form, the focus and the screen reader are left alone.
+  _refreshRainChecks() {
+    this._rainPickers.forEach(p => { if (p.node.isConnected) p.refresh(); else this._rainPickers.delete(p); });
   }
 
   _applyLang() {
     const h = this._hass;
     const lang = I18N.resolveLang(h);
     const rtl = I18N.isRtl(h, lang);
-    const loc = h && h.locale ? [h.locale.language, h.locale.time_format, h.locale.time_zone].join("|") : (h && h.language) || "";
+    const loc = h && h.locale
+      ? [h.locale.language, h.locale.time_format, h.locale.time_zone, h.locale.first_weekday].join("|")
+      : (h && h.language) || "";
     const key = `${lang}|${rtl}|${loc}`;
     if (key === this._langKey) return false;
     const first = this._langKey === undefined;
@@ -483,6 +746,11 @@ class ScheduleWizardPanel extends HTMLElement {
     return I18N.tnodes(this._t(key), vars);
   }
 
+  // Day indexes (0 = Monday) in the order the user's week runs (UX-017).
+  _weekOrder() {
+    return I18N.weekOrder(this._hass);
+  }
+
   _fo(extra) {
     return Object.assign({ hass: this._hass }, extra || {});
   }
@@ -490,6 +758,12 @@ class ScheduleWizardPanel extends HTMLElement {
   _fmtDT(ts, opts) { return I18N.fmtDateTime(ts, this._lang, this._fo(opts)); }
   _fmtTime(ts, opts) { return I18N.fmtTime(ts, this._lang, this._fo(opts)); }
   _fmtDate(ts, opts) { return I18N.fmtDate(ts, this._lang, this._fo(opts)); }
+  // A "HH:MM" clock time in the same words as every other time on the page ("6:00 AM" / "6:00") (#92).
+  _fmtClock(hhmm) {
+    const [h, m] = String(hhmm || "").split(":").map(Number);
+    if (isNaN(h) || isNaN(m)) return String(hhmm || "");
+    return this._fmtTime(Date.UTC(2024, 0, 1, h, m) / 1000, { timeZone: "UTC", hour: "numeric", minute: "2-digit" });
+  }
   _fmtNum(n, digits) { return I18N.fmtNumber(n, this._lang, this._fo({ maximumFractionDigits: digits || 0, minimumFractionDigits: digits || 0 })); }
 
   // Litres below 1000, cubic metres (1 decimal) from there on.
@@ -528,19 +802,29 @@ class ScheduleWizardPanel extends HTMLElement {
     return c && this._t.has("status." + c) ? this._t("status." + c) : c;
   }
 
-  _sourceLabel(code) {
+  _sourceLabel(code, planName) {
     const c = String(code || "");
     if (c.startsWith("cycle:")) {
-      const id = c.slice(6).split("|")[0];
-      const cycle = ((this._state && this._state.cycles) || []).find(x => x.id === id);
-      return this._t("source.cycle", { name: cycle ? cycle.name : id });
+      return this._t("source.cycle", { name: this._planName(c.slice(6).split("|")[0], planName) });
     }
     return c && this._t.has("source." + c) ? this._t("source." + c) : c;
   }
 
+  // History rows keep a plan's id; zones are entity ids (always with a dot) (#57).
+  _isPlanId(id) {
+    return !!id && !String(id).includes(".");
+  }
+
+  // The plan's current name, else the name stored with the history row, else "Deleted plan" (#57).
+  _planName(id, stored) {
+    const cycle = ((this._state && this._state.cycles) || []).find(x => x.id === id);
+    if (cycle) return cycle.name;
+    return stored || this._t("home.deleted_plan");
+  }
+
   _daysFromMask(mask) {
     if ((mask & 127) === 127) return this._t("sched.every_day");
-    const names = DAYS.map((_, i) => i)
+    const names = this._weekOrder()
       .filter(i => mask & DAY_BITS[i])
       .map(i => I18N.weekdayShort(i, this._lang, this._fo()));
     return names.join(", ") || this._t("sched.no_days");
@@ -554,11 +838,26 @@ class ScheduleWizardPanel extends HTMLElement {
     return I18N.fmtDate(ts, this._lang, { hass: this._hass, timeZone: "UTC", year: "numeric", month: "short", day: "numeric" });
   }
 
+  // "30 min before sunrise" for a sunrise / sunset schedule (#59), else null.
+  _sunWhen(s) {
+    const mode = s.time_mode;
+    if (mode !== "sunrise" && mode !== "sunset") return null;
+    const off = parseInt(s.sun_offset_min, 10) || 0;
+    if (!off) return this._t(`sched.at_${mode}`);
+    return this._t(`sched.${off < 0 ? "before" : "after"}_${mode}`, { n: Math.abs(off) });
+  }
+
   _whenNodes(s) {
-    if (s.repeat === "interval") {
-      return this._tn("sched.every_n_at", { n: s.interval_days, date: this._fmtDay(s.start_date), time: ltr(s.time_hhmm) });
+    const sunWhen = this._sunWhen(s);
+    if (sunWhen) {
+      return s.repeat === "interval"
+        ? this._tn("sched.every_n_sun", { n: s.interval_days, date: this._fmtDay(s.start_date), when: sunWhen })
+        : this._tn("sched.days_sun", { days: this._daysFromMask(s.days_mask), when: sunWhen });
     }
-    return this._tn("sched.days_at", { days: this._daysFromMask(s.days_mask), time: ltr(s.time_hhmm) });
+    if (s.repeat === "interval") {
+      return this._tn("sched.every_n_at", { n: s.interval_days, date: this._fmtDay(s.start_date), time: ltr(this._fmtClock(s.time_hhmm)) });
+    }
+    return this._tn("sched.days_at", { days: this._daysFromMask(s.days_mask), time: ltr(this._fmtClock(s.time_hhmm)) });
   }
 
   _valveName(id) {
@@ -618,6 +917,7 @@ class ScheduleWizardPanel extends HTMLElement {
       this._refresh();
       this._refreshTimer = setInterval(() => this._refresh(), 5000);
     }
+    if (this._dialog) document.addEventListener("keydown", this._dialog.onKey);
   }
 
   disconnectedCallback() {
@@ -625,6 +925,7 @@ class ScheduleWizardPanel extends HTMLElement {
       clearInterval(this._refreshTimer);
       this._refreshTimer = null;
     }
+    if (this._dialog) document.removeEventListener("keydown", this._dialog.onKey);
   }
 
   _init() {
@@ -636,6 +937,11 @@ class ScheduleWizardPanel extends HTMLElement {
     this.appendChild(app);
     this._modalRoot = el("div", { id: "modal-root" });
     this.appendChild(this._modalRoot);
+    this._toastRoot = el("div", { class: "toast-host", role: "status" });
+    this.appendChild(this._toastRoot);
+    // One persistent live region outside the re-rendered page (UX-008): run start / stop and rain pause only.
+    this._liveRoot = el("div", { class: "sr-only", role: "status", "aria-live": "polite" });
+    this.appendChild(this._liveRoot);
     this.addEventListener("focusin", (ev) => {
       const t = ev.target;
       this._editing = !!(t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT"));
@@ -646,8 +952,17 @@ class ScheduleWizardPanel extends HTMLElement {
   }
 
   async _refresh() {
+    if (document.hidden && this._state) return; // no polling in a background tab (PERF-001)
     try {
-      this._state = await this._hass.callWS({ type: "schedule_wizard/get_state" });
+      // With the last rev the server answers only the live part when nothing else changed (PERF-001).
+      const prev = this._state;
+      const res = await this._hass.callWS(prev && prev.rev
+        ? { type: "schedule_wizard/get_state", rev: prev.rev }
+        : { type: "schedule_wizard/get_state" });
+      const { unchanged, ...fresh } = res;
+      this._state = unchanged && prev ? { ...prev, ...fresh } : fresh;
+      this._stateSig = stateSig(this._state);
+      this._announceChanges(prev, this._state);
       if (this._hadError) {
         this._hadError = false;
         this._render();
@@ -658,6 +973,12 @@ class ScheduleWizardPanel extends HTMLElement {
       const focusedHere = focused && this.contains(focused) &&
         (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA" || focused.tagName === "SELECT");
       if (this._editing || focusedHere || this.querySelector("input:focus, textarea:focus, select:focus")) {
+        this._updateInPlace();
+        return;
+      }
+      // Nothing but the clock moved and the user is on a control here: update numbers, keep the DOM (#41).
+      if (this._stateSig === this._renderedSig && Date.now() - this._renderedAt < FOCUSED_RERENDER_MS &&
+        focusInside(this.querySelector("#app"))) {
         this._updateInPlace();
         return;
       }
@@ -684,7 +1005,10 @@ class ScheduleWizardPanel extends HTMLElement {
       if (!r) return;
       const total = Math.max(1, r.ends_at - r.started_at);
       const remaining = Math.max(0, r.ends_at - now);
-      b.style.width = `${Math.min(100, ((total - remaining) / total) * 100)}%`;
+      const pct = Math.min(100, ((total - remaining) / total) * 100);
+      b.style.width = `${pct}%`;
+      const bar = b.parentElement;
+      if (bar && bar.getAttribute("role") === "progressbar") bar.setAttribute("aria-valuenow", String(Math.round(pct)));
     });
     this.querySelectorAll("#app [data-soak]").forEach(n => {
       const s = (st.soaking || []).find(x => x.entity_id === n.getAttribute("data-soak") && x.phase === "soaking");
@@ -703,11 +1027,25 @@ class ScheduleWizardPanel extends HTMLElement {
     ]));
   }
 
+  // Toasts live inside the panel, where the .toast styles apply (#51); errors are alerts and stay longer.
+  // An error raised while a dialog is open goes inside it (the dialog stays open on errors), so assistive
+  // tech that honours aria-modal still hears it; anything else stays on the panel and outlives a closing dialog.
+  // One message at a time, the newest replaces the last; in a dialog it sits right under the title (BUG-022).
   _toast(msg, kind = "") {
-    const t = el("div", { class: "toast " + kind, role: "status" }, msg);
+    const host = this._toastRoot;
+    if (!host) return;
+    const error = kind === "error";
+    const dialog = error && this._modalRoot && this._modalRoot.querySelector('[aria-modal="true"]');
+    if (dialog) {
+      const head = Array.from(dialog.children).find(c => c !== host && (c.tagName === "H3" || c.classList.contains("wiz-head")));
+      if (head) { if (head.nextSibling !== host) head.after(host); } else if (host.parentNode !== dialog) dialog.prepend(host);
+    } else if (host.parentNode !== this) {
+      this.appendChild(host);
+    }
+    const t = el("div", { class: "toast " + kind, role: error ? "alert" : null }, msg);
     this._applyDir(t);
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 2800);
+    host.replaceChildren(t);
+    setTimeout(() => t.remove(), error ? 6000 : 2800);
   }
 
   _fmtAgo(secs) {
@@ -732,9 +1070,152 @@ class ScheduleWizardPanel extends HTMLElement {
     }
   }
 
-  _confirmDelete(message, service, data) {
-    if (!confirm(message)) return;
+  async _confirmDelete(message, service, data) {
+    if (!await this._confirm(message, this._t("common.delete"))) return;
     this._callService(service, data);
+  }
+
+  // In-page confirmation (UX-018: the browser's own confirm dialog is unstyled and outside the panel's language
+  // and direction). Resolves true on the confirm button, false on Cancel, Escape or a click outside.
+  // opts.focusConfirm: start on the confirm button (Stop watering: one more tap in an emergency); otherwise
+  // Cancel has the focus, so Enter on a delete does not delete.
+  _confirm(message, confirmLabel, opts = {}) {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (ok) => {
+        if (done) return;
+        done = true;
+        close();
+        resolve(ok);
+      };
+      const titleId = uid("sw-confirm");
+      const modal = el("div", { class: "modal", role: "alertdialog", "aria-modal": "true", "aria-labelledby": titleId });
+      modal.appendChild(el("h3", { id: titleId }, message));
+      const cancel = el("button", { class: "btn", type: "button", onClick: () => finish(false) }, this._t("common.cancel"));
+      const ok = el("button", { class: opts.danger === false ? "btn primary" : "btn danger", type: "button", onClick: () => finish(true) }, confirmLabel);
+      modal.appendChild(el("div", { class: "modal-actions" }, [cancel, ok]));
+      const overlay = el("div", { class: "modal-overlay" }, modal);
+      let close = () => {};
+      const observer = new MutationObserver(() => {
+        // Closed from outside (Escape, overlay click, another dialog): count as Cancel.
+        if (!modal.isConnected) { observer.disconnect(); if (!done) { done = true; resolve(false); } }
+      });
+      close = this._openDialog(overlay, modal, { focus: () => (opts.focusConfirm ? ok : cancel) });
+      observer.observe(this._modalRoot, { childList: true });
+    });
+  }
+
+  // An on/off field drawn as the same switch the lists use (UX-014: the editors had a bare checkbox for the
+  // property the list shows as a switch). onChange(value) runs on every toggle.
+  _switchField(label, initial, onChange) {
+    let on = !!initial;
+    const labelId = uid("sw-switch");
+    const sw = el("button", {
+      type: "button", class: "switch", role: "switch", "aria-checked": on ? "true" : "false", "aria-labelledby": labelId,
+      onClick: () => { on = !on; sw.setAttribute("aria-checked", on ? "true" : "false"); if (onChange) onChange(on); },
+    });
+    return el("div", { class: "switch-row" }, [el("span", { id: labelId }, label), sw]);
+  }
+
+  // "Water now: Front lawn": the visible text first (WCAG 2.5.3), then what it acts on, so repeated buttons
+  // differ by name (UX-007).
+  _named(action, name) {
+    return this._t("card.action_for", { action, zone: name });
+  }
+
+  // Announce what changed between two polls (UX-008): a zone starting or stopping, a rain pause starting
+  // or ending. Countdowns and anything else are not announced. Nothing is said for the first state.
+  _announceChanges(prev, cur) {
+    if (!this._liveRoot || !prev || !cur) return;
+    const label = (id) => {
+      const v = (cur.valves || prev.valves || []).find(x => x.entity_id === id);
+      return v ? v.label : id;
+    };
+    const before = new Set((prev.active || []).map(a => a.entity_id));
+    const after = new Set((cur.active || []).map(a => a.entity_id));
+    const msgs = [];
+    (cur.active || []).forEach((a) => {
+      if (before.has(a.entity_id)) return;
+      const n = Math.max(1, Math.round(((a.ends_at || 0) - (a.started_at || 0)) / 60));
+      msgs.push(this._t("live.started", { zone: label(a.entity_id), n }));
+    });
+    (prev.active || []).forEach((a) => {
+      if (!after.has(a.entity_id)) msgs.push(this._t("live.stopped", { zone: label(a.entity_id) }));
+    });
+    const rain = (st) => {
+      const until = parseInt(st.rain_delay_until || 0, 10) || 0;
+      return until > (st.now || 0) ? until : 0;
+    };
+    const r0 = rain(prev);
+    const r1 = rain(cur);
+    if (r1 && r1 !== r0) msgs.push(this._t("home.rain_until", { when: this._fmtWhen(r1) }));
+    else if (r0 && !r1) msgs.push(this._t("live.rain_cleared"));
+    if (msgs.length) this._say(msgs);
+  }
+
+  _say(msgs) {
+    const host = this._liveRoot;
+    host.replaceChildren(...msgs.map((m) => {
+      const line = el("div", {}, m);
+      this._applyDir(line);
+      return line;
+    }));
+  }
+
+  // Modal dialogs (BUG-003): focus moves into the dialog, Tab and Shift+Tab stay inside, Escape closes from
+  // anywhere, the page behind is inert, and on close focus returns to the control that opened the dialog,
+  // or to its replacement when a re-render replaced it meanwhile. Returns the close function.
+  // opts.canClose(): false blocks Escape / overlay click (wizard while saving); opts.focus(): initial target.
+  _openDialog(overlay, modal, opts = {}) {
+    this._closeDialog();
+    const app = this.querySelector("#app");
+    const opener = deepActiveElement();
+    const openerKey = captureFocus(app);
+    const canClose = opts.canClose || (() => true);
+    modal.setAttribute("tabindex", "-1");
+    const onKey = (e) => {
+      if (this._dialog !== handle) return;
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (canClose()) close();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const items = tabbables(modal);
+      if (!items.length) { e.preventDefault(); modal.focus(); return; }
+      const i = items.indexOf(deepActiveElement());
+      if (e.shiftKey && i <= 0) { e.preventDefault(); items[items.length - 1].focus(); }
+      else if (!e.shiftKey && (i === -1 || i === items.length - 1)) { e.preventDefault(); items[0].focus(); }
+    };
+    const close = () => {
+      if (this._dialog !== handle) return;
+      this._dialog = null;
+      document.removeEventListener("keydown", onKey);
+      if (app) app.inert = false;
+      this._modalRoot.innerHTML = "";
+      this._editing = false;
+      if (opener && opener.isConnected && !opener.disabled) opener.focus({ preventScroll: true });
+      else restoreFocus(app, openerKey);
+    };
+    const handle = { close, onKey };
+    this._dialog = handle;
+    overlay.addEventListener("click", (e) => { if (e.target === overlay && canClose()) close(); });
+    this._modalRoot.innerHTML = "";
+    this._applyDir(overlay);
+    this._modalRoot.appendChild(overlay);
+    if (app) app.inert = true;
+    document.addEventListener("keydown", onKey);
+    // opts.focus() may move the focus itself and return null (the wizard draws its first step).
+    const target = opts.focus ? opts.focus()
+      : tabbables(modal).find(n => /^(INPUT|SELECT|TEXTAREA)$/.test(n.tagName)) || tabbables(modal)[0] || modal;
+    if (target) target.focus();
+    return close;
+  }
+
+  _closeDialog() {
+    if (this._dialog) this._dialog.close();
+    else if (this._modalRoot) this._modalRoot.innerHTML = "";
   }
 
   _render() {
@@ -742,25 +1223,52 @@ class ScheduleWizardPanel extends HTMLElement {
     if (!app || !this._state) return;
     this._applyDir(this);
     this._applyDir(app);
+    const focusKey = captureFocus(app);
+    this._renderedSig = this._stateSig;
+    this._renderedAt = Date.now();
     app.innerHTML = "";
 
     app.appendChild(el("div", { class: "topbar" }, [
       el("div", { class: "title-wrap" }, [this._menuButton(), el("h1", {}, "Schedule Wizard")]),
     ]));
 
+    // ARIA tabs pattern (UX-006): one Tab stop (the selected tab), arrow keys (mirrored in RTL), Home and End
+    // move and select; every tab controls the single tab panel, which is named by the selected tab.
+    const TABS = ["home", "zones", "programs", "settings"];
     const tabs = el("div", { class: "tabs", role: "tablist" });
-    ["home", "zones", "programs", "settings"].forEach((key) => {
+    const onTabKey = (e) => {
+      const i = TABS.indexOf(this._tab);
+      const next = this._rtl ? "ArrowLeft" : "ArrowRight";
+      const prev = this._rtl ? "ArrowRight" : "ArrowLeft";
+      let j = null;
+      if (e.key === next) j = (i + 1) % TABS.length;
+      else if (e.key === prev) j = (i - 1 + TABS.length) % TABS.length;
+      else if (e.key === "Home") j = 0;
+      else if (e.key === "End") j = TABS.length - 1;
+      if (j === null) return;
+      e.preventDefault();
+      this._tab = TABS[j];
+      this._view = null;
+      this._render();
+      const tab = this.querySelector(`#sw-tab-${TABS[j]}`);
+      if (tab) tab.focus();
+    };
+    TABS.forEach((key) => {
       const selected = this._tab === key;
       tabs.appendChild(el("button", {
         class: "tab" + (selected ? " active" : ""),
         role: "tab",
+        id: `sw-tab-${key}`,
         "aria-selected": selected ? "true" : "false",
+        "aria-controls": "sw-tabpanel",
+        tabindex: selected ? "0" : "-1",
         onClick: () => { this._tab = key; this._view = null; this._render(); },
+        onKeydown: onTabKey,
       }, this._t("tab." + key)));
     });
     app.appendChild(tabs);
 
-    const content = el("div", { role: "tabpanel" });
+    const content = el("div", { role: "tabpanel", id: "sw-tabpanel", "aria-labelledby": `sw-tab-${this._tab}` });
     app.appendChild(content);
 
     switch (this._tab) {
@@ -772,6 +1280,7 @@ class ScheduleWizardPanel extends HTMLElement {
       case "programs": this._renderPrograms(content); break;
       case "settings": this._renderSettings(content); break;
     }
+    restoreFocus(app, focusKey);
   }
 
   _flowBanner(root) {
@@ -825,6 +1334,8 @@ class ScheduleWizardPanel extends HTMLElement {
       el("h2", {}, this._t("home.your_zones")),
       el("button", { class: "btn ghost", onClick: () => this._openWizard() }, this._t("home.new_plan")),
     ]));
+    const last = this._lastWateringLine();
+    if (last) root.appendChild(last);
     const grid = el("div", { class: "zones" });
     valves.forEach(v => grid.appendChild(this._zoneCard(v)));
     root.appendChild(grid);
@@ -912,8 +1423,9 @@ class ScheduleWizardPanel extends HTMLElement {
         canSkip ? el("button", {
           class: "btn ghost small",
           title: this._t("week.skip_day_title", { day: info.full }),
-          onClick: () => {
-            if (!confirm(this._t("week.skip_day_confirm", { day: info.full }))) return;
+          "aria-label": this._named(this._t("week.skip_day"), info.full),
+          onClick: async () => {
+            if (!await this._confirm(this._t("week.skip_day_confirm", { day: info.full }), this._t("week.skip_day"), { danger: false })) return;
             this._callService("skip_day", { date: key });
           },
         }, this._t("week.skip_day")) : null,
@@ -942,7 +1454,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const info = this._dayInfo(r.day);
     const next = this._nextOccOf(r.schedule_id);
     const isNext = !!next && next.start === r.start;
-    const close = () => { this._modalRoot.innerHTML = ""; this._editing = false; };
+    let close = () => {};
     const act = (service, data) => async () => { if (await this._callService(service, data)) close(); };
 
     const modal = el("div", { class: "modal", role: "dialog", "aria-modal": "true", "aria-labelledby": "sw-run-title" });
@@ -962,7 +1474,7 @@ class ScheduleWizardPanel extends HTMLElement {
     ])));
     modal.appendChild(zones);
 
-    const actions = [el("button", { class: "btn", onClick: close }, this._t("common.close"))];
+    const actions = [el("button", { class: "btn", onClick: () => close() }, this._t("common.close"))];
     if (r.skip === "skipped_manual") {
       actions.push(el("button", { class: "btn", onClick: act("unskip", { schedule_id: r.schedule_id, date: r.day }) }, this._t("week.undo_skip")));
     } else if (isNext) {
@@ -976,12 +1488,7 @@ class ScheduleWizardPanel extends HTMLElement {
     modal.appendChild(el("div", { class: "modal-actions" }, actions));
 
     const overlay = el("div", { class: "modal-overlay" }, modal);
-    overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
-    overlay.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
-    this._modalRoot.innerHTML = "";
-    this._applyDir(overlay);
-    this._modalRoot.appendChild(overlay);
-    actions[actions.length - 1].focus();
+    close = this._openDialog(overlay, modal, { focus: () => actions[actions.length - 1] });
   }
 
   _statusCard() {
@@ -992,7 +1499,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const soaking = st.soaking || [];
     const valves = st.valves || [];
     const rainUntil = parseInt(st.rain_delay_until || 0, 10) || 0;
-    const card = el("section", { class: "card status", "aria-live": "polite" });
+    const card = el("section", { class: "card status" });
 
     let pill;
     let title;
@@ -1003,8 +1510,8 @@ class ScheduleWizardPanel extends HTMLElement {
 
     const stopAllBtn = () => el("button", {
       class: "btn danger",
-      onClick: () => {
-        if (!confirm(this._t("dash.stop_all_confirm"))) return;
+      onClick: async () => {
+        if (!await this._confirm(this._t("dash.stop_all_confirm"), this._t("home.stop_watering"), { focusConfirm: true })) return;
         this._callService("stop_all", {});
       },
     }, this._t("home.stop_watering"));
@@ -1037,6 +1544,7 @@ class ScheduleWizardPanel extends HTMLElement {
       if (active.length > 1) subs.push(this._t("home.more_running", { n: active.length - 1 }));
       progress = el("div", {
         class: "progress-wrap", role: "progressbar",
+        "aria-label": this._named(this._t("home.watering_now"), this._valveName(r.entity_id).textContent),
         "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(Math.round(pct)),
       }, el("div", { class: "progress-bar", style: `width:${pct}%` }));
       if (cyc && !cyc.paused) actions.push(pauseBtn(cyc));
@@ -1092,7 +1600,7 @@ class ScheduleWizardPanel extends HTMLElement {
       pill = cool
         ? el("span", { class: "pill pause" }, this._t("home.cool_paused"))
         : el("span", { class: "pill ok" }, this._t("home.all_good"));
-      const wk = this._weekRuns().find(r => r.start > now && r.skip !== "skipped_manual");
+      const wk = this._weekRuns().find(r => r.start > now && r.skip !== "skipped_manual" && r.skip !== "rain_delay");
       const next = wk ? null : this._nextOverall();
       if (wk) {
         title = this._tn("home.next", { name: iso(wk.name), when: this._fmtWhen(wk.start) });
@@ -1222,17 +1730,13 @@ class ScheduleWizardPanel extends HTMLElement {
     else if (paused) pill = el("span", { class: "pill pause" }, this._t("zone.paused"));
     else pill = el("span", { class: "pill idle" }, this._t("zone.off"));
 
-    let nextLine;
-    if (v.next_run && parseInt(v.next_run.fires_at, 10)) {
-      nextLine = this._t("home.next_zone", { when: this._fmtWhen(parseInt(v.next_run.fires_at, 10)), n: v.next_run.duration_min });
-    } else {
-      nextLine = this._t("home.no_schedule");
-    }
+    let nextLine = this._zoneNextLine(v);
     if (v.rain_exempt) nextLine += " · " + this._t("zone.indoor_suffix");
 
-    const card = el("article", { class: "card zone" + (active ? " running" : ""), "data-entity": id }, [
+    const titleId = uid("sw-zone");
+    const card = el("article", { class: "card zone" + (active ? " running" : ""), "data-entity": id, "aria-labelledby": titleId }, [
       el("div", { class: "zone-head" }, [
-        el("strong", {}, [iso(v.label), v.enabled ? "" : " " + this._t("common.disabled_tag")]),
+        el("strong", { id: titleId }, [iso(v.label), v.enabled ? "" : " " + this._t("common.disabled_tag")]),
         pill,
       ]),
       el("div", { class: "sub small" }, nextLine),
@@ -1242,9 +1746,16 @@ class ScheduleWizardPanel extends HTMLElement {
       const remaining = Math.max(0, active.ends_at - now);
       const total = Math.max(1, active.ends_at - active.started_at);
       const pct = Math.min(100, ((total - remaining) / total) * 100);
-      card.appendChild(el("div", { class: "progress-wrap" }, el("div", { class: "progress-bar", style: `width:${pct}%` })));
+      card.appendChild(el("div", {
+        class: "progress-wrap", role: "progressbar", "aria-label": this._named(this._t("zone.watering"), v.label),
+        "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(Math.round(pct)),
+      }, el("div", { class: "progress-bar", style: `width:${pct}%` })));
       card.appendChild(el("div", { class: "actions" }, [
-        el("button", { class: "btn danger", onClick: () => this._callService("stop_valve", { entity_id: id }) }, this._t("common.stop")),
+        el("button", {
+          class: "btn danger", "aria-label": this._named(this._t("common.stop"), v.label),
+          "data-focus-id": `stop:${id}`, "data-refocus": `water:${id}`,
+          onClick: () => this._callService("stop_valve", { entity_id: id }),
+        }, this._t("common.stop")),
         el("span", { class: "muted small" }, this._tn("run.left", { time: el("span", { "data-left": id }, fmtRemaining(remaining)) })),
       ]));
     } else if (soak) {
@@ -1254,7 +1765,10 @@ class ScheduleWizardPanel extends HTMLElement {
       card.appendChild(el("div", { class: "actions" }, [
         ownerCycle
           ? el("button", { class: "btn danger", onClick: () => this._callService("stop_cycle", { cycle_id: ownerCycle.cycle_id }) }, this._t("run.stop_cycle"))
-          : el("button", { class: "btn danger", onClick: () => this._callService("stop_valve", { entity_id: id }) }, this._t("common.stop")),
+          : el("button", {
+            class: "btn danger", "aria-label": this._named(this._t("common.stop"), v.label), "data-refocus": `water:${id}`,
+            onClick: () => this._callService("stop_valve", { entity_id: id }),
+          }, this._t("common.stop")),
         el("span", { class: "muted small" }, this._tn("home.resumes_in", {
           time: el("span", { "data-soak": id }, fmtRemaining(Math.max(0, (parseInt(soak.resume_at, 10) || 0) - now))),
         })),
@@ -1269,12 +1783,14 @@ class ScheduleWizardPanel extends HTMLElement {
       };
       card.appendChild(el("div", { class: "actions" }, [
         el("span", { class: "stepper" }, [
-          el("button", { type: "button", "aria-label": this._t("zone.less"), title: this._t("zone.less"), onClick: () => change(-1) }, "−"),
+          el("button", { type: "button", "aria-label": this._named(this._t("zone.less"), v.label), title: this._t("zone.less"), onClick: () => change(-1) }, "−"),
           val,
-          el("button", { type: "button", "aria-label": this._t("zone.more"), title: this._t("zone.more"), onClick: () => change(1) }, "+"),
+          el("button", { type: "button", "aria-label": this._named(this._t("zone.more"), v.label), title: this._t("zone.more"), onClick: () => change(1) }, "+"),
         ]),
         el("button", {
           class: "btn primary",
+          "aria-label": this._named(this._t("zone.water_now"), v.label),
+          "data-focus-id": `water:${id}`, "data-refocus": `stop:${id}`,
           onClick: () => this._callService("run_valve", { entity_id: id, duration_minutes: cur() }),
         }, this._t("zone.water_now")),
       ]));
@@ -1282,38 +1798,151 @@ class ScheduleWizardPanel extends HTMLElement {
     return card;
   }
 
+  // The zone's next run that will really water, from the server (UX-010): the same source as the status card,
+  // so a skipped day or a rain pause shows here too, with the run it drops.
+  _zoneNextLine(v) {
+    const nr = v.next_run && parseInt(v.next_run.fires_at, 10) ? v.next_run : null;
+    const skip = v.next_skip && parseInt(v.next_skip.fires_at, 10) ? v.next_skip : null;
+    const when = nr ? this._fmtWhen(parseInt(nr.fires_at, 10)) : "";
+    const n = nr ? nr.duration_min : 0;
+    if (skip && skip.reason === "rain_delay" && parseInt(skip.until, 10)) {
+      const until = this._fmtWhen(parseInt(skip.until, 10));
+      return nr ? this._t("home.next_zone_paused", { until, when, n }) : this._t("home.zone_paused_only", { until });
+    }
+    if (skip) {
+      const day = this._fmtWhen(parseInt(skip.fires_at, 10));
+      return nr ? this._t("home.next_zone_skipped", { day, when, n }) : this._t("home.zone_skipped_only", { day });
+    }
+    return nr ? this._t("home.next_zone", { when, n }) : this._t("home.no_schedule");
+  }
+
+  // "today 6:00", "yesterday 6:00", else "Mon 6:00" (UX-012).
+  _relWhen(ts) {
+    const today = I18N.dayKey(this._state.now, this._hass);
+    const day = I18N.dayKey(ts, this._hass);
+    const time = this._fmtTime(ts);
+    if (day === today) return this._t("act.today_at", { time });
+    if (dayNum(day) === dayNum(today) - 1) return this._t("act.yesterday_at", { time });
+    return `${this._fmtDate(ts, { weekday: "short" })} ${time}`;
+  }
+
+  // A zone row that really watered (#67): completed, or stopped / replaced after watering some minutes. Like the
+  // server's totals (BUG-028, BUG-037), a stopped or replaced row from before 0.15.0 (no planned_min) holds the
+  // planned length: left out.
+  _watered(h) {
+    if (this._isPlanId(h.valve_entity_id)) return false;
+    if (h.status === "completed") return true;
+    if ((h.status === "superseded" || h.status === "cancelled") && !("planned_min" in h)) return false;
+    return (h.status === "cancelled" || h.status === "superseded") && (parseInt(h.duration_min, 10) || 0) > 0;
+  }
+
+  // Zones and minutes watered in a list of history rows: "3 zones · 30 min" (UX-012).
+  _wateredTotal(rows) {
+    const done = rows.filter(h => this._watered(h));
+    if (!done.length) return "";
+    const zones = new Set(done.map(h => h.valve_entity_id)).size;
+    const min = done.reduce((a, h) => a + (parseInt(h.duration_min, 10) || 0), 0);
+    return this._t("act.total", { zones: this._t("act.zones", { n: zones }), min: this._t("unit.min", { n: min }) });
+  }
+
+  // One line above the zones that answers "did it water?" (UX-012): when the most recent watering finished (#67:
+  // a start that never watered is not one), what that day watered, and a skip that came after it.
+  _lastWateringLine() {
+    const hist = this._state.history || [];
+    const latest = (rows) => rows.reduce((a, h) => (!a || h.ts > a.ts ? h : a), null);
+    const last = latest(hist.filter(h => this._watered(h)));
+    const parts = [];
+    if (last) {
+      const day = I18N.dayKey(last.ts, this._hass);
+      const rows = hist.filter(h => I18N.dayKey(h.ts, this._hass) === day);
+      parts.push(this._t("act.last_watering", { when: this._relWhen(last.ts), total: this._wateredTotal(rows) }));
+    }
+    const skip = latest(hist.filter(h => isSkipStatus(h.status)));
+    if (skip && (!last || skip.ts > last.ts)) {
+      // "Skipped (rain), today 6:00 AM": the status already says skipped, so it is said once.
+      const reason = String(this._statusLabel(skip.status) || "");
+      parts.push(this._t("act.last_skipped", { when: this._relWhen(skip.ts), reason: reason.charAt(0).toLocaleUpperCase(this._lang) + reason.slice(1) }));
+    }
+    return parts.length ? el("p", { class: "last-line" }, parts.join(" · ")) : null;
+  }
+
+  // Recent activity by day, with a total per day; Today / Yesterday / 7 days in one click (UX-012).
   _activityCard() {
     const st = this._state;
-    const det = el("details", { class: "activity" });
-    if (this._activityOpen) det.open = true;
-    det.addEventListener("toggle", () => { this._activityOpen = det.open; });
-    det.appendChild(el("summary", {}, this._t("dash.recent")));
     const history = st.history || [];
-    if (!history.length) {
-      det.appendChild(el("div", { class: "empty" }, this._t("dash.no_history")));
-    } else {
-      const ul = el("ul", { class: "log" });
-      this._groupHistory(history.slice(0, 30)).slice(0, 14).forEach(g => ul.appendChild(this._activityItem(g)));
-      det.appendChild(ul);
-    }
-    return el("div", { class: "card activity-card" }, [
-      det,
-      el("button", { class: "btn", onClick: () => { this._view = "reports"; this._render(); } }, this._t("home.reports")),
+    const today = I18N.dayKey(st.now, this._hass);
+    const yesterday = dayFromNum(dayNum(today) - 1);
+    const weekStart = dayFromNum(dayNum(today) - 6);
+    const filter = this._actFilter;
+    const inFilter = (day) => (filter === "today" ? day === today : filter === "yesterday" ? day === yesterday : day >= weekStart);
+    const titleId = uid("sw-activity");
+    const seg = (key, label) => el("button", {
+      class: "btn small", type: "button", "aria-pressed": filter === key ? "true" : "false",
+      onClick: () => { this._actFilter = key; this._render(); },
+    }, label);
+    const card = el("section", { class: "card", "aria-labelledby": titleId }, [
+      el("div", { class: "act-head" }, [
+        el("h2", { id: titleId }, this._t("dash.recent")),
+        el("button", { class: "btn", onClick: () => { this._view = "reports"; this._render(); } }, this._t("home.reports")),
+      ]),
     ]);
+    if (!history.length) {
+      card.appendChild(el("div", { class: "empty" }, this._t("dash.no_history")));
+      return card;
+    }
+    card.appendChild(el("div", { class: "seg", role: "group", "aria-label": this._t("act.show") }, [
+      seg("today", this._t("week.today")), seg("yesterday", this._t("act.yesterday")), seg("week", this._t("act.week")),
+    ]));
+    // A zone run that has finished is told by its finish row; its "started" row is noise (UX-012).
+    const ended = new Set();
+    const rows = history.filter((h) => {
+      const id = h.valve_entity_id;
+      if (h.status === "started" && !this._isPlanId(id) && ended.has(id)) return false;
+      if (h.status !== "started") ended.add(id);
+      return true;
+    });
+    const days = [];
+    rows.forEach((h) => {
+      const day = I18N.dayKey(h.ts, this._hass);
+      if (!inFilter(day)) return;
+      let d = days.find(x => x.day === day);
+      if (!d) { d = { day, rows: [] }; days.push(d); }
+      d.rows.push(h);
+    });
+    if (!days.length) {
+      card.appendChild(el("div", { class: "empty" }, this._t("act.none")));
+      return card;
+    }
+    days.forEach(({ day, rows: dayRows }) => {
+      const label = day === today ? this._t("week.today") : day === yesterday ? this._t("act.yesterday")
+        : this._fmtDate(dayRows[0].ts, { weekday: "short", day: "numeric", month: "short" });
+      const total = this._wateredTotal(dayRows);
+      card.appendChild(el("h3", { class: "act-day" }, [el("span", {}, label), total ? el("span", { class: "muted" }, total) : null]));
+      const ul = el("ul", { class: "log" });
+      this._groupHistory(dayRows).slice(0, 40).forEach(g => ul.appendChild(this._activityItem(g)));
+      card.appendChild(ul);
+    });
+    return card;
   }
 
   _activitySentence(h) {
-    const cycle = (this._state.cycles || []).find(c => c.id === h.valve_entity_id);
-    const name = cycle ? iso(cycle.name) : this._valveName(h.valve_entity_id);
-    if (!cycle && h.status === "completed") return this._tn("home.act_watered", { zone: name, n: h.duration_min });
+    const plan = this._isPlanId(h.valve_entity_id);
+    const name = plan ? iso(this._planName(h.valve_entity_id, h.name)) : this._valveName(h.valve_entity_id);
+    if (!plan && h.status === "completed") return this._tn("home.act_watered", { zone: name, n: h.duration_min });
     return this._tn("home.act_status", { name, status: this._statusLabel(h.status) });
+  }
+
+  // "shortened from 300 min" when a webhook or calendar run was cut to the longest external run (#79).
+  _cappedLabel(note) {
+    const m = /(?:^|\|)capped:(\d+)/.exec(String(note || ""));
+    return m ? this._t("home.act_capped", { n: Number(m[1]) }) : null;
   }
 
   _activityItem(g) {
     const h = g.entry;
     const left = el("div", { style: "min-width:0;" }, [
       el("div", {}, [...this._activitySentence(h), h.liters > 0 ? " · " + this._fmtLiters(h.liters) : null]),
-      el("div", { class: "sub" }, this._sourceLabel(h.source)),
+      el("div", { class: "sub" }, joinParts([this._sourceLabel(h.source, h.plan_name), this._cappedLabel(h.note)])),
     ]);
     if (g.kind === "cycle") {
       (g.children || []).filter(c => c.status !== "started").forEach(c => {
@@ -1325,26 +1954,26 @@ class ScheduleWizardPanel extends HTMLElement {
         ])));
       });
     }
-    return el("li", {}, [
+    // Skipped rows read lighter than runs (UX-012); the day is in the heading above.
+    return el("li", { class: isSkipStatus(h.status) ? "skip" : null }, [
       left,
-      el("span", { class: "when" }, this._fmtDT(h.ts, { weekday: "short", hour: "numeric", minute: "2-digit" })),
+      el("span", { class: "when" }, this._fmtTime(h.ts)),
     ]);
   }
 
   _groupHistory(history) {
-    const cyclesById = Object.fromEntries((this._state.cycles || []).map(c => [c.id, c]));
     const used = new Set();
     const out = [];
     for (let i = 0; i < history.length; i++) {
       if (used.has(i)) continue;
       const h = history[i];
-      if (cyclesById[h.valve_entity_id]) {
+      if (this._isPlanId(h.valve_entity_id)) {
         const cycleId = h.valve_entity_id;
         const children = [];
         for (let j = i + 1; j < history.length; j++) {
           if (used.has(j)) continue;
           const c = history[j];
-          if (cyclesById[c.valve_entity_id] && c.valve_entity_id === cycleId) break;
+          if (c.valve_entity_id === cycleId) break;
           if (c.source && c.source.startsWith(`cycle:${cycleId}`)) {
             children.push(c);
             used.add(j);
@@ -1391,9 +2020,10 @@ class ScheduleWizardPanel extends HTMLElement {
         this._statusLabel(stats.last_run.status),
       ]).join("");
     }
+    // "Never run" already says there were no runs this week (UX-018).
     const week = stats.runs_7d
-      ? this._t("valves.week", { runs: stats.runs_7d, min: stats.total_min_7d })
-      : this._t("valves.week_none");
+      ? this._t("valves.week", { n: stats.runs_7d, runs: stats.runs_7d, min: stats.total_min_7d })
+      : (stats.last_run ? this._t("valves.week_none") : "");
     const badges = [];
     if (v.rain_exempt) badges.push(el("span", { class: "badge", title: this._t("valves.badge_indoor_title") }, this._t("valves.badge_indoor")));
     if ((v.soak_run_min || 0) > 0 && (v.soak_pause_min || 0) > 0) {
@@ -1405,21 +2035,24 @@ class ScheduleWizardPanel extends HTMLElement {
       badges.push(el("span", { class: "badge", title: this._t("valves.badge_delay_title") }, this._t("valves.badge_delay", { until: this._fmtWhen(vDelay) })));
     }
 
-    const card = el("article", { class: "card" }, [
+    const titleId = uid("sw-zone-admin");
+    const card = el("article", { class: "card", "aria-labelledby": titleId }, [
       el("div", { class: "admin-head" }, [
         el("div", { style: "min-width:0;" }, [
-          el("div", { class: "name" }, [iso(v.label), v.enabled ? "" : " " + this._t("common.disabled_tag"), ...badges]),
-          el("div", { class: "sub" }, joinParts([ltr(v.entity_id), this._t("zones.min_per_run", { n: v.default_duration_min })])),
-          el("div", { class: "sub" }, lastLine + " • " + week),
+          el("div", { class: "name" }, [el("span", { id: titleId }, iso(v.label)), v.enabled ? "" : " " + this._t("common.disabled_tag"), ...badges]),
+          // The entity id is in Edit zone; here it was jargon on the screen gardeners use most (UX-018).
+          el("div", { class: "sub", title: v.entity_id }, this._t("zones.min_per_run", { n: v.default_duration_min })),
+          el("div", { class: "sub" }, week ? lastLine + " • " + week : lastLine),
           (v.water_total_l || 0) > 0 ? el("div", { class: "sub" }, this._t("valves.water_used", { amount: this._fmtLiters(v.water_total_l) })
             + (v.avg_lpm > 0 ? " · " + this._t("valves.usually_lpm", { lpm: this._fmtLpm(v.avg_lpm) }) : "")) : null,
         ]),
         el("div", { class: "actions" }, [
-          el("button", { class: "btn small", onClick: () => this._openValveModal(v) }, this._t("zones.edit")),
+          el("button", { class: "btn small", "aria-label": this._named(this._t("zones.edit"), v.label), onClick: () => this._openValveModal(v) }, this._t("zones.edit")),
           el("button", {
             class: "btn danger small",
+            "aria-label": this._named(this._t("zones.delete"), v.label),
             onClick: () => this._confirmDelete(this._t("valves.delete_confirm", { name: v.label }), "remove_valve", { entity_id: v.entity_id }),
-          }, this._t("common.delete")),
+          }, this._t("zones.delete")),
         ]),
       ]),
     ]);
@@ -1438,6 +2071,7 @@ class ScheduleWizardPanel extends HTMLElement {
     if (!own.length && !plans.length) body.appendChild(el("div", { class: "muted small" }, this._t("zones.no_times")));
     body.appendChild(el("div", {}, el("button", {
       class: "btn ghost",
+      "aria-label": this._named(this._t("zones.add_time"), v.label),
       onClick: () => this._openScheduleModal(null, { kind: "valve", id: v.entity_id }),
     }, this._t("zones.add_time"))));
     card.appendChild(body);
@@ -1449,11 +2083,13 @@ class ScheduleWizardPanel extends HTMLElement {
     const main = [...this._whenNodes(s)];
     if (withDuration) main.push(" · " + this._t("unit.min", { n: s.duration_min }));
     if (!s.enabled) main.push(" " + this._t("common.disabled_tag"));
+    // "Front lawn, Mon, Wed at 06:00": which schedule a control acts on (UX-007).
+    const what = [s.name || ownerName, el("span", {}, this._whenNodes(s)).textContent].filter(Boolean).join(", ");
     const toggle = el("button", {
       class: "switch",
       role: "switch",
       "aria-checked": s.enabled ? "true" : "false",
-      "aria-label": this._t("common.enabled"),
+      "aria-label": this._named(this._t("common.enabled"), what),
       title: this._t(s.enabled ? "common.disable" : "common.enable"),
       onClick: () => this._callService("update_schedule", { schedule_id: s.id, enabled: !s.enabled }),
     });
@@ -1462,11 +2098,13 @@ class ScheduleWizardPanel extends HTMLElement {
     if (skipped) {
       skipBtn = el("button", {
         class: "btn small",
+        "aria-label": this._named(this._t("common.undo"), what),
         onClick: () => this._callService("unskip", { schedule_id: s.id, date: skipped }),
       }, this._t("common.undo"));
     } else if (this._schedActive(s)) {
       skipBtn = el("button", {
         class: "btn small",
+        "aria-label": this._named(this._t("sched.skip_next"), what),
         onClick: () => this._callService("skip_next", { schedule_id: s.id }),
       }, this._t("sched.skip_next"));
     }
@@ -1482,11 +2120,12 @@ class ScheduleWizardPanel extends HTMLElement {
       el("div", { class: "actions" }, [
         skipBtn,
         toggle,
-        el("button", { class: "btn small", onClick: () => this._openScheduleModal(s) }, this._t("common.edit")),
+        el("button", { class: "btn small", "aria-label": this._named(this._t("sched.edit_time"), what), onClick: () => this._openScheduleModal(s) }, this._t("sched.edit_time")),
         el("button", {
           class: "btn danger small",
+          "aria-label": this._named(this._t("sched.delete_time"), what),
           onClick: () => this._confirmDelete(this._t("sched.delete_confirm"), "remove_schedule", { schedule_id: s.id }),
-        }, this._t("common.delete")),
+        }, this._t("sched.delete_time")),
       ]),
     ]);
   }
@@ -1514,21 +2153,32 @@ class ScheduleWizardPanel extends HTMLElement {
     let duration = existing ? existing.default_duration_min : (this._state.options.default_duration || 10);
     let enabled = existing ? !!existing.enabled : true;
 
-    const labelInput = el("input", { type: "text", value: label, placeholder: this._t("valves.label_ph") });
-    labelInput.addEventListener("input", () => { label = labelInput.value; });
+    const labelInput = el("input", { type: "text", maxlength: "80", value: label, placeholder: this._t("valves.label_ph"), "aria-required": "true" });
+    const labelErr = fieldError("sw-valve-label-err");
+    labelInput.addEventListener("input", () => { label = labelInput.value; if (label.trim()) setFieldError(labelErr, labelInput, ""); });
 
     const durInput = el("input", { type: "number", min: "1", max: "1440", value: String(duration) });
-    durInput.addEventListener("input", () => { duration = parseInt(durInput.value, 10) || 10; });
+    const durErr = el("div", { class: "field-error", id: "sw-valve-duration-err", role: "alert", hidden: true });
+    const setDurErr = (msg) => {
+      durErr.textContent = msg || "";
+      durErr.hidden = !msg;
+      if (msg) { durInput.setAttribute("aria-invalid", "true"); durInput.setAttribute("aria-describedby", durErr.id); }
+      else { durInput.removeAttribute("aria-invalid"); durInput.removeAttribute("aria-describedby"); }
+    };
+    durInput.addEventListener("input", () => { if (minutesValue(durInput.value) !== null) setDurErr(""); });
+    durInput.setAttribute("aria-required", "true");
 
-    const enabledInput = el("input", { type: "checkbox" });
-    enabledInput.checked = enabled;
-    enabledInput.addEventListener("change", () => { enabled = enabledInput.checked; });
+    const enabledField = this._switchField(this._t("common.enabled"), enabled, (on) => { enabled = on; });
 
     const rainExemptInput = el("input", { type: "checkbox" });
     rainExemptInput.checked = !!(existing && existing.rain_exempt);
 
-    const search = el("input", { type: "text", placeholder: this._t("valves.search_ph") });
-    const picker = el("div", { class: "entity-picker" });
+    // Keyboard-operable entity list (BUG-004): each row is a toggle button; the list is a named group and sits
+    // outside the search field's label, so the search box is named by the caption alone.
+    const pickerCap = uid("sw-entity-cap");
+    const search = el("input", { type: "text", placeholder: this._t("valves.search_ph"), "aria-labelledby": pickerCap });
+    const picker = el("div", { class: "entity-picker", role: "group", "aria-labelledby": pickerCap });
+    const entityErr = fieldError("sw-valve-entity-err");
     const renderPicker = () => {
       const q = search.value.trim().toLowerCase();
       picker.innerHTML = "";
@@ -1539,17 +2189,21 @@ class ScheduleWizardPanel extends HTMLElement {
         picker.appendChild(el("div", { class: "empty", style: "padding:10px;" }, this._t("valves.no_matches")));
       }
       filtered.forEach((e) => {
-        const row = el("div", { class: "entity-row" + (chosen === e.entity_id ? " selected" : "") }, [
-          el("div", {}, [
-            el("div", { style: "font-weight:600" }, iso(e.friendly_name)),
-            el("div", { class: "muted", style: "font-size:12px" }, ltr(e.entity_id)),
+        const row = el("button", {
+          type: "button", class: "entity-row", "aria-pressed": chosen === e.entity_id ? "true" : "false",
+        }, [
+          el("span", {}, [
+            el("span", { style: "display:block;font-weight:600" }, iso(e.friendly_name)),
+            el("span", { class: "muted", style: "display:block;font-size:12px" }, ltr(e.entity_id)),
           ]),
           el("span", { class: "domain" }, e.domain),
         ]);
         row.addEventListener("click", () => {
           chosen = e.entity_id;
-          if (!label.trim()) { label = e.friendly_name; labelInput.value = label; }
-          renderPicker();
+          if (!label.trim()) { label = e.friendly_name; labelInput.value = label; setFieldError(labelErr, labelInput, ""); }
+          // Update in place: rebuilding the list would drop the focus from the pressed row.
+          picker.querySelectorAll(".entity-row").forEach(r => r.setAttribute("aria-pressed", r === row ? "true" : "false"));
+          setFieldError(entityErr, picker, "");
         });
         picker.appendChild(row);
       });
@@ -1560,16 +2214,18 @@ class ScheduleWizardPanel extends HTMLElement {
     const soakRunInput = el("input", { type: "number", min: "0", max: "1440", value: String(existing ? (existing.soak_run_min || 0) : 0) });
     const soakPauseInput = el("input", { type: "number", min: "0", max: "1440", value: String(existing ? (existing.soak_pause_min || 0) : 0) });
     const vMoistEntity = el("input", { type: "text", dir: "ltr", placeholder: "sensor.zone_moisture", value: String((existing && existing.moisture_entity) || "") });
-    const vMoistAttr = el("input", { type: "text", placeholder: this._t("common.moisture_attr_ph"), value: String((existing && existing.moisture_attribute) || "") });
+    const vMoistAttr = el("input", { type: "text", maxlength: "255", placeholder: this._t("common.moisture_attr_ph"), value: String((existing && existing.moisture_attribute) || "") });
     const vMoistThrRaw = (existing && existing.moisture_threshold !== null && existing.moisture_threshold !== undefined) ? String(existing.moisture_threshold) : "";
     const vMoistThreshold = el("input", { type: "number", min: "0", max: "100", step: "0.5", value: vMoistThrRaw });
 
     const flowRateRaw = (existing && existing.flow_rate_lpm !== null && existing.flow_rate_lpm !== undefined) ? String(existing.flow_rate_lpm) : "";
     const flowRateInput = el("input", { type: "number", min: "0", max: "10000", step: "any", inputmode: "decimal", value: flowRateRaw });
+    const flowErr = fieldError("sw-valve-flow-err");
+    flowRateInput.addEventListener("input", () => setFieldError(flowErr, flowRateInput, ""));
 
     const hasAdvanced = !!(existing && ((existing.soak_run_min || 0) > 0 || (existing.soak_pause_min || 0) > 0 || existing.moisture_entity || flowRateRaw));
     const advBody = el("div", { style: hasAdvanced ? "" : "display:none;" }, [
-      el("label", { class: "field" }, [el("span", {}, this._t("valves.flow_rate")), flowRateInput]),
+      el("label", { class: "field" }, [el("span", {}, this._t("valves.flow_rate")), flowRateInput, flowErr]),
       el("p", { class: "muted", style: "font-size:12px;margin:-6px 0 12px;" }, [
         this._t("valves.flow_rate_hint"),
         existing && existing.avg_lpm > 0 ? el("br") : null,
@@ -1595,27 +2251,42 @@ class ScheduleWizardPanel extends HTMLElement {
     });
 
     const fields = [
-      el("label", { class: "field" }, [el("span", {}, this._t("valves.label")), labelInput]),
-      el("label", { class: "field" }, [el("span", {}, this._t("valves.search")), search, picker]),
-      el("div", { class: "field-row" }, [
-        el("label", { class: "field" }, [el("span", {}, this._t("valves.default_duration")), durInput]),
-        el("label", { class: "field" }, [el("span", {}, this._t("common.enabled")), enabledInput]),
-      ]),
+      el("label", { class: "field" }, [el("span", {}, this._t("valves.label")), labelInput, labelErr]),
+      el("div", { class: "field" }, [el("span", { id: pickerCap }, this._t("valves.search")), search, picker, entityErr]),
+      el("label", { class: "field" }, [el("span", {}, this._t("valves.default_duration")), durInput, durErr]),
+      enabledField,
       el("label", { class: "field" }, [el("span", {}, this._t("valves.indoor")), rainExemptInput]),
       el("div", { class: "field", style: "padding-top:10px;border-top:1px solid var(--sw-border);" }, [advToggle]),
       advBody,
     ];
 
     this._showModal(this._t(existing ? "valves.edit_title" : "valves.add_title"), fields, async () => {
-      if (!chosen) { this._toast(this._t("valves.pick_entity"), "error"); return false; }
-      if (!label.trim()) { this._toast(this._t("valves.label_required"), "error"); return false; }
+      // Every problem is shown next to its field; focus goes to the first one, the toast repeats it (UX-005).
+      const invalid = [];
+      const check = (bad, node, input, msg, focusTarget) => {
+        setFieldError(node, input, bad ? msg : "");
+        if (bad) invalid.push([focusTarget || input, msg]);
+      };
+      check(!label.trim(), labelErr, labelInput, this._t("valves.label_required"));
+      check(!chosen, entityErr, picker, this._t("valves.pick_entity"), picker.querySelector(".entity-row") || search);
+      const duration = minutesValue(durInput.value);
+      if (duration === null || durInput.validity.badInput) {
+        setDurErr(this._t("valves.err_duration"));
+        invalid.push([durInput, this._t("valves.err_duration")]);
+      } else {
+        setDurErr("");
+      }
       const clampMin = (input) => Math.min(1440, Math.max(0, parseInt(input.value, 10) || 0));
       const thrRaw = vMoistThreshold.value.trim();
       const thr = thrRaw === "" ? null : parseFloat(thrRaw);
       const flowRaw = flowRateInput.value.trim();
       const flowRate = flowRaw === "" ? null : parseFloat(flowRaw);
-      if (flowRateInput.validity.badInput || (flowRaw !== "" && (isNaN(flowRate) || flowRate <= 0 || flowRate > 10000))) {
-        this._toast(this._t("valves.flow_rate_invalid"), "error");
+      const flowBad = flowRateInput.validity.badInput || (flowRaw !== "" && (isNaN(flowRate) || flowRate <= 0 || flowRate > 10000));
+      if (flowBad && advBody.style.display === "none") advToggle.click();
+      check(flowBad, flowErr, flowRateInput, this._t("valves.flow_rate_invalid"));
+      if (invalid.length) {
+        invalid[0][0].focus();
+        this._toast(invalid[0][1], "error");
         return false;
       }
       const ok = await this._callService("add_valve", {
@@ -1636,7 +2307,7 @@ class ScheduleWizardPanel extends HTMLElement {
         for (const s of oldSchedules) {
           const payload = {
             valve_entity_id: chosen,
-            time: s.time_hhmm,
+            ...timePayload(s),
             ...repeatPayload(s),
             duration_minutes: s.duration_min,
             name: s.name || "",
@@ -1711,22 +2382,21 @@ class ScheduleWizardPanel extends HTMLElement {
       statusLine = this._t("plans.zone_of", { step: ac.step, total: ac.total_steps });
     }
 
+    const planName = c.name || c.id;
+    const btn = (cls, text, onClick) => el("button", { class: cls, "aria-label": this._named(text, planName), onClick }, text);
     const actions = [];
     if (!ac) {
-      actions.push(el("button", { class: "btn primary small", onClick: () => this._callService("run_cycle", { cycle_id: c.id }) }, this._t("plans.run_now")));
+      actions.push(btn("btn primary small", this._t("plans.run_now"), () => this._callService("run_cycle", { cycle_id: c.id })));
     } else {
       actions.push(ac.paused
-        ? el("button", { class: "btn primary small", onClick: () => this._callService("resume_cycle", { cycle_id: c.id }) }, this._t("cycle.resume"))
-        : el("button", { class: "btn small", onClick: () => this._callService("pause_cycle", { cycle_id: c.id }) }, this._t("cycle.pause")));
-      actions.push(el("button", { class: "btn danger small", onClick: () => this._callService("stop_cycle", { cycle_id: c.id }) }, this._t("common.stop")));
+        ? btn("btn primary small", this._t("cycle.resume"), () => this._callService("resume_cycle", { cycle_id: c.id }))
+        : btn("btn small", this._t("cycle.pause"), () => this._callService("pause_cycle", { cycle_id: c.id })));
+      actions.push(btn("btn danger small", this._t("common.stop"), () => this._callService("stop_cycle", { cycle_id: c.id })));
     }
+    // One set of plan controls, labelled as plan controls (UX-014); turning the whole plan off is in Edit plan.
     actions.push(
-      el("button", { class: "btn small", onClick: () => this._openCycleModal(c) }, this._t("common.edit")),
-      el("button", { class: "btn small", onClick: () => this._callService("update_cycle", { cycle_id: c.id, enabled: !c.enabled }) }, this._t(c.enabled ? "common.disable" : "common.enable")),
-      el("button", {
-        class: "btn danger small",
-        onClick: () => this._confirmDelete(this._t("cycles.delete_confirm", { name: c.name }), "remove_cycle", { cycle_id: c.id }),
-      }, this._t("common.delete")),
+      btn("btn small", this._t("plans.edit"), () => this._openCycleModal(c)),
+      btn("btn danger small", this._t("plans.delete"), () => this._confirmDelete(this._t("cycles.delete_confirm", { name: c.name }), "remove_cycle", { cycle_id: c.id })),
     );
 
     const chain = el("div", { class: "chain" });
@@ -1735,26 +2405,34 @@ class ScheduleWizardPanel extends HTMLElement {
       chain.appendChild(el("span", {}, [this._valveName(s.entity_id), " (" + this._t("unit.min", { n: s.duration_min }) + ")"]));
     });
 
-    const card = el("article", { class: "card" }, [
+    // The plan (name, zones, its controls) on top; its watering times below as their own indented group with
+    // their own words, so no two controls on the card look alike (UX-014).
+    const planTitleId = uid("sw-plan");
+    const timesTitleId = uid("sw-plan-times");
+    const card = el("article", { class: "card", "aria-labelledby": planTitleId }, [
       el("div", { class: "admin-head" }, [
         el("div", { style: "min-width:0;" }, [
-          el("div", { class: "name" }, head),
+          el("div", { class: "name", id: planTitleId }, head),
           statusLine ? el("div", { class: "sub" }, statusLine) : null,
         ]),
-        pill,
+        el("div", { class: "actions" }, [pill, ...actions]),
       ]),
     ]);
     const body = el("div", { class: "admin-body" });
-    const times = (st.schedules || []).filter(s => s.cycle_id === c.id);
-    times.forEach(s => body.appendChild(this._schedRow(s, false, c.name)));
-    if (!times.length) body.appendChild(el("div", { class: "muted small" }, this._t("plans.no_times")));
-    body.appendChild(el("div", {}, el("button", {
-      class: "btn ghost",
-      onClick: () => this._openScheduleModal(null, { kind: "cycle", id: c.id }),
-    }, this._t("zones.add_time"))));
     body.appendChild(chain);
     body.appendChild(el("div", { class: "sub" }, this._t("plans.summary", { steps: steps.length, min: totalMin })));
-    body.appendChild(el("div", { class: "actions" }, actions));
+    const times = (st.schedules || []).filter(s => s.cycle_id === c.id);
+    const group = el("section", { class: "times", "aria-labelledby": timesTitleId }, [
+      el("h3", { class: "times-h", id: timesTitleId }, this._t("plans.times")),
+    ]);
+    times.forEach(s => group.appendChild(this._schedRow(s, false, c.name)));
+    if (!times.length) group.appendChild(el("div", { class: "muted small" }, this._t("plans.no_times")));
+    group.appendChild(el("div", {}, el("button", {
+      class: "btn ghost",
+      "aria-label": this._named(this._t("zones.add_time"), planName),
+      onClick: () => this._openScheduleModal(null, { kind: "cycle", id: c.id }),
+    }, this._t("zones.add_time"))));
+    body.appendChild(group);
     card.appendChild(body);
     return card;
   }
@@ -1770,14 +2448,15 @@ class ScheduleWizardPanel extends HTMLElement {
       steps.push({ entity_id: v.entity_id, duration_min: v.default_duration_min });
     }
 
-    const nameInput = el("input", { type: "text", value: name, placeholder: this._t("cycles.name_ph") });
-    nameInput.addEventListener("input", () => { name = nameInput.value; });
+    const nameInput = el("input", { type: "text", maxlength: "80", value: name, placeholder: this._t("cycles.name_ph"), "aria-required": "true" });
+    const nameErr = fieldError("sw-plan-name-err");
+    nameInput.addEventListener("input", () => { name = nameInput.value; if (name.trim()) setFieldError(nameErr, nameInput, ""); });
 
-    const enabledInput = el("input", { type: "checkbox" });
-    enabledInput.checked = enabled;
-    enabledInput.addEventListener("change", () => { enabled = enabledInput.checked; });
+    const enabledField = this._switchField(this._t("common.enabled"), enabled, (on) => { enabled = on; });
 
-    const stepsWrap = el("div");
+    const stepsCap = uid("sw-steps-cap");
+    const stepsWrap = el("div", { role: "group", "aria-labelledby": stepsCap });
+    const stepsErr = fieldError("sw-plan-steps-err");
     const renderSteps = () => {
       stepsWrap.innerHTML = "";
       steps.forEach((s, idx) => {
@@ -1832,6 +2511,7 @@ class ScheduleWizardPanel extends HTMLElement {
         onClick: () => {
           const v = this._state.valves[0];
           steps.push({ entity_id: v.entity_id, duration_min: v.default_duration_min });
+          setFieldError(stepsErr, stepsWrap, "");
           renderSteps();
         },
       }, this._t("cycles.add_step")));
@@ -1839,14 +2519,23 @@ class ScheduleWizardPanel extends HTMLElement {
     renderSteps();
 
     const fields = [
-      el("label", { class: "field" }, [el("span", {}, this._t("cycles.name")), nameInput]),
-      el("div", { class: "field" }, [el("span", {}, this._t("cycles.steps")), stepsWrap]),
-      el("label", { class: "field" }, [el("span", {}, this._t("common.enabled")), enabledInput]),
+      el("label", { class: "field" }, [el("span", {}, this._t("cycles.name")), nameInput, nameErr]),
+      el("div", { class: "field" }, [el("span", { id: stepsCap }, this._t("cycles.steps")), stepsWrap, stepsErr]),
+      enabledField,
     ];
 
     this._showModal(this._t(existing ? "cycles.edit_title" : "cycles.add_title"), fields, async () => {
-      if (!name.trim()) { this._toast(this._t("cycles.name_required"), "error"); return false; }
-      if (!steps.length) { this._toast(this._t("cycles.one_step"), "error"); return false; }
+      // Inline errors next to the field, focus on the first one, the toast repeats it (UX-005).
+      const invalid = [];
+      setFieldError(nameErr, nameInput, name.trim() ? "" : this._t("cycles.name_required"));
+      if (!name.trim()) invalid.push([nameInput, this._t("cycles.name_required")]);
+      setFieldError(stepsErr, stepsWrap, steps.length ? "" : this._t("cycles.one_step"));
+      if (!steps.length) invalid.push([stepsWrap.querySelector("button:last-of-type") || stepsWrap, this._t("cycles.one_step")]);
+      if (invalid.length) {
+        invalid[0][0].focus();
+        this._toast(invalid[0][1], "error");
+        return false;
+      }
       const payload = {
         name,
         enabled,
@@ -1884,6 +2573,8 @@ class ScheduleWizardPanel extends HTMLElement {
     let mask = existing && existing.repeat !== "interval" ? existing.days_mask : 127;
     let repeat = existing && existing.repeat === "interval" ? "interval" : "weekdays";
     let enabled = existing ? !!existing.enabled : true;
+    let timeMode = existing && (existing.time_mode === "sunrise" || existing.time_mode === "sunset") ? existing.time_mode : "clock";
+    const offset0 = existing ? parseInt(existing.sun_offset_min, 10) || 0 : 0;
 
     const targetSel = el("select", { disabled: locked });
     if (hasValves) targetSel.appendChild(el("option", { value: "valve" }, this._t("sched.single_valve")));
@@ -1911,28 +2602,31 @@ class ScheduleWizardPanel extends HTMLElement {
     const durRow = el("div", { class: "field-row" });
     const timeInput = el("input", { type: "time", value: time });
     timeInput.addEventListener("input", () => { time = timeInput.value; });
+    const timeField = el("label", { class: "field" }, [el("span", {}, this._t("sched.time")), timeInput]);
     const durInput = el("input", { type: "number", min: "1", max: "1440", value: String(duration) });
-    durInput.addEventListener("input", () => { duration = parseInt(durInput.value, 10) || 10; });
+    const durErr = el("div", { class: "field-error", id: "sw-sched-duration-err", role: "alert", hidden: true });
+    durInput.addEventListener("input", () => {
+      duration = minutesValue(durInput.value);
+      if (duration !== null) setErr(durErr, durInput, "");
+    });
     const renderTargetField = () => {
       targetFieldHost.innerHTML = "";
       durRow.innerHTML = "";
       if (targetKind === "cycle") {
         targetFieldHost.appendChild(el("label", { class: "field" }, [el("span", {}, this._t("sched.cycle")), cycleSel]));
-        durRow.appendChild(el("label", { class: "field" }, [el("span", {}, this._t("sched.time")), timeInput]));
+        durRow.appendChild(timeField);
       } else {
         targetFieldHost.appendChild(el("label", { class: "field" }, [el("span", {}, this._t("sched.valve")), valveSel]));
-        durRow.appendChild(el("label", { class: "field" }, [el("span", {}, this._t("sched.time")), timeInput]));
-        durRow.appendChild(el("label", { class: "field" }, [el("span", {}, this._t("sched.duration")), durInput]));
+        durRow.appendChild(timeField);
+        durRow.appendChild(el("label", { class: "field" }, [el("span", {}, this._t("sched.duration")), durInput, durErr]));
       }
     };
     renderTargetField();
 
-    const nameInput = el("input", { type: "text", value: name, placeholder: this._t("common.optional") });
+    const nameInput = el("input", { type: "text", maxlength: "80", value: name, placeholder: this._t("common.optional") });
     nameInput.addEventListener("input", () => { name = nameInput.value; });
 
-    const enabledInput = el("input", { type: "checkbox" });
-    enabledInput.checked = enabled;
-    enabledInput.addEventListener("change", () => { enabled = enabledInput.checked; });
+    const enabledField = this._switchField(this._t("common.enabled"), enabled, (on) => { enabled = on; });
 
     // Inline validation messages (the server validates the same rules).
     const errNode = (id) => el("div", { class: "field-error", id, role: "alert", hidden: true });
@@ -1947,9 +2641,90 @@ class ScheduleWizardPanel extends HTMLElement {
     const daysErr = errNode("sw-sched-days-err");
     const intervalErr = errNode("sw-sched-interval-err");
     const startErr = errNode("sw-sched-start-err");
+    const offsetErr = errNode("sw-sched-offset-err");
 
-    const days = el("div", { class: "days", role: "group", "aria-describedby": daysErr.id });
-    DAYS.forEach((_, i) => {
+    // Start at a clock time, or at sunrise / sunset plus or minus some minutes (#59).
+    const modeSel = el("select", {});
+    modeSel.appendChild(el("option", { value: "clock" }, this._t("sched.mode_clock")));
+    modeSel.appendChild(el("option", { value: "sunrise" }, this._t("sched.mode_sunrise")));
+    modeSel.appendChild(el("option", { value: "sunset" }, this._t("sched.mode_sunset")));
+    modeSel.value = timeMode;
+    const offsetInput = el("input", {
+      type: "number", min: "0", max: String(SUN_OFFSET_MAX), step: "1", inputmode: "numeric",
+      value: String(Math.abs(offset0)),
+    });
+    const dirSel = el("select", {});
+    dirSel.appendChild(el("option", { value: "before" }, this._t("sched.offset_before")));
+    dirSel.appendChild(el("option", { value: "after" }, this._t("sched.offset_after")));
+    dirSel.value = offset0 < 0 ? "before" : "after";
+    const offsetValue = () => {
+      const raw = String(offsetInput.value).trim();
+      const n = Number(raw);
+      return raw !== "" && Number.isInteger(n) && n >= 0 && n <= SUN_OFFSET_MAX ? n : null;
+    };
+    const signedOffset = (n) => (dirSel.value === "before" ? -n : n);
+    // The next start times come from the server: they need the Home Assistant location.
+    const sunPreview = el("div", { class: "muted small", "aria-live": "polite", style: "margin:-4px 0 12px;" });
+    let sunSeq = 0;
+    let sunTimer = null;
+    const updateSunPreview = () => {
+      clearTimeout(sunTimer);
+      const seq = ++sunSeq;
+      sunPreview.innerHTML = "";
+      const off = offsetValue();
+      if (timeMode === "clock" || off === null) return;
+      const msg = { type: "schedule_wizard/preview_schedule", time_mode: timeMode, sun_offset_minutes: signedOffset(off), count: 3 };
+      if (repeat === "interval") {
+        const n = intervalValue();
+        const start = startValue();
+        if (n === null || !start) return;
+        Object.assign(msg, { repeat: "interval", interval_days: n, start_date: start });
+      } else {
+        if (!mask) return;
+        Object.assign(msg, { repeat: "weekdays", days_mask: mask });
+      }
+      sunTimer = setTimeout(() => {
+        this._hass.callWS(msg).then((res) => {
+          if (seq !== sunSeq) return;
+          const list = (res && res.next) || [];
+          if (!list.length) { sunPreview.textContent = this._t("sched.sun_none"); return; }
+          const text = list.map(ts => this._fmtDT(ts, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })).join(" · ");
+          sunPreview.append(...this._tn("sched.next_runs", { list: text }));
+        }).catch(() => { if (seq === sunSeq) sunPreview.innerHTML = ""; });
+      }, 250);
+    };
+    const startField = el("label", { class: "field" }, [el("span", {}, this._t("sched.start_at")), modeSel]);
+    const sunRow = el("div", {}, [
+      el("label", { class: "field" }, [
+        el("span", {}, this._t("sched.offset_min")),
+        el("div", { style: "display:flex;gap:8px;" }, [offsetInput, dirSel]),
+        offsetErr,
+      ]),
+      el("p", { class: "muted small", style: "margin:-6px 0 8px;" }, this._t("sched.sun_hint")),
+      sunPreview,
+    ]);
+    const syncMode = () => {
+      timeField.hidden = timeMode !== "clock";
+      sunRow.hidden = timeMode === "clock";
+      updateFirstRun();
+    };
+    modeSel.addEventListener("change", () => { timeMode = modeSel.value; setErr(offsetErr, offsetInput, ""); syncMode(); });
+    offsetInput.addEventListener("input", () => { if (offsetValue() !== null) setErr(offsetErr, offsetInput, ""); updateSunPreview(); });
+    dirSel.addEventListener("change", updateSunPreview);
+    // Service fields for the start time, or null after showing an inline error.
+    const timeFields = () => {
+      setErr(offsetErr, offsetInput, "");
+      if (timeMode === "clock") return { time, time_mode: "clock" };
+      const off = offsetValue();
+      if (off === null) { setErr(offsetErr, offsetInput, this._t("sched.err_offset")); offsetInput.focus(); return null; }
+      const out = { time_mode: timeMode, sun_offset_minutes: signedOffset(off) };
+      if (/^\d{2}:\d{2}$/.test(String(time))) out.time = time;
+      return out;
+    };
+
+    const daysCap = uid("sw-days-cap");
+    const days = el("div", { class: "days", role: "group", "aria-labelledby": daysCap, "aria-describedby": daysErr.id });
+    this._weekOrder().forEach((i) => {
       const tog = el("button", {
         type: "button",
         class: "day-chip",
@@ -1960,6 +2735,7 @@ class ScheduleWizardPanel extends HTMLElement {
         mask ^= DAY_BITS[i];
         tog.setAttribute("aria-pressed", (mask & DAY_BITS[i]) ? "true" : "false");
         if (mask) setErr(daysErr, null, "");
+        updateSunPreview();
       });
       days.appendChild(tog);
     });
@@ -1986,34 +2762,18 @@ class ScheduleWizardPanel extends HTMLElement {
     const firstRunLine = el("div", { class: "muted small", "aria-live": "polite", style: "margin:-4px 0 12px;" });
     const updateFirstRun = () => {
       firstRunLine.innerHTML = "";
+      updateSunPreview();
+      if (timeMode !== "clock") return;
       const n = intervalValue();
       const start = startValue();
       const hhmm = /^\d{2}:\d{2}$/.test(String(timeInput.value)) ? timeInput.value : null;
       if (n === null || !start || !hhmm) return;
-      const today = dayNum(todayKey(this._hass));
-      const passed = hhmm <= nowHHMM(this._hass);
-      let first = dayNum(start);
-      let key = "sched.first_run";
-      if (first < today) {
-        key = "sched.next_run_line";
-        first += Math.ceil((today - first) / n) * n;
-        if (first === today && passed) first += n;
-      } else if (first === today && passed) {
-        key = "sched.first_run_passed";
-        first += n;
-      }
-      const [fy, fm, fd] = dayFromNum(first).split("-").map(Number);
-      const ts = Date.UTC(fy, fm - 1, fd, 12) / 1000;
-      const when = el("span", {}, [
-        I18N.fmtDate(ts, this._lang, { hass: this._hass, timeZone: "UTC", weekday: "short", month: "short", day: "numeric" }),
-        " ", ltr(hhmm),
-      ]);
-      firstRunLine.append(...this._tn(key, { when, n, time: ltr(hhmm) }));
+      firstRunLine.append(...this._firstRunNodes(n, start, hhmm));
     };
     intervalInput.addEventListener("input", () => { if (intervalValue() !== null) setErr(intervalErr, intervalInput, ""); updateFirstRun(); });
     startInput.addEventListener("input", () => { if (startValue()) setErr(startErr, startInput, ""); updateFirstRun(); });
     timeInput.addEventListener("input", updateFirstRun);
-    const daysField = el("div", { class: "field" }, [el("span", {}, this._t("sched.days")), days, daysErr]);
+    const daysField = el("div", { class: "field" }, [el("span", { id: daysCap }, this._t("sched.days")), days, daysErr]);
     const intervalRow = el("div", {}, [
       el("div", { class: "field-row" }, [
         el("label", { class: "field" }, [el("span", {}, this._t("sched.interval_days")), intervalInput, intervalErr]),
@@ -2029,6 +2789,7 @@ class ScheduleWizardPanel extends HTMLElement {
     };
     repeatSel.addEventListener("change", () => { repeat = repeatSel.value; syncRepeat(); });
     syncRepeat();
+    syncMode();
 
     // Service fields for the repeat rule, or null after showing inline errors.
     const repeatFields = () => {
@@ -2051,7 +2812,8 @@ class ScheduleWizardPanel extends HTMLElement {
         await this._hass.callService("schedule_wizard", service, payload);
       } catch (e) {
         const msg = String((e && (e.message || e.code)) || e);
-        if (/every_n_days/.test(msg)) setErr(intervalErr, intervalInput, intervalErrText());
+        if (/sun_offset/.test(msg)) setErr(offsetErr, offsetInput, this._t("sched.err_offset"));
+        else if (/every_n_days/.test(msg)) setErr(intervalErr, intervalInput, intervalErrText());
         else if (/start_date/.test(msg)) setErr(startErr, startInput, this._t("sched.err_start_date"));
         else if (/at least one day/.test(msg)) setErr(daysErr, null, this._t("sched.pick_day"));
         else this._toast(msg, "error");
@@ -2069,30 +2831,34 @@ class ScheduleWizardPanel extends HTMLElement {
       operator: c.operator || "equals",
       value: c.value === null || c.value === undefined ? "" : String(c.value),
     }));
-    const condWrap = el("div");
+    const condCap = uid("sw-cond-cap");
+    const condWrap = el("div", { role: "group", "aria-labelledby": condCap });
     const renderConditions = () => {
       condWrap.innerHTML = "";
       conditions.forEach((c, idx) => {
-        const entInput = el("input", { type: "text", dir: "ltr", placeholder: "sensor.example", value: c.entity_id });
+        // Each field is named, with its row number, beyond its placeholder (BUG-007).
+        const n = idx + 1;
+        const named = (key) => this._t("sched.cond_field", { field: this._t(key), n });
+        const entInput = el("input", { type: "text", dir: "ltr", placeholder: "sensor.example", value: c.entity_id, "aria-label": named("sched.cond_entity") });
         entInput.addEventListener("input", () => { c.entity_id = entInput.value; });
-        const attrInput = el("input", { type: "text", placeholder: this._t("sched.attr_ph"), value: c.attribute });
+        const attrInput = el("input", { type: "text", maxlength: "255", placeholder: this._t("sched.attr_ph"), value: c.attribute, "aria-label": named("common.attribute_optional") });
         attrInput.addEventListener("input", () => { c.attribute = attrInput.value; });
-        const opSel = el("select", {});
+        const opSel = el("select", { "aria-label": named("sched.cond_operator") });
         OPERATORS.forEach(([val, lbl]) => {
           const opt = el("option", { value: val }, lbl);
           if (val === c.operator) opt.selected = true;
           opSel.appendChild(opt);
         });
         opSel.addEventListener("change", () => { c.operator = opSel.value; });
-        const valInput = el("input", { type: "text", placeholder: this._t("sched.value_ph"), value: c.value });
+        const valInput = el("input", { type: "text", maxlength: "255", placeholder: this._t("sched.value_ph"), value: c.value, "aria-label": named("sched.cond_value") });
         valInput.addEventListener("input", () => { c.value = valInput.value; });
         condWrap.appendChild(el("div", { class: "cond-row" }, [
           entInput, attrInput, opSel, valInput,
           el("button", {
             class: "btn danger small",
             type: "button",
-            title: this._t("sched.remove_condition"),
-            "aria-label": this._t("sched.remove_condition"),
+            title: this._t("sched.remove_condition_n", { n }),
+            "aria-label": this._t("sched.remove_condition_n", { n }),
             onClick: () => { conditions.splice(idx, 1); renderConditions(); },
           }, "✕"),
         ]));
@@ -2125,21 +2891,30 @@ class ScheduleWizardPanel extends HTMLElement {
       el("label", { class: "field" }, [el("span", {}, this._t("sched.repeat")), repeatSel]),
       daysField,
       intervalRow,
+      startField,
+      sunRow,
       durRow,
       el("label", { class: "field" }, [el("span", {}, this._t("common.name")), nameInput]),
-      el("div", { class: "field" }, [el("span", {}, this._t("sched.conditions")), condWrap]),
-      el("label", { class: "field" }, [el("span", {}, this._t("common.enabled")), enabledInput]),
+      el("div", { class: "field" }, [el("span", { id: condCap }, this._t("sched.conditions")), condWrap]),
+      enabledField,
     ];
 
     this._showModal(this._t(existing ? "sched.edit_title" : "sched.add_title"), fields, async () => {
       const rep = repeatFields();
       if (!rep) return false;
+      const timing = timeFields();
+      if (!timing) return false;
+      if (targetKind === "valve" && (minutesValue(durInput.value) === null || durInput.validity.badInput)) {
+        setErr(durErr, durInput, this._t("valves.err_duration"));
+        durInput.focus();
+        return false;
+      }
       const conds = collectConditions();
       if (existing) {
         return await submit("update_schedule", {
           schedule_id: existing.id,
           name,
-          time,
+          ...timing,
           duration_minutes: targetKind === "valve" ? duration : 1,
           ...rep,
           enabled,
@@ -2147,7 +2922,7 @@ class ScheduleWizardPanel extends HTMLElement {
         });
       }
       const base = {
-        time,
+        ...timing,
         ...rep,
         name,
         enabled,
@@ -2160,37 +2935,83 @@ class ScheduleWizardPanel extends HTMLElement {
     });
   }
 
+  // "First run: Wed, Oct 3 06:00, then every 2 days" for every N days from a start date at a clock time (#30).
+  _firstRunNodes(n, start, hhmm) {
+    const today = dayNum(todayKey(this._hass));
+    const passed = hhmm <= nowHHMM(this._hass);
+    let first = dayNum(start);
+    let key = "sched.first_run";
+    if (first < today) {
+      key = "sched.next_run_line";
+      first += Math.ceil((today - first) / n) * n;
+      if (first === today && passed) first += n;
+    } else if (first === today && passed) {
+      key = "sched.first_run_passed";
+      first += n;
+    }
+    const [fy, fm, fd] = dayFromNum(first).split("-").map(Number);
+    const ts = Date.UTC(fy, fm - 1, fd, 12) / 1000;
+    const clock = this._fmtClock(hhmm);
+    const when = el("span", {}, [
+      I18N.fmtDate(ts, this._lang, { hass: this._hass, timeZone: "UTC", weekday: "short", month: "short", day: "numeric" }),
+      " ", clock,
+    ]);
+    return this._tn(key, { when, n, time: clock });
+  }
+
   // ---------- Setup wizard ----------
 
   _openWizard() {
     const st = this._state;
     const t = this._t;
+    const opts = st.options || {};
     const registered = new Map((st.valves || []).map(v => [v.entity_id, v]));
     const ents = st.controllable || [];
     const friendly = (id) => { const e = ents.find(x => x.entity_id === id); return e ? e.friendly_name : id; };
     const isNew = (id) => !registered.has(id);
     const wz = {
       idx: 0, picked: [], names: {}, mins: {}, mask: DAY_BITS[0] | DAY_BITS[2] | DAY_BITS[4],
+      // Every N days, sunrise / sunset start and rain skip in the first-run flow too (UX-009).
+      repeat: "weekdays", interval: String(INTERVAL_MIN), start: todayKey(this._hass),
+      timeMode: "clock", offset: "0", offsetDir: "before",
       time: "06:00", mode: "sequence", plan: "", planTouched: false, search: "", saving: false,
     };
     const nameOf = (id) => (isNew(id) ? (wz.names[id] ?? friendly(id)) : registered.get(id).label);
     const minOf = (id) => wz.mins[id] ?? (registered.has(id) ? registered.get(id).default_duration_min : 10);
-    const defaultPlan = () => t((parseInt(wz.time, 10) || 0) < 12 ? "wiz.plan_morning" : "wiz.plan_evening");
+    const evening = () => (wz.timeMode === "clock" ? (parseInt(wz.time, 10) || 0) >= 12 : wz.timeMode === "sunset");
+    const defaultPlan = () => t(evening() ? "wiz.plan_evening" : "wiz.plan_morning");
     const planName = () => (wz.planTouched ? wz.plan : defaultPlan()).trim();
-    const stepKeys = () => [
-      "pick",
-      ...(wz.picked.some(isNew) ? ["name"] : []),
-      "when",
-      ...(wz.picked.length > 1 ? ["order"] : []),
-      "check",
-    ];
-    const TITLES = { pick: "wiz.t_pick", name: "wiz.t_name", when: "wiz.t_when", order: "wiz.t_order", check: "wiz.t_check" };
+    const intervalValue = () => {
+      const n = Number(String(wz.interval).trim());
+      return String(wz.interval).trim() !== "" && Number.isInteger(n) && n >= INTERVAL_MIN && n <= INTERVAL_MAX ? n : null;
+    };
+    const startValue = () => (/^\d{4}-\d{2}-\d{2}$/.test(wz.start) ? wz.start : null);
+    const offsetValue = () => {
+      const n = Number(String(wz.offset).trim());
+      return String(wz.offset).trim() !== "" && Number.isInteger(n) && n >= 0 && n <= SUN_OFFSET_MAX ? n : null;
+    };
+    const signedOffset = () => (wz.offsetDir === "before" ? -1 : 1) * (offsetValue() || 0);
+    // The same four steps whatever is picked (UX-018: the count used to change from 3 to 5 after step 1).
+    // New zones are named on the first step; a single zone only names the plan on the third.
+    const stepKeys = () => ["pick", "when", "plan", "check"];
+    const titleOf = (key) => ({
+      pick: "wiz.t_pick", when: "wiz.t_when", plan: wz.picked.length > 1 ? "wiz.t_order" : "wiz.t_plan_name", check: "wiz.t_check",
+    })[key];
     const valid = (key) => {
-      if (key === "pick") return wz.picked.length > 0;
-      if (key === "name") return wz.picked.filter(isNew).every(id => String(nameOf(id)).trim());
-      if (key === "when") return !!(wz.mask & 127) && /^\d{2}:\d{2}$/.test(wz.time);
+      if (key === "pick") return wz.picked.length > 0 && wz.picked.filter(isNew).every(id => String(nameOf(id)).trim());
+      if (key === "when") {
+        const repeatOk = wz.repeat === "weekdays" ? !!(wz.mask & 127) : intervalValue() !== null && !!startValue();
+        const timeOk = wz.timeMode === "clock" ? /^\d{2}:\d{2}$/.test(wz.time) : offsetValue() !== null;
+        return repeatOk && timeOk;
+      }
       return !!planName();
     };
+    // The stored-schedule shape, for the summary sentence.
+    const schedShape = () => ({
+      repeat: wz.repeat === "interval" ? "interval" : "weekdays", days_mask: wz.mask,
+      interval_days: intervalValue(), start_date: startValue(),
+      time_hhmm: wz.time, time_mode: wz.timeMode, sun_offset_min: signedOffset(),
+    });
 
     const modal = el("div", { class: "modal wizard", role: "dialog", "aria-modal": "true", "aria-labelledby": "sw-wiz-title" });
     const head = el("div", { class: "wiz-head" });
@@ -2198,34 +3019,47 @@ class ScheduleWizardPanel extends HTMLElement {
     const foot = el("div", { class: "wiz-foot" });
     modal.append(head, body, foot);
     const overlay = el("div", { class: "modal-overlay" }, modal);
-    const close = () => { this._modalRoot.innerHTML = ""; this._editing = false; };
-    overlay.addEventListener("click", (e) => { if (e.target === overlay && !wz.saving) close(); });
-    overlay.addEventListener("keydown", (e) => { if (e.key === "Escape" && !wz.saving) close(); });
+    let close = () => {};
 
     let nextBtn = null;
     const refreshNext = () => { if (nextBtn) nextBtn.disabled = wz.saving || !valid(stepKeys()[wz.idx]); };
+    let rainPicker = null;
 
     const drawHead = () => {
       const keys = stepKeys();
-      if (wz.idx >= keys.length) wz.idx = keys.length - 1;
       head.innerHTML = "";
       head.appendChild(el("div", { class: "wiz-steps", "aria-hidden": "true" }, keys.map((_, i) => el("i", { class: i <= wz.idx ? "on" : "" }))));
       head.appendChild(el("div", { class: "muted small" }, t("wiz.step_of", { n: wz.idx + 1, total: keys.length })));
-      head.appendChild(el("h3", { id: "sw-wiz-title" }, t(TITLES[keys[wz.idx]])));
+      head.appendChild(el("h3", { id: "sw-wiz-title", tabindex: "-1" }, t(titleOf(keys[wz.idx]))));
     };
 
     const minutesStepper = (id) => {
       const val = el("span", { class: "stepper-val", "aria-live": "polite" }, t("unit.min", { n: minOf(id) }));
       const change = (dir) => { wz.mins[id] = stepMinutes(minOf(id), dir); val.textContent = t("unit.min", { n: wz.mins[id] }); };
       return el("span", { class: "stepper" }, [
-        el("button", { type: "button", "aria-label": t("zone.less"), title: t("zone.less"), onClick: () => change(-1) }, "−"),
+        el("button", { type: "button", "aria-label": this._named(t("zone.less"), nameOf(id)), title: t("zone.less"), onClick: () => change(-1) }, "−"),
         val,
-        el("button", { type: "button", "aria-label": t("zone.more"), title: t("zone.more"), onClick: () => change(1) }, "+"),
+        el("button", { type: "button", "aria-label": this._named(t("zone.more"), nameOf(id)), title: t("zone.more"), onClick: () => change(1) }, "+"),
       ]);
     };
 
+    // Two or three exclusive choices as pressed buttons, named by their caption.
+    const choiceRow = (caption, options, current, onPick) => {
+      const capId = uid("sw-wiz-cap");
+      const row = el("div", { class: "seg", role: "group", "aria-labelledby": capId });
+      options.forEach(([value, label]) => {
+        const b = el("button", { type: "button", class: "btn small", "aria-pressed": value === current ? "true" : "false" }, label);
+        b.addEventListener("click", () => {
+          row.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+          onPick(value);
+        });
+        row.appendChild(b);
+      });
+      return el("div", { class: "field", style: "margin:0;" }, [el("span", { id: capId }, caption), row]);
+    };
+
     const planNameField = () => {
-      const input = el("input", { type: "text", value: planName(), placeholder: t("cycles.name_ph") });
+      const input = el("input", { type: "text", maxlength: "80", value: planName(), placeholder: t("cycles.name_ph") });
       input.addEventListener("input", () => { wz.plan = input.value; wz.planTouched = true; refreshNext(); });
       return el("label", { class: "field", style: "margin:0;" }, [el("span", {}, t("wiz.plan_name")), input]);
     };
@@ -2235,21 +3069,44 @@ class ScheduleWizardPanel extends HTMLElement {
       const search = el("input", { type: "search", value: wz.search, placeholder: t("valves.search_ph"), "aria-label": t("valves.search") });
       const listHost = el("div", { class: "wiz-list" });
       const checkRow = (e) => {
+        const id = e.entity_id;
         const cb = el("input", { type: "checkbox" });
-        cb.checked = wz.picked.includes(e.entity_id);
+        cb.checked = wz.picked.includes(id);
+        const reg = registered.get(id);
+        // A new zone is named right under its tick box (UX-018: no separate step that comes and goes).
+        let nameField = null;
+        if (!reg) {
+          const errId = uid("sw-wiz-name-err");
+          const err = fieldError(errId);
+          const input = el("input", {
+            type: "text", maxlength: "80", value: nameOf(id), placeholder: t("valves.label_ph"),
+            "aria-label": this._named(t("wiz.zone_name"), friendly(id)),
+          });
+          input.addEventListener("input", () => {
+            wz.names[id] = input.value;
+            setFieldError(err, input, input.value.trim() ? "" : t("valves.label_required"));
+            refreshNext();
+          });
+          nameField = el("label", { class: "field", style: "margin:4px 0 0;padding-inline-start:42px;", hidden: !cb.checked }, [
+            el("span", {}, t("wiz.zone_name")), input, err,
+          ]);
+        }
         cb.addEventListener("change", () => {
-          if (cb.checked) { if (!wz.picked.includes(e.entity_id)) wz.picked.push(e.entity_id); }
-          else wz.picked = wz.picked.filter(x => x !== e.entity_id);
+          if (cb.checked) { if (!wz.picked.includes(id)) wz.picked.push(id); }
+          else wz.picked = wz.picked.filter(x => x !== id);
+          if (nameField) nameField.hidden = !cb.checked;
           drawHead();
           refreshNext();
         });
-        const reg = registered.get(e.entity_id);
-        return el("label", { class: "check" }, [
-          cb,
-          el("span", { style: "min-width:0;" }, [
-            el("div", {}, iso(reg ? reg.label : e.friendly_name)),
-            el("div", { class: "sub" }, ltr(e.entity_id)),
+        return el("div", {}, [
+          el("label", { class: "check" }, [
+            cb,
+            el("span", { style: "min-width:0;" }, [
+              el("div", {}, iso(reg ? reg.label : e.friendly_name)),
+              el("div", { class: "sub" }, ltr(id)),
+            ]),
           ]),
+          nameField,
         ]);
       };
       const renderList = () => {
@@ -2272,21 +3129,12 @@ class ScheduleWizardPanel extends HTMLElement {
       body.append(search, listHost);
     };
 
-    const bodyName = () => {
-      body.appendChild(el("p", { class: "muted" }, t("wiz.name_hint")));
-      wz.picked.filter(isNew).forEach(id => {
-        const input = el("input", { type: "text", value: nameOf(id), placeholder: t("valves.label_ph") });
-        input.addEventListener("input", () => { wz.names[id] = input.value; refreshNext(); });
-        body.appendChild(el("label", { class: "field", style: "margin:0;" }, [
-          el("span", {}, [iso(friendly(id)), " (", ltr(id), ")"]),
-          input,
-        ]));
-      });
-    };
-
     const bodyWhen = () => {
-      const days = el("div", { class: "days" });
-      DAYS.forEach((_, i) => {
+      const daysCap = uid("sw-wiz-days");
+      const minsCap = uid("sw-wiz-mins");
+      const days = el("div", { class: "days", role: "group", "aria-labelledby": daysCap });
+      // In the order the user's week runs (UX-017).
+      this._weekOrder().forEach((i) => {
         const chip = el("button", {
           type: "button", class: "day-chip",
           "aria-pressed": (wz.mask & DAY_BITS[i]) ? "true" : "false",
@@ -2295,22 +3143,134 @@ class ScheduleWizardPanel extends HTMLElement {
         chip.addEventListener("click", () => {
           wz.mask ^= DAY_BITS[i];
           chip.setAttribute("aria-pressed", (wz.mask & DAY_BITS[i]) ? "true" : "false");
+          setFieldError(daysErr, null, wz.mask & 127 ? "" : t("sched.pick_day"));
           refreshNext();
         });
         days.appendChild(chip);
       });
+      const daysErr = fieldError(uid("sw-wiz-days-err"));
+      days.setAttribute("aria-describedby", daysErr.id);
+      const daysField = el("div", { class: "field", style: "margin:0;" }, [el("span", { id: daysCap }, t("wiz.which_days")), days, daysErr]);
+
+      // Every N days from a start date, with the "First run: ..." line (#30).
+      const intervalErr = fieldError(uid("sw-wiz-interval-err"));
+      const startErr = fieldError(uid("sw-wiz-start-err"));
+      const intervalInput = el("input", {
+        type: "number", min: String(INTERVAL_MIN), max: String(INTERVAL_MAX), step: "1", inputmode: "numeric", value: wz.interval,
+      });
+      const startInput = el("input", { type: "date", value: wz.start });
+      const firstRun = el("div", { class: "muted small", "aria-live": "polite" });
+      const updateFirstRun = () => {
+        firstRun.innerHTML = "";
+        const n = intervalValue();
+        const start = startValue();
+        if (wz.repeat !== "interval" || n === null || !start || wz.timeMode !== "clock" || !/^\d{2}:\d{2}$/.test(wz.time)) return;
+        firstRun.append(...this._firstRunNodes(n, start, wz.time));
+      };
+      intervalInput.addEventListener("input", () => {
+        wz.interval = intervalInput.value;
+        setFieldError(intervalErr, intervalInput, intervalValue() === null ? t("sched.err_interval", { option: t("sched.repeat_weekdays") }) : "");
+        updateFirstRun(); updatePreview(); refreshNext();
+      });
+      startInput.addEventListener("input", () => {
+        wz.start = startInput.value;
+        setFieldError(startErr, startInput, startValue() ? "" : t("sched.err_start_date"));
+        updateFirstRun(); updatePreview(); refreshNext();
+      });
+      const intervalRow = el("div", {}, [
+        el("div", { class: "field-row" }, [
+          el("label", { class: "field", style: "margin:0;" }, [el("span", {}, t("sched.interval_days")), intervalInput, intervalErr]),
+          el("label", { class: "field", style: "margin:0;" }, [el("span", {}, t("sched.start_date")), startInput, startErr]),
+        ]),
+        firstRun,
+      ]);
+
+      // A clock time, or sunrise / sunset with minutes before or after (#59).
       const timeInput = el("input", { type: "time", value: wz.time, required: true });
-      timeInput.addEventListener("input", () => { wz.time = timeInput.value; refreshNext(); });
-      const mins = el("div", { class: "list" });
+      timeInput.addEventListener("input", () => { wz.time = timeInput.value; updateFirstRun(); refreshNext(); });
+      const timeField = el("label", { class: "field", style: "margin:0;" }, [el("span", {}, t("wiz.start_time")), timeInput]);
+      const offsetErr = fieldError(uid("sw-wiz-offset-err"));
+      const offsetInput = el("input", {
+        type: "number", min: "0", max: String(SUN_OFFSET_MAX), step: "1", inputmode: "numeric", value: wz.offset,
+        "aria-label": t("sched.offset_min"),
+      });
+      const dirSel = el("select", { "aria-label": t("sched.offset_min") });
+      dirSel.appendChild(el("option", { value: "before" }, t("sched.offset_before")));
+      dirSel.appendChild(el("option", { value: "after" }, t("sched.offset_after")));
+      dirSel.value = wz.offsetDir;
+      const preview = el("div", { class: "muted small", "aria-live": "polite" });
+      let seq = 0;
+      let timer = null;
+      const updatePreview = () => {
+        clearTimeout(timer);
+        const mine = ++seq;
+        preview.innerHTML = "";
+        if (wz.timeMode === "clock" || offsetValue() === null) return;
+        const msg = { type: "schedule_wizard/preview_schedule", time_mode: wz.timeMode, sun_offset_minutes: signedOffset(), count: 3 };
+        if (wz.repeat === "interval") {
+          if (intervalValue() === null || !startValue()) return;
+          Object.assign(msg, { repeat: "interval", interval_days: intervalValue(), start_date: startValue() });
+        } else {
+          if (!(wz.mask & 127)) return;
+          Object.assign(msg, { repeat: "weekdays", days_mask: wz.mask });
+        }
+        timer = setTimeout(() => {
+          this._hass.callWS(msg).then((res) => {
+            if (mine !== seq) return;
+            const list = (res && res.next) || [];
+            if (!list.length) { preview.textContent = t("sched.sun_none"); return; }
+            const text = list.map(ts => this._fmtDT(ts, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })).join(" · ");
+            preview.append(...this._tn("sched.next_runs", { list: text }));
+          }).catch(() => { if (mine === seq) preview.innerHTML = ""; });
+        }, 250);
+      };
+      offsetInput.addEventListener("input", () => {
+        wz.offset = offsetInput.value;
+        setFieldError(offsetErr, offsetInput, offsetValue() === null ? t("sched.err_offset") : "");
+        updatePreview(); refreshNext();
+      });
+      dirSel.addEventListener("change", () => { wz.offsetDir = dirSel.value; updatePreview(); });
+      const sunRow = el("div", {}, [
+        el("div", { class: "field", style: "margin:0;" }, [
+          el("span", {}, t("sched.offset_min")),
+          el("div", { style: "display:flex;gap:8px;" }, [offsetInput, dirSel]),
+          offsetErr,
+        ]),
+        el("p", { class: "muted small", style: "margin:4px 0;" }, t("sched.sun_hint")),
+        preview,
+      ]);
+
+      const sync = () => {
+        daysField.hidden = wz.repeat !== "weekdays";
+        intervalRow.hidden = wz.repeat !== "interval";
+        timeField.hidden = wz.timeMode !== "clock";
+        sunRow.hidden = wz.timeMode === "clock";
+        updateFirstRun();
+        updatePreview();
+        refreshNext();
+      };
+      const repeatRow = choiceRow(t("sched.repeat"), [
+        ["weekdays", t("sched.repeat_weekdays")], ["interval", t("sched.repeat_interval")],
+      ], wz.repeat, (v) => { wz.repeat = v; sync(); });
+      const modeRow = choiceRow(t("sched.start_at"), [
+        ["clock", t("sched.mode_clock")], ["sunrise", t("sched.mode_sunrise")], ["sunset", t("sched.mode_sunset")],
+      ], wz.timeMode, (v) => { wz.timeMode = v; sync(); });
+
+      const mins = el("div", { class: "list", role: "group", "aria-labelledby": minsCap });
       wz.picked.forEach(id => mins.appendChild(el("div", { class: "zmin" }, [iso(nameOf(id)), minutesStepper(id)])));
       body.append(
-        el("div", { class: "field", style: "margin:0;" }, [el("span", {}, t("wiz.which_days")), days]),
-        el("label", { class: "field", style: "margin:0;" }, [el("span", {}, t("wiz.start_time")), timeInput]),
-        el("div", { class: "field", style: "margin:0;" }, [el("span", {}, t("wiz.minutes_per_zone")), mins]),
+        repeatRow, daysField, intervalRow,
+        modeRow, timeField, sunRow,
+        el("div", { class: "field", style: "margin:0;" }, [el("span", { id: minsCap }, t("wiz.minutes_per_zone")), mins]),
       );
+      sync();
     };
 
-    const bodyOrder = () => {
+    const bodyPlan = () => {
+      if (wz.picked.length < 2) {
+        body.append(el("p", { class: "muted" }, t("wiz.plan_name_hint")), planNameField());
+        return;
+      }
       const choice = el("div", { class: "choice" });
       const opt = (mode, titleKey, hintKey) => {
         const b = el("button", { type: "button", "aria-pressed": wz.mode === mode ? "true" : "false" }, [
@@ -2342,14 +3302,24 @@ class ScheduleWizardPanel extends HTMLElement {
       });
       const summary = el("div", { class: "summary" }, [
         el("strong", {}, iso(planName())),
-        el("span", {}, this._whenNodes({ days_mask: wz.mask, time_hhmm: wz.time })),
+        el("span", {}, this._whenNodes(schedShape())),
         zones,
         el("span", { class: "muted" }, t(ids.length > 1 ? (seq ? "wiz.mode_sequence" : "wiz.mode_together") : "wiz.mode_single")),
         el("span", { class: "muted" }, t("wiz.total", { n: total })),
       ]);
-      if ((st.options || {}).rain_entity) summary.appendChild(el("span", { class: "muted" }, t("wiz.rain_note")));
+      if (opts.rain_entity) summary.appendChild(el("span", { class: "muted" }, t("wiz.rain_note")));
       body.appendChild(summary);
-      if (ids.length === 1) body.appendChild(planNameField());
+      // Rain skip in the first-run flow (UX-009): the same picker and check as Settings.
+      if (!opts.rain_entity) {
+        if (!rainPicker) {
+          rainPicker = this._rainPicker("", () => rainRules(opts.rain_skip_states ?? DEFAULT_RAIN_STATES, opts.rain_attribute, opts.rain_threshold),
+            t("wiz.rain_q"));
+        }
+        body.append(
+          rainPicker.node,
+          el("p", { class: "muted small", style: "margin:-6px 0 0;" }, t("wiz.rain_later")),
+        );
+      }
     };
 
     const save = async () => {
@@ -2357,14 +3327,25 @@ class ScheduleWizardPanel extends HTMLElement {
       refreshNext();
       nextBtn.textContent = t("wiz.saving");
       const ids = wz.picked.slice();
-      const days = daysFromMaskNames(wz.mask);
       const name = planName();
-      const time = wz.time;
+      const when = {
+        ...(wz.repeat === "interval"
+          ? { every_n_days: intervalValue(), start_date: startValue() }
+          : { days: daysFromMaskNames(wz.mask) }),
+        ...(wz.timeMode === "clock"
+          ? { time: wz.time }
+          : { time: /^\d{2}:\d{2}$/.test(wz.time) ? wz.time : "06:00", time_mode: wz.timeMode, sun_offset_minutes: signedOffset() }),
+      };
+      const rain = rainPicker ? rainPicker.value() : "";
       const step = async (label, fn) => {
         try { return await fn(); } catch (e) { throw { label, error: e }; }
       };
       const svc = (service, data) => this._hass.callService("schedule_wizard", service, data);
       try {
+        // First: the rain source is checked by the server and saving it twice does no harm.
+        if (rain) {
+          await step(t("wiz.fail_rain"), () => this._hass.callWS({ type: "schedule_wizard/update_options", rain_entity: rain }));
+        }
         for (const id of ids) {
           if (!isNew(id)) continue;
           await step(t("wiz.fail_zone", { zone: nameOf(id) }), () => svc("add_valve", {
@@ -2373,7 +3354,7 @@ class ScheduleWizardPanel extends HTMLElement {
         }
         if (ids.length === 1) {
           await step(t("wiz.fail_schedule"), () => svc("add_schedule", {
-            valve_entity_id: ids[0], time, days, duration_minutes: minOf(ids[0]), name, enabled: true,
+            valve_entity_id: ids[0], ...when, duration_minutes: minOf(ids[0]), name, enabled: true,
           }));
         } else if (wz.mode === "sequence") {
           const res = await step(t("wiz.fail_plan"), () => this._hass.callWS({
@@ -2386,18 +3367,19 @@ class ScheduleWizardPanel extends HTMLElement {
           const cycleId = res && res.response && res.response.cycle && res.response.cycle.id;
           if (!cycleId) throw { label: t("wiz.fail_plan"), error: new Error(t("common.unknown")) };
           await step(t("wiz.fail_schedule"), () => svc("add_schedule", {
-            cycle_id: cycleId, time, days, duration_minutes: 1, name, enabled: true,
+            cycle_id: cycleId, ...when, duration_minutes: 1, name, enabled: true,
           }));
         } else {
           for (const id of ids) {
             await step(t("wiz.fail_zone_time", { zone: nameOf(id) }), () => svc("add_schedule", {
-              valve_entity_id: id, time, days, duration_minutes: minOf(id), name, enabled: true,
+              valve_entity_id: id, ...when, duration_minutes: minOf(id), name, enabled: true,
             }));
           }
         }
       } catch (err) {
         wz.saving = false;
         const e = err && err.error ? err.error : err;
+        if (rainPicker && /rain_entity/.test(String((e && e.message) || ""))) rainPicker.setError(t("set.rain_invalid", { entity: rain }));
         this._toast(t("wiz.failed", { step: (err && err.label) || "", error: (e && (e.message || e.code)) || String(e) }), "error");
         nextBtn.textContent = t("wiz.save");
         refreshNext();
@@ -2418,7 +3400,7 @@ class ScheduleWizardPanel extends HTMLElement {
       const key = keys[wz.idx];
       body.innerHTML = "";
       foot.innerHTML = "";
-      ({ pick: bodyPick, name: bodyName, when: bodyWhen, order: bodyOrder, check: bodyCheck })[key]();
+      ({ pick: bodyPick, when: bodyWhen, plan: bodyPlan, check: bodyCheck })[key]();
       const last = wz.idx === keys.length - 1;
       const backBtn = el("button", {
         class: "btn", type: "button",
@@ -2436,14 +3418,12 @@ class ScheduleWizardPanel extends HTMLElement {
       if (wz.idx > 0) right.unshift(el("button", { class: "btn ghost", type: "button", onClick: () => { if (!wz.saving) close(); } }, t("common.cancel")));
       foot.append(backBtn, el("div", { class: "actions" }, right));
       refreshNext();
-      const first = body.querySelector("input, button");
+      // A step without a field (the check step) puts focus on its heading, not on the page behind (BUG-003).
+      const first = body.querySelector("input, button") || head.querySelector("h3");
       if (first) first.focus();
     };
 
-    this._modalRoot.innerHTML = "";
-    this._applyDir(overlay);
-    this._modalRoot.appendChild(overlay);
-    draw();
+    close = this._openDialog(overlay, modal, { canClose: () => !wz.saving, focus: () => { draw(); return null; } });
   }
 
   // ---------- Reports ----------
@@ -2492,14 +3472,27 @@ class ScheduleWizardPanel extends HTMLElement {
         const id = h.valve_entity_id;
         const s = valveStats[id] = valveStats[id] || { runs_7d: 0, min_7d: 0, runs_30d: 0, min_30d: 0, runs_total: 0, min_total: 0, last: null };
         if (status === "completed" || status === "cancelled") {
-          if (inWindow(h.ts, 7)) { s.runs_7d++; s.min_7d += dur; }
-          if (inWindow(h.ts, 30)) { s.runs_30d++; s.min_30d += dur; }
-          s.runs_total++; s.min_total += dur;
+          // A stopped run from before 0.15.0 (no planned_min) holds the planned length, not what watered
+          // (BUG-037): it stays a run, as before, but adds no minutes.
+          const mins = status === "cancelled" && h.planned_min == null ? 0 : dur;
+          if (inWindow(h.ts, 7)) { s.runs_7d++; s.min_7d += mins; }
+          if (inWindow(h.ts, 30)) { s.runs_30d++; s.min_30d += mins; }
+          s.runs_total++; s.min_total += mins;
           if (!s.last || h.ts > s.last.ts) s.last = h;
           if (inWindow(h.ts, 30)) {
             const dayKey = I18N.dayKey(h.ts, this._hass);
+            dailyMin[dayKey] = (dailyMin[dayKey] || 0) + mins;
+          }
+        } else if (status === "superseded" && h.planned_min != null) {
+          // Replaced by a new run on the zone: not a run of its own, but its minutes were watered (BUG-028).
+          // Rows written before 0.15.0 have no planned_min and hold the planned length, not what watered.
+          if (inWindow(h.ts, 7)) s.min_7d += dur;
+          if (inWindow(h.ts, 30)) {
+            s.min_30d += dur;
+            const dayKey = I18N.dayKey(h.ts, this._hass);
             dailyMin[dayKey] = (dailyMin[dayKey] || 0) + dur;
           }
+          s.min_total += dur;
         }
       } else {
         const id = h.valve_entity_id;
@@ -2525,7 +3518,9 @@ class ScheduleWizardPanel extends HTMLElement {
           onClick: () => this._downloadHistoryCsv(),
         }, this._t("reports.export")),
       ]),
-      el("p", { class: "muted small", style: "margin:0;" }, this._t("reports.based_on", { n: history.length })),
+      // No storage limit in the sentence (UX-018); it is only said when the oldest records are being dropped.
+      el("p", { class: "muted small", style: "margin:0;" },
+        this._t(history.length >= 500 ? "reports.based_on_full" : "reports.based_on", { n: history.length })),
     ]));
 
     const totalWater = Number(this._state.water_total_l) || 0;
@@ -2544,8 +3539,16 @@ class ScheduleWizardPanel extends HTMLElement {
       dayValues.push(dailyMin[key] || 0);
     }
     const maxVal = Math.max(1, ...dayValues);
+    const totalMin = dayValues.reduce((a, b) => a + b, 0);
+    const peak = dayValues.indexOf(Math.max(...dayValues));
+    // BUG-009: the bars are a picture; the name carries the total and the peak day, the table every value.
+    const chartSummary = totalMin
+      ? this._t("reports.chart_summary", { total: totalMin, date: dayLabels[peak], n: dayValues[peak] })
+      : this._t("reports.chart_none");
     const chartCard = el("div", { class: "card" }, [el("h2", {}, this._t("reports.chart_title"))]);
     const chart = el("div", {
+      role: "img",
+      "aria-label": chartSummary,
       style: "display:flex;align-items:flex-end;gap:2px;height:120px;border-bottom:1px solid var(--sw-border);padding-bottom:4px;",
     });
     dayValues.forEach((v, i) => {
@@ -2555,69 +3558,68 @@ class ScheduleWizardPanel extends HTMLElement {
         style: `flex:1;height:${h}px;min-width:6px;background:var(--sw-primary);border-radius:2px 2px 0 0;`,
       }));
     });
+    // A minute scale for the bars (UX-018): the top value of the axis.
+    chartCard.appendChild(el("div", { "aria-hidden": "true", class: "muted", style: "font-size:11px;margin-bottom:2px;" }, this._t("unit.min", { n: maxVal })));
     chartCard.appendChild(chart);
-    chartCard.appendChild(el("div", { style: "display:flex;justify-content:space-between;font-size:11px;color:var(--sw-muted);margin-top:4px;" }, [
+    chartCard.appendChild(el("div", { "aria-hidden": "true", style: "display:flex;justify-content:space-between;font-size:11px;color:var(--sw-muted);margin-top:4px;" }, [
       el("span", {}, dayLabels[0]),
       el("span", {}, dayLabels[Math.floor(dayValues.length / 2)]),
       el("span", {}, dayLabels[dayValues.length - 1]),
     ]));
+    if (totalMin) {
+      const values = reportTable("50%", [this._t("reports.col_day"), this._t("sched.duration")]);
+      dayValues.forEach((v, i) => {
+        if (v) values.tbody.appendChild(el("tr", {}, [el("th", { scope: "row" }, dayLabels[i]), el("td", { class: "num" }, String(v))]));
+      });
+      const det = el("details", { class: "chart-values" }, [el("summary", {}, this._t("reports.chart_values")), values.table]);
+      if (this._chartValuesOpen) det.open = true;
+      det.addEventListener("toggle", () => { this._chartValuesOpen = det.open; });
+      chartCard.appendChild(det);
+    }
     root.appendChild(chartCard);
 
     const valveTable = el("div", { class: "card" }, [el("h2", {}, this._t("reports.per_valve"))]);
     if (!valves.length) {
       valveTable.appendChild(el("div", { class: "empty" }, this._t("reports.no_valves")));
     } else {
-      valveTable.appendChild(el("div", {
-        style: "display:grid;grid-template-columns:1.4fr repeat(3, 1fr);gap:6px;font-size:12px;font-weight:600;color:var(--sw-muted);padding:6px 4px;border-bottom:1px solid var(--sw-border);",
-      }, [
-        el("span", {}, this._t("sched.valve")),
-        el("span", { class: "num" }, this._t("reports.col_7d")),
-        el("span", { class: "num" }, this._t("reports.col_30d")),
-        el("span", { class: "num" }, this._t("reports.total")),
-      ]));
+      const t = reportTable("31%", [this._t("sched.valve"), this._t("reports.col_7d"), this._t("reports.col_30d"), this._t("reports.total")]);
       valves.forEach(v => {
         const s = valveStats[v.entity_id] || { runs_7d: 0, min_7d: 0, runs_30d: 0, min_30d: 0, runs_total: 0, min_total: 0 };
         const w = water[v.entity_id] || { d7: 0, d30: 0 };
-        valveTable.appendChild(el("div", {
-          style: "display:grid;grid-template-columns:1.4fr repeat(3, 1fr);gap:6px;font-size:13px;padding:6px 4px;border-bottom:1px solid var(--sw-border);",
-        }, [
-          el("span", {}, iso(v.label)),
+        t.tbody.appendChild(el("tr", {}, [
+          el("th", { scope: "row" }, iso(v.label)),
           ...[
             [s.runs_7d, s.min_7d, w.d7],
             [s.runs_30d, s.min_30d, w.d30],
             [s.runs_total, s.min_total, Number(v.water_total_l) || 0],
-          ].map(([runs, min, l]) => el("span", { class: "num" }, [
-            this._t("reports.runs_min", { runs, min }),
+          // Runs and minutes on their own lines instead of "4x / 40 min" (UX-018).
+          ].map(([runs, min, l]) => el("td", { class: "num" }, [
+            el("span", { style: "display:block;" }, this._t("reports.runs", { n: runs })),
+            el("span", { style: "display:block;" }, this._t("unit.min", { n: min })),
             hasWater ? el("span", { class: "water" }, this._fmtLiters(l)) : null,
           ])),
         ]));
       });
+      valveTable.appendChild(t.table);
     }
     root.appendChild(valveTable);
 
     if (cycles.length) {
       const cycleTable = el("div", { class: "card" }, [el("h2", {}, this._t("reports.per_cycle"))]);
-      cycleTable.appendChild(el("div", {
-        style: "display:grid;grid-template-columns:1.5fr repeat(3, 0.7fr) 0.7fr;gap:6px;font-size:12px;font-weight:600;color:var(--sw-muted);padding:6px 4px;border-bottom:1px solid var(--sw-border);",
-      }, [
-        el("span", {}, this._t("sched.cycle")),
-        el("span", { class: "num" }, this._t("reports.done")),
-        el("span", { class: "num" }, this._t("reports.cancelled")),
-        el("span", { class: "num" }, this._t("reports.skipped")),
-        el("span", { class: "num" }, this._t("reports.total")),
-      ]));
+      const t = reportTable("35%", [
+        this._t("sched.cycle"), this._t("reports.done"), this._t("reports.cancelled"), this._t("reports.skipped"), this._t("reports.total"),
+      ]);
       cycles.forEach(c => {
         const s = cycleStats[c.id] || { completed: 0, cancelled: 0, skipped: 0, runs_30d: 0 };
-        cycleTable.appendChild(el("div", {
-          style: "display:grid;grid-template-columns:1.5fr repeat(3, 0.7fr) 0.7fr;gap:6px;font-size:13px;padding:6px 4px;border-bottom:1px solid var(--sw-border);",
-        }, [
-          el("span", {}, iso(c.name)),
-          el("span", { class: "num", style: "color:var(--sw-success);" }, String(s.completed)),
-          el("span", { class: "num", style: "color:var(--sw-warn);" }, String(s.cancelled)),
-          el("span", { class: "num", style: "color:var(--sw-muted);" }, String(s.skipped)),
-          el("span", { class: "num", style: "font-weight:600;" }, String(s.runs_30d)),
+        t.tbody.appendChild(el("tr", {}, [
+          el("th", { scope: "row" }, iso(c.name)),
+          el("td", { class: "num", style: "color:var(--sw-success-text);" }, String(s.completed)),
+          el("td", { class: "num", style: "color:var(--sw-warn-text);" }, String(s.cancelled)),
+          el("td", { class: "num", style: "color:var(--sw-muted);" }, String(s.skipped)),
+          el("td", { class: "num", style: "font-weight:600;" }, String(s.runs_30d)),
         ]));
       });
+      cycleTable.appendChild(t.table);
       root.appendChild(cycleTable);
     }
 
@@ -2646,12 +3648,11 @@ class ScheduleWizardPanel extends HTMLElement {
   _downloadHistoryCsv() {
     const history = this._state.history || [];
     const valvesById = Object.fromEntries((this._state.valves || []).map(v => [v.entity_id, v.label]));
-    const cyclesById = Object.fromEntries((this._state.cycles || []).map(c => [c.id, c.name]));
     const header = ["timestamp", "iso_time", "target_kind", "target_id", "target_label", "duration_min", "source", "status", "note", "liters"];
     const rows = history.map(h => {
-      const isCycle = !!cyclesById[h.valve_entity_id];
+      const isCycle = this._isPlanId(h.valve_entity_id);
       const id = h.valve_entity_id || "";
-      const label = isCycle ? cyclesById[id] : (valvesById[id] || id);
+      const label = isCycle ? this._planName(id, h.name) : (valvesById[id] || id);
       const isoTime = new Date(h.ts * 1000).toISOString();
       return [
         h.ts, isoTime,
@@ -2665,8 +3666,10 @@ class ScheduleWizardPanel extends HTMLElement {
       ];
     });
     const escape = (v) => {
-      const s = String(v == null ? "" : v);
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      let s = String(v == null ? "" : v);
+      // #39: a text cell starting with = + - @ (or tab / CR) would run as a spreadsheet formula.
+      if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const csv = [header.map(escape).join(","), ...rows.map(r => r.map(escape).join(","))].join("\n");
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
@@ -2679,14 +3682,99 @@ class ScheduleWizardPanel extends HTMLElement {
     setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
   }
 
+  // ---------- Rain source (UX-011) ----------
+
+  // The rain source as a list of what Home Assistant has (weather, rain sensors, other sensors) with a line under
+  // it that says what counts as rain and what the source reports now. rules() gives the rain details in use:
+  // { states, attribute, threshold }; label replaces the field caption. Returns { node, select, value(), setError(msg) }.
+  _rainPicker(current, rules, label) {
+    const states = (this._hass && this._hass.states) || {};
+    const cur = String(current || "").trim();
+    const name = (id) => String((states[id] && states[id].attributes && states[id].attributes.friendly_name) || id);
+    const RAIN_WORDS = /rain|precip|regen|neerslag|pluie|pluv|lluvia|chuva|pioggia|regn|sade|deszcz|дожд|опад|осад|גשם|مطر|雨/i;
+    const rainy = (id) => {
+      const dc = String((states[id].attributes || {}).device_class || "");
+      return dc === "precipitation" || dc === "precipitation_intensity" || dc === "moisture" || RAIN_WORDS.test(id) || RAIN_WORDS.test(name(id));
+    };
+    // Schedule Wizard's own sensors are never a rain source (#91, as #70 did for zones); a saved one stays visible.
+    const own = new Set((this._state && this._state.own_entities) || []);
+    const ids = Object.keys(states).filter(id => RAIN_DOMAINS.includes(id.split(".")[0]) && (!own.has(id) || id === cur))
+      .sort((a, b) => name(a).localeCompare(name(b)));
+    const weather = ids.filter(id => id.startsWith("weather."));
+    const rain = ids.filter(id => !id.startsWith("weather.") && rainy(id));
+    const other = ids.filter(id => !id.startsWith("weather.") && !rainy(id));
+    const labelId = uid("sw-rain-label");
+    const checkId = uid("sw-rain-check");
+    const errId = uid("sw-rain-err");
+    const sel = el("select", { "aria-labelledby": labelId, "aria-describedby": checkId });
+    sel.appendChild(el("option", { value: "" }, this._t("set.rain_none")));
+    if (cur && !states[cur]) sel.appendChild(el("option", { value: cur }, this._t("set.rain_missing_opt", { entity: `\u2066${cur}\u2069` })));
+    [["set.rain_group_weather", weather], ["set.rain_group_rain", rain], ["set.rain_group_other", other]].forEach(([key, list]) => {
+      if (!list.length) return;
+      const group = el("optgroup", { label: this._t(key) });
+      list.forEach(id => group.appendChild(el("option", { value: id }, optLabel(name(id), id))));
+      sel.appendChild(group);
+    });
+    sel.value = cur;
+    const check = el("p", { class: "check-line muted", id: checkId, "aria-live": "polite" });
+    const err = fieldError(errId);
+    // The line reads the states Home Assistant has now, not the ones the form was drawn with (BUG-038).
+    const refresh = () => {
+      const live = (this._hass && this._hass.states) || {};
+      const id = sel.value;
+      const st = id ? live[id] : null;
+      let cls = "check-line muted";
+      let nodes;
+      if (!id) nodes = [this._t("set.rain_check_none")];
+      else if (!st) {
+        cls = "check-line warn";
+        nodes = this._tn("set.rain_check_missing", { entity: ltr(id) });
+      } else {
+        const r = rules();
+        nodes = rainCheckParts(st, r, (key, vars) => this._tn(key, vars), (key) => this._t(key));
+        if (rainWouldSkip(st, r)) nodes.push(" ", this._t("set.rain_would_skip"));
+      }
+      const probe = document.createElement("p");
+      probe.replaceChildren(...nodes);
+      if (check.className === cls && check.innerHTML === probe.innerHTML) return;
+      check.className = cls;
+      check.replaceChildren(...nodes);
+    };
+    const update = () => {
+      setFieldError(err, sel, "");
+      sel.setAttribute("aria-describedby", checkId);
+      refresh();
+    };
+    sel.addEventListener("change", update);
+    update();
+    const node = el("div", { class: "field" }, [el("span", { id: labelId }, label || this._t("set.rain_using")), sel, err, check]);
+    const picker = {
+      node, select: sel, update, refresh,
+      value: () => sel.value,
+      setError: (msg) => { setFieldError(err, sel, msg); if (msg) sel.setAttribute("aria-describedby", `${errId} ${checkId}`); },
+    };
+    this._rainPickers.add(picker);
+    return picker;
+  }
+
+  // What a notify service reaches, in words (UX-011): "Phone: Pixel 8", "Home Assistant notifications".
+  _notifyLabel(info) {
+    if (info.kind === "mobile") return this._t("notify.mobile", { name: info.name });
+    if (info.kind === "persistent_notification") return this._t("notify.persistent");
+    if (info.kind === "send_message") return this._t("notify.send_message");
+    if (info.kind === "notify") return this._t("notify.default");
+    return info.name || info.service;
+  }
+
   // ---------- Settings ----------
 
   _optGroup(key, title, desc, on, children) {
-    const d = el("details", { class: "opt-group" });
+    const titleId = uid("sw-group");
+    const d = el("details", { class: "opt-group", "aria-labelledby": titleId });
     if (this._openGroups.has(key)) d.open = true;
     d.addEventListener("toggle", () => { if (d.open) this._openGroups.add(key); else this._openGroups.delete(key); });
     d.appendChild(el("summary", {}, [
-      el("strong", { style: "font-weight:500;" }, title),
+      el("strong", { id: titleId, style: "font-weight:500;" }, title),
       on === null ? el("span", {}) : el("span", { class: "pill " + (on ? "ok" : "idle") }, this._t(on ? "common.on" : "common.off")),
       el("p", {}, desc),
     ]));
@@ -2710,42 +3798,75 @@ class ScheduleWizardPanel extends HTMLElement {
     const lookInput = el("input", { type: "number", min: "1", max: "1440", value: String(opts.calendar_lookahead_min || 10) });
     const pollInput = el("input", { type: "number", min: "10", max: "3600", value: String(opts.poll_interval || 60) });
     const defDurInput = el("input", { type: "number", min: "1", max: "1440", value: String(opts.default_duration || 10) });
-    const rainEntityInput = el("input", { type: "text", dir: "ltr", placeholder: this._t("settings.rain_entity_ph"), value: String(opts.rain_entity || "") });
+    // #78: optional title keyword for calendar events; #79: longest calendar / webhook run.
+    const calKeywordInput = el("input", { type: "text", maxlength: "40", placeholder: "\u2066water:\u2069", value: String(opts.calendar_keyword || "") });
+    const calKeywordErr = el("div", { class: "field-error", id: "sw-set-cal-keyword-err", role: "alert", hidden: true });
+    const maxExtInput = el("input", { type: "number", min: "1", max: "1440", step: "1", inputmode: "numeric", value: String(opts.max_external_minutes || 120) });
+    const maxExtErr = el("div", { class: "field-error", id: "sw-set-max-ext-err", role: "alert", hidden: true });
+    const showSetErr = (node, input, msg) => {
+      node.textContent = msg || "";
+      node.hidden = !msg;
+      if (msg) { input.setAttribute("aria-invalid", "true"); input.setAttribute("aria-describedby", node.id); }
+      else { input.removeAttribute("aria-invalid"); input.removeAttribute("aria-describedby"); }
+    };
+    const maxExtValue = () => {
+      const raw = String(maxExtInput.value).trim();
+      const n = Number(raw);
+      return raw !== "" && Number.isInteger(n) && n >= 1 && n <= 1440 ? n : null;
+    };
+    const externalCheck = () => {
+      const kwBad = calKeywordInput.value.trim().length > 40;
+      const extBad = maxExtValue() === null;
+      showSetErr(calKeywordErr, calKeywordInput, kwBad ? this._t("set.cal_keyword_err") : "");
+      showSetErr(maxExtErr, maxExtInput, extBad ? this._t("set.max_external_err") : "");
+      return kwBad ? calKeywordInput : (extBad ? maxExtInput : null);
+    };
+    calKeywordInput.addEventListener("input", () => { if (calKeywordErr.textContent) externalCheck(); });
+    maxExtInput.addEventListener("input", () => { if (maxExtErr.textContent) externalCheck(); });
     const rainStatesInput = el("input", { type: "text", dir: "ltr", placeholder: "rainy,pouring,snowy,lightning-rainy", value: String(opts.rain_skip_states || "") });
     const rainAttrInput = el("input", { type: "text", placeholder: this._t("settings.rain_attr_ph"), value: String(opts.rain_attribute || "") });
     const rainThresholdInput = el("input", { type: "number", min: "0", max: "100", step: "0.1", value: opts.rain_threshold != null ? String(opts.rain_threshold) : "" });
+    const rainPicker = this._rainPicker(opts.rain_entity, () => rainRules(rainStatesInput.value, rainAttrInput.value, rainThresholdInput.value));
+    [rainStatesInput, rainAttrInput, rainThresholdInput].forEach(i => i.addEventListener("input", rainPicker.update));
 
     // Essentials
     const ess = el("div", { class: "card" }, [el("h2", {}, this._t("set.essentials"))]);
-    ess.appendChild(field(this._t("set.rain_using"), rainEntityInput));
-    ess.appendChild(el("p", { class: "muted small", style: "margin:-6px 0 12px;" }, this._t("set.rain_using_hint")));
+    ess.appendChild(rainPicker.node);
 
     const availableTargets = this._state.notify_services || [];
     const availableEvents = this._state.notify_events || [];
     const currentTargets = new Set(Array.isArray(opts.notify_targets) ? opts.notify_targets : (opts.notify_targets ? String(opts.notify_targets).split(",").map(s => s.trim()).filter(Boolean) : []));
     const currentEvents = new Set(Array.isArray(opts.notify_events) ? opts.notify_events : (opts.notify_events ? String(opts.notify_events).split(",").map(s => s.trim()).filter(Boolean) : []));
 
-    const targetsWrap = el("div", { class: "check-wrap" });
+    const targetsCap = uid("sw-notify-to");
+    const eventsCap = uid("sw-notify-when");
+    const targetsWrap = el("div", { class: "check-wrap", role: "group", "aria-labelledby": targetsCap });
     if (!availableTargets.length) {
       targetsWrap.appendChild(el("div", { class: "empty", style: "padding:4px;" }, this._t("settings.no_notify")));
     } else {
-      availableTargets.forEach(name => {
+      const infos = Array.isArray(this._state.notify_targets_info) ? this._state.notify_targets_info
+        : availableTargets.map(service => ({ service, kind: "other", name: service }));
+      infos.forEach(info => {
+        const name = info.service;
         const cb = el("input", { type: "checkbox" });
         cb.checked = currentTargets.has(name);
         cb.addEventListener("change", () => { if (cb.checked) currentTargets.add(name); else currentTargets.delete(name); });
-        targetsWrap.appendChild(el("label", {}, [cb, ltr(name)]));
+        // Readable name; the service itself stays in the tooltip for people who know it (UX-011).
+        targetsWrap.appendChild(el("label", { title: `notify.${name}` }, [cb, iso(this._notifyLabel(info))]));
       });
     }
-    const eventsWrap = el("div", { class: "check-wrap" });
-    const eventLabel = (ev) => (this._t.has("event." + ev) ? this._t("event." + ev) : ev);
+    const eventsWrap = el("div", { class: "check-wrap", role: "group", "aria-labelledby": eventsCap });
+    // Short label for the long 0 % skip text, next to "Skipped (rain)" (UX-018).
+    const eventLabel = (ev) => (ev === "skipped_seasonal" ? this._t("set.ev_skipped_seasonal")
+      : this._t.has("event." + ev) ? this._t("event." + ev) : ev);
     availableEvents.forEach(ev => {
       const cb = el("input", { type: "checkbox" });
       cb.checked = currentEvents.has(ev);
       cb.addEventListener("change", () => { if (cb.checked) currentEvents.add(ev); else currentEvents.delete(ev); });
       eventsWrap.appendChild(el("label", {}, [cb, eventLabel(ev)]));
     });
-    ess.appendChild(el("div", { class: "field" }, [el("span", {}, this._t("settings.notify_services")), targetsWrap]));
-    ess.appendChild(el("div", { class: "field" }, [el("span", {}, this._t("settings.notify_when")), eventsWrap]));
+    ess.appendChild(el("div", { class: "field" }, [el("span", { id: targetsCap }, this._t("settings.notify_services")), targetsWrap]));
+    ess.appendChild(el("div", { class: "field" }, [el("span", { id: eventsCap }, this._t("settings.notify_when")), eventsWrap]));
     const curReminder = Math.max(0, parseInt(opts.reminder_minutes, 10) || 0);
     const reminderVals = [0, 10, 15, 30, 60];
     if (!reminderVals.includes(curReminder)) reminderVals.push(curReminder);
@@ -2791,10 +3912,10 @@ class ScheduleWizardPanel extends HTMLElement {
       lookup.then(s => {
         if (seq !== previewSeq) return;
         seasonalPreview.innerHTML = "";
-        if (!s) { seasonalPreview.appendChild(el("span", { style: "color:var(--sw-danger)" }, this._tn("settings.preview_not_found", { entity: ltr(entityId) }))); return; }
+        if (!s) { seasonalPreview.appendChild(el("span", { style: "color:var(--sw-danger-text)" }, this._tn("settings.preview_not_found", { entity: ltr(entityId) }))); return; }
         let temp = null;
         try { temp = parseFloat(attr ? s.attributes[attr] : s.state); } catch {}
-        if (temp == null || isNaN(temp)) { seasonalPreview.appendChild(el("span", { style: "color:var(--sw-danger)" }, this._tn("settings.preview_not_numeric", { state: ltr(s.state) }))); return; }
+        if (temp == null || isNaN(temp)) { seasonalPreview.appendChild(el("span", { style: "color:var(--sw-danger-text)" }, this._tn("settings.preview_not_numeric", { state: ltr(s.state) }))); return; }
         const low = parseFloat(seasonalLow.value) || 0;
         const high = parseFloat(seasonalHigh.value) || 0;
         const minP = parseFloat(seasonalMin.value) || 0;
@@ -2837,6 +3958,19 @@ class ScheduleWizardPanel extends HTMLElement {
     // Master
     const masterEntity = el("input", { type: "text", dir: "ltr", placeholder: "switch.water_pump", value: String(opts.master_valve_entity || "") });
     const masterPreOpen = el("input", { type: "number", min: "0", max: "600", value: String(opts.master_valve_pre_open_sec ?? 0) });
+    // Inline error; the server checks the same rule (#40).
+    const masterErr = el("div", { class: "field-error", id: "sw-master-err", role: "alert", hidden: true });
+    const masterCheck = () => {
+      const v = masterEntity.value.trim();
+      const ok = !v || v === String(opts.master_valve_entity || "") ||
+        (this._state.controllable || []).some(c => c.entity_id === v);
+      masterErr.replaceChildren(...(ok ? [] : this._tn("settings.master_invalid", { entity: ltr(v) })));
+      masterErr.hidden = ok;
+      if (ok) { masterEntity.removeAttribute("aria-invalid"); masterEntity.removeAttribute("aria-describedby"); }
+      else { masterEntity.setAttribute("aria-invalid", "true"); masterEntity.setAttribute("aria-describedby", masterErr.id); }
+      return ok;
+    };
+    masterEntity.addEventListener("change", masterCheck);
 
     // Fail detection
     const failEnabled = el("input", { type: "checkbox" });
@@ -2869,7 +4003,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const webhookId = this._state.webhook_id || "";
     const webhookChildren = [hint(this._t("settings.webhook_hint"))];
     if (webhookId) {
-      const webhookUrl = `${location.origin}/api/webhook/${webhookId}`;
+      let webhookUrl = `${location.origin}/api/webhook/${webhookId}`;
       const urlInput = el("input", {
         type: "text", readonly: true, dir: "ltr", value: webhookUrl,
         "aria-label": this._t("settings.webhook"),
@@ -2888,7 +4022,24 @@ class ScheduleWizardPanel extends HTMLElement {
           }
           this._toast(this._t("common.copied"), "ok");
         },
-      }, this._t("settings.copy_url")));
+      }, this._t("settings.copy_url")), el("button", {
+        class: "btn small",
+        style: "margin-top:6px;margin-inline-start:6px;",
+        onClick: async () => {
+          if (!await this._confirm(this._t("settings.webhook_rotate_confirm"), this._t("settings.webhook_rotate"))) return;
+          try {
+            const res = await this._hass.callWS({ type: "schedule_wizard/rotate_webhook" });
+            this._state.webhook_id = res.webhook_id;
+            webhookUrl = `${location.origin}/api/webhook/${res.webhook_id}`;
+            urlInput.value = webhookUrl;
+            this._toast(this._t("settings.webhook_rotated"), "ok");
+          } catch (e) {
+            this._toast(e.message || String(e), "error");
+          }
+        },
+      }, this._t("settings.webhook_rotate")));
+    } else {
+      webhookChildren.push(hint(this._t("settings.webhook_admin_only")));
     }
 
     // Voice
@@ -2919,10 +4070,12 @@ class ScheduleWizardPanel extends HTMLElement {
       onClick: () => { interleaveOn = !interleaveOn; interleaveSwitch.setAttribute("aria-checked", interleaveOn ? "true" : "false"); },
     });
 
-    const more = el("details", { class: "more" });
+    // A <details> group is named by its caption (BUG-025).
+    const moreCap = uid("sw-more");
+    const more = el("details", { class: "more", "aria-labelledby": moreCap });
     if (this._moreOpen) more.open = true;
     more.addEventListener("toggle", () => { this._moreOpen = more.open; });
-    more.appendChild(el("summary", {}, this._t("set.more")));
+    more.appendChild(el("summary", { id: moreCap }, this._t("set.more")));
     more.appendChild(el("p", { class: "muted small", style: "margin:8px 0 4px;" }, this._t("set.more_hint")));
     more.append(
       this._optGroup("seasonal", this._t("set.g_seasonal"), this._t("set.g_seasonal_d"), !!opts.seasonal_enabled, [
@@ -2969,6 +4122,7 @@ class ScheduleWizardPanel extends HTMLElement {
       this._optGroup("master", this._t("set.g_master"), this._t("set.g_master_d"), !!opts.master_valve_entity, [
         hint(this._t("settings.master_hint")),
         field(this._t("settings.master_entity"), masterEntity),
+        masterErr,
         field(this._t("settings.master_pre_open"), masterPreOpen),
       ]),
       this._optGroup("flow", this._t("set.g_flow"), this._t("set.g_flow_d"), !!opts.flow_entity, [
@@ -3001,6 +4155,10 @@ class ScheduleWizardPanel extends HTMLElement {
           field(this._t("settings.poll"), pollInput),
         ]),
         field(this._t("settings.default_duration"), defDurInput),
+        el("label", { class: "field" }, [el("span", {}, this._t("set.cal_keyword")), calKeywordInput, calKeywordErr]),
+        hint(this._t("set.cal_keyword_hint")),
+        el("label", { class: "field" }, [el("span", {}, this._t("set.max_external")), maxExtInput, maxExtErr]),
+        hint(this._t("set.max_external_hint")),
       ]),
       this._optGroup("rain", this._t("set.g_rain"), this._t("set.g_rain_d"), null, [
         hint(this._t("settings.rain_hint")),
@@ -3021,6 +4179,29 @@ class ScheduleWizardPanel extends HTMLElement {
     const feedback = el("div", { class: "muted", style: "font-size:12px;", "aria-live": "polite" });
     const saveBtn = el("button", { class: "btn primary" }, this._t("settings.save"));
     saveBtn.addEventListener("click", async () => {
+      if (!masterCheck()) {
+        more.open = true;
+        const group = masterErr.closest("details");
+        if (group) group.open = true;
+        masterEntity.focus();
+        this._toast(masterErr.textContent, "error");
+        return;
+      }
+      const rainNow = rainPicker.value();
+      const ownIds = new Set(this._state.own_entities || []);
+      if (rainNow && rainNow !== String(opts.rain_entity || "").trim() && (!(this._hass.states || {})[rainNow] || ownIds.has(rainNow))) {
+        rainPicker.setError(this._t("set.rain_invalid", { entity: rainNow }));
+        rainPicker.select.focus();
+        return;
+      }
+      const badExternal = externalCheck();
+      if (badExternal) {
+        more.open = true;
+        const group = badExternal.closest("details");
+        if (group) group.open = true;
+        badExternal.focus();
+        return;
+      }
       saveBtn.disabled = true;
       const oldText = saveBtn.textContent;
       saveBtn.textContent = this._t("settings.saving");
@@ -3052,7 +4233,7 @@ class ScheduleWizardPanel extends HTMLElement {
           calendar_lookahead_min: parseInt(lookInput.value, 10) || 10,
           poll_interval: parseInt(pollInput.value, 10) || 60,
           default_duration: parseInt(defDurInput.value, 10) || 10,
-          rain_entity: rainEntityInput.value.trim(),
+          rain_entity: rainPicker.value(),
           rain_skip_states: rainStatesInput.value.trim(),
           rain_attribute: rainAttrInput.value.trim(),
           rain_threshold: (threshold !== null && !isNaN(threshold)) ? threshold : null,
@@ -3079,6 +4260,8 @@ class ScheduleWizardPanel extends HTMLElement {
           reminder_minutes: Math.min(720, Math.max(0, parseInt(reminderSel.value, 10) || 0)),
           voice_enabled: voiceOn,
           interleave_soak: interleaveOn,
+          calendar_keyword: calKeywordInput.value.trim(),
+          max_external_minutes: maxExtValue(),
         });
         feedback.textContent = this._t("settings.saved_at", {
           time: this._fmtTime(Math.floor(Date.now() / 1000), { hour: "numeric", minute: "2-digit", second: "2-digit" }),
@@ -3086,6 +4269,10 @@ class ScheduleWizardPanel extends HTMLElement {
         this._toast(this._t("settings.saved"), "ok");
         setTimeout(() => this._refresh(), 1500);
       } catch (e) {
+        if (/rain_entity/.test(String(e.message || ""))) {
+          rainPicker.setError(this._t("set.rain_invalid", { entity: rainPicker.value() }));
+          rainPicker.select.focus();
+        }
         this._toast(e.message || String(e), "error");
         feedback.textContent = this._t("settings.save_failed", { error: e.message || e });
       } finally {
@@ -3097,13 +4284,13 @@ class ScheduleWizardPanel extends HTMLElement {
   }
 
   _showModal(title, fields, onSave) {
-    this._modalRoot.innerHTML = "";
-    const modal = el("div", { class: "modal", role: "dialog", "aria-modal": "true" });
-    modal.appendChild(el("h3", {}, title));
+    const titleId = uid("sw-dialog-title");
+    const modal = el("div", { class: "modal", role: "dialog", "aria-modal": "true", "aria-labelledby": titleId });
+    modal.appendChild(el("h3", { id: titleId }, title));
     fields.forEach((f) => modal.appendChild(f));
 
-    const close = () => { this._modalRoot.innerHTML = ""; this._editing = false; };
-    const cancelBtn = el("button", { class: "btn", onClick: close }, this._t("common.cancel"));
+    let close = () => {};
+    const cancelBtn = el("button", { class: "btn", onClick: () => close() }, this._t("common.cancel"));
     const saveBtn = el("button", { class: "btn primary", onClick: async () => {
       saveBtn.disabled = true;
       try {
@@ -3117,9 +4304,7 @@ class ScheduleWizardPanel extends HTMLElement {
     modal.appendChild(el("div", { class: "modal-actions" }, [cancelBtn, saveBtn]));
 
     const overlay = el("div", { class: "modal-overlay" }, modal);
-    overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
-    overlay.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
-    this._modalRoot.appendChild(overlay);
+    close = this._openDialog(overlay, modal);
   }
 }
 

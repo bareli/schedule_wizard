@@ -160,7 +160,7 @@ remove_valve:
 
 add_schedule:
   name: Add schedule
-  description: Schedule a recurring run at a fixed time, on selected days of the week or every N days.
+  description: Schedule a recurring run at a fixed time or at sunrise / sunset, on selected days of the week or every N days.
   fields:
     valve_entity_id:
       name: Valve entity
@@ -175,11 +175,34 @@ add_schedule:
             - light
     time:
       name: Time
-      description: HH:MM (24h) local time.
-      required: true
+      description: HH:MM (24h) local time. Required unless time_mode is sunrise or sunset.
+      required: false
       example: "06:30"
       selector:
         time:
+    time_mode:
+      name: Start at
+      description: clock (use the time), sunrise or sunset at the Home Assistant location.
+      required: false
+      default: clock
+      selector:
+        select:
+          options:
+            - clock
+            - sunrise
+            - sunset
+    sun_offset_minutes:
+      name: Minutes from sunrise or sunset
+      description: Negative = before, positive = after (-180 to 180). Only with sunrise or sunset.
+      required: false
+      example: -30
+      selector:
+        number:
+          min: -180
+          max: 180
+          step: 1
+          unit_of_measurement: min
+          mode: box
     duration_minutes:
       name: Duration (minutes)
       required: true
@@ -259,10 +282,34 @@ update_schedule:
         text:
     time:
       name: Time
+      description: HH:MM (24h) local time. Without time_mode it switches the schedule to this clock time.
       required: false
       example: "06:30"
       selector:
         time:
+    time_mode:
+      name: Start at
+      description: clock (use the time), sunrise or sunset at the Home Assistant location.
+      required: false
+      default: clock
+      selector:
+        select:
+          options:
+            - clock
+            - sunrise
+            - sunset
+    sun_offset_minutes:
+      name: Minutes from sunrise or sunset
+      description: Negative = before, positive = after (-180 to 180). Only with sunrise or sunset.
+      required: false
+      example: -30
+      selector:
+        number:
+          min: -180
+          max: 180
+          step: 1
+          unit_of_measurement: min
+          mode: box
     duration_minutes:
       name: Duration (minutes)
       required: false

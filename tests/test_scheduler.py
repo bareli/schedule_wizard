@@ -18,7 +18,7 @@ from custom_components.schedule_wizard.const import (
 
 from .conftest import FakeCalendar, advance, data, is_on, settle, setup_wizard
 
-pytestmark = pytest.mark.usefixtures("zones")
+pytestmark = pytest.mark.usefixtures("fixed_clock", "zones")
 
 Z1, Z2, Z3, MASTER = (f"input_boolean.{z}" for z in ("zone1", "zone2", "zone3", "master"))
 

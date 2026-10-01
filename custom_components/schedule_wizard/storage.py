@@ -5,13 +5,18 @@ import time
 import uuid
 from typing import Any, Optional
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
 
-from .const import REPEAT_INTERVAL, REPEAT_WEEKDAYS, SIGNAL_CONFIG_CHANGED, STORAGE_KEY, STORAGE_VERSION
+from .const import (
+    REPEAT_INTERVAL, REPEAT_WEEKDAYS, SIGNAL_CONFIG_CHANGED, STORAGE_KEY, STORAGE_VERSION, TIME_MODE_CLOCK,
+)
 
 MAX_HISTORY = 500
+# History rows, water totals and plan step progress are written at most every SAVE_DELAY seconds
+# (PERF-003). Starting or ending a run or a plan is written at once: restart recovery needs it.
+SAVE_DELAY = 2
 
 VALVE_EXTRA_FIELDS = (
     "soak_run_min",
@@ -58,6 +63,14 @@ def _clean_conditions(conditions: Optional[list[dict]]) -> list[dict]:
     return out
 
 
+def _run_keys(runs: list[dict]) -> set:
+    return {(r.get("entity_id"), r.get("started_at")) for r in runs}
+
+
+def _cycle_keys(cycles: list[dict]) -> set:
+    return {(c.get("cycle_id"), bool(c.get("paused"))) for c in cycles}
+
+
 class WizardStore:
     def __init__(self, hass: HomeAssistant):
         self._hass = hass
@@ -67,12 +80,18 @@ class WizardStore:
             "schedules": [],
             "history": [],
             "active_runs": [],
+            "pending_closes": [],
             "cycles": [],
             "skips": {},
             "cycle_state": {},
             "water_total_l": 0.0,
         }
         self._loaded = False
+        self._pending = False
+
+    @property
+    def hass(self) -> HomeAssistant:
+        return self._hass
 
     async def async_load(self) -> None:
         data = await self._store.async_load()
@@ -86,6 +105,7 @@ class WizardStore:
                 sched.setdefault("start_date", "")
             self._data["history"] = data.get("history", [])
             self._data["active_runs"] = data.get("active_runs", [])
+            self._data["pending_closes"] = data.get("pending_closes", []) or []
             self._data["cycles"] = data.get("cycles", [])
             self._data["skips"] = data.get("skips", {}) or {}
             self._data["cycle_state"] = data.get("cycle_state", {}) or {}
@@ -93,7 +113,23 @@ class WizardStore:
         self._loaded = True
 
     async def async_save(self) -> None:
+        self._pending = False
         await self._store.async_save(self._data)
+
+    def _data_to_save(self) -> dict[str, Any]:
+        self._pending = False
+        return self._data
+
+    @callback
+    def _async_delay_save(self) -> None:
+        """Coalesce frequent writes; Home Assistant writes pending data on shutdown."""
+        self._pending = True
+        self._store.async_delay_save(self._data_to_save, SAVE_DELAY)
+
+    async def async_flush(self) -> None:
+        """Write a pending delayed save now (unload or reload)."""
+        if self._pending:
+            await self.async_save()
 
     async def _async_save_config(self) -> None:
         """Save after a change to valves, schedules or cycles, and tell entity platforms."""
@@ -154,6 +190,11 @@ class WizardStore:
         return list(self._data["active_runs"])
 
     @property
+    def pending_closes(self) -> list[dict]:
+        """Valves whose close command could not be delivered yet (#80)."""
+        return list(self._data.get("pending_closes") or [])
+
+    @property
     def water_total_l(self) -> float:
         return float(self._data.get("water_total_l") or 0)
 
@@ -168,18 +209,38 @@ class WizardStore:
             avg = valve.get("avg_lpm")
             valve["avg_lpm"] = round(run_lpm if not avg else 0.7 * float(avg) + 0.3 * run_lpm, 2)
             valve["flow_runs"] = int(valve.get("flow_runs") or 0) + 1
-        await self.async_save()
+        self._async_delay_save()
 
     @property
     def cycle_state(self) -> dict:
         return dict(self._data.get("cycle_state") or {})
 
     async def async_set_cycle_state(self, cycles: list[dict]) -> None:
+        old = (self._data.get("cycle_state") or {}).get("cycles") or []
         self._data["cycle_state"] = {"saved_at": int(time.time()), "cycles": cycles}
-        await self.async_save()
+        if _cycle_keys(old) == _cycle_keys(cycles):
+            self._async_delay_save()  # only step progress changed
+        else:
+            await self.async_save()
 
     async def async_set_active_runs(self, runs: list[dict]) -> None:
+        old = self._data["active_runs"]
         self._data["active_runs"] = list(runs)
+        if _run_keys(old) == _run_keys(runs):
+            self._async_delay_save()
+        else:
+            await self.async_save()  # a valve opened or closed: must survive a crash
+
+    async def async_set_pending_closes(self, closes: list[dict]) -> None:
+        self._data["pending_closes"] = list(closes)
+        await self.async_save()
+
+    async def async_drop_pending_close(self, entity_id: str) -> None:
+        """A pending close is done: remove only its own entry (also while Home Assistant is stopping)."""
+        self._data["pending_closes"] = [
+            p for p in (self._data.get("pending_closes") or [])
+            if not (isinstance(p, dict) and p.get("entity_id") == entity_id)
+        ]
         await self.async_save()
 
     def get_valve(self, entity_id: str) -> Optional[dict]:
@@ -269,8 +330,11 @@ class WizardStore:
         repeat: str = REPEAT_WEEKDAYS,
         interval_days: int = 0,
         start_date: str = "",
+        time_mode: str = TIME_MODE_CLOCK,
+        sun_offset_min: int = 0,
     ) -> dict:
         interval = repeat == REPEAT_INTERVAL
+        clock = time_mode == TIME_MODE_CLOCK
         sched = {
             "id": uuid.uuid4().hex[:12],
             "valve_entity_id": valve_entity_id or "",
@@ -281,6 +345,8 @@ class WizardStore:
             "interval_days": int(interval_days) if interval else 0,
             "start_date": start_date if interval else "",
             "time_hhmm": time_hhmm,
+            "time_mode": time_mode,
+            "sun_offset_min": 0 if clock else int(sun_offset_min),
             "duration_min": int(duration_min),
             "enabled": bool(enabled),
             "conditions": _clean_conditions(conditions),
@@ -294,9 +360,10 @@ class WizardStore:
         sched = self.get_schedule(schedule_id)
         if not sched:
             return None
-        for k in ("name", "days_mask", "time_hhmm", "duration_min", "enabled", "repeat", "interval_days", "start_date"):
+        for k in ("name", "days_mask", "time_hhmm", "duration_min", "enabled", "repeat", "interval_days", "start_date",
+                  "time_mode", "sun_offset_min"):
             if k in fields and fields[k] is not None:
-                if k in ("days_mask", "duration_min", "interval_days"):
+                if k in ("days_mask", "duration_min", "interval_days", "sun_offset_min"):
                     sched[k] = int(fields[k])
                 elif k == "enabled":
                     sched[k] = bool(fields[k])
@@ -308,6 +375,8 @@ class WizardStore:
             sched["repeat"] = REPEAT_WEEKDAYS
             sched["interval_days"] = 0
             sched["start_date"] = ""
+        if (sched.get("time_mode") or TIME_MODE_CLOCK) == TIME_MODE_CLOCK:
+            sched["sun_offset_min"] = 0
         await self._async_save_config()
         return sched
 
@@ -389,7 +458,7 @@ class WizardStore:
 
     async def async_record_run(
         self, valve_entity_id: str, source: str, duration_min: int, status: str, note: str = "",
-        liters: Optional[float] = None,
+        liters: Optional[float] = None, planned_min: Optional[int] = None,
     ) -> None:
         entry = {
             "valve_entity_id": valve_entity_id,
@@ -399,9 +468,19 @@ class WizardStore:
             "note": note,
             "ts": int(time.time()),
         }
+        # Keep the plan's name with the row so history still reads after the plan is deleted (#57).
+        cycle = self.get_cycle(valve_entity_id) if valve_entity_id else None
+        if cycle is not None:
+            entry["name"] = cycle.get("name", "")
+        if (source or "").startswith("cycle:"):
+            owner = self.get_cycle(source[6:].split("|")[0])
+            if owner is not None:
+                entry["plan_name"] = owner.get("name", "")
         if liters is not None:
             entry["liters"] = round(float(liters), 1)
+        if planned_min is not None:
+            entry["planned_min"] = int(planned_min)
         self._data["history"].insert(0, entry)
         if len(self._data["history"]) > MAX_HISTORY:
             self._data["history"] = self._data["history"][:MAX_HISTORY]
-        await self.async_save()
+        self._async_delay_save()

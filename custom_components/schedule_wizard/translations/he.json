@@ -58,6 +58,14 @@
         "start_date": {
           "name": "תאריך התחלה",
           "description": "היום הראשון של לוח זמנים של כל N ימים. ברירת המחדל: היום."
+        },
+        "time_mode": {
+          "name": "התחלה",
+          "description": "clock (שעה קבועה), sunrise (זריחה) או sunset (שקיעה) במיקום של Home Assistant."
+        },
+        "sun_offset_minutes": {
+          "name": "דקות מהזריחה או מהשקיעה",
+          "description": "שלילי = לפני, חיובי = אחרי (בין -180 ל־180). רק עם sunrise או sunset."
         }
       }
     },
@@ -72,6 +80,14 @@
         "start_date": {
           "name": "תאריך התחלה",
           "description": "היום הראשון של לוח זמנים של כל N ימים. ברירת המחדל: היום."
+        },
+        "time_mode": {
+          "name": "התחלה",
+          "description": "clock (שעה קבועה), sunrise (זריחה) או sunset (שקיעה) במיקום של Home Assistant."
+        },
+        "sun_offset_minutes": {
+          "name": "דקות מהזריחה או מהשקיעה",
+          "description": "שלילי = לפני, חיובי = אחרי (בין -180 ל־180). רק עם sunrise או sunset."
         }
       }
     },

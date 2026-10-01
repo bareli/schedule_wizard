@@ -58,6 +58,14 @@
         "start_date": {
           "name": "Startdatum",
           "description": "Erster Tag eines Alle-N-Tage-Zeitplans. Standard: heute."
+        },
+        "time_mode": {
+          "name": "Start",
+          "description": "clock (feste Uhrzeit), sunrise (Sonnenaufgang) oder sunset (Sonnenuntergang) am Home-Assistant-Standort."
+        },
+        "sun_offset_minutes": {
+          "name": "Minuten zu Sonnenauf- oder -untergang",
+          "description": "Negativ = vorher, positiv = danach (-180 bis 180). Nur mit sunrise oder sunset."
         }
       }
     },
@@ -72,6 +80,14 @@
         "start_date": {
           "name": "Startdatum",
           "description": "Erster Tag eines Alle-N-Tage-Zeitplans. Standard: heute."
+        },
+        "time_mode": {
+          "name": "Start",
+          "description": "clock (feste Uhrzeit), sunrise (Sonnenaufgang) oder sunset (Sonnenuntergang) am Home-Assistant-Standort."
+        },
+        "sun_offset_minutes": {
+          "name": "Minuten zu Sonnenauf- oder -untergang",
+          "description": "Negativ = vorher, positiv = danach (-180 bis 180). Nur mit sunrise oder sunset."
         }
       }
     },

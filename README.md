@@ -94,13 +94,13 @@ After install, a **Schedule Wizard** entry appears in the sidebar (sprinkler ico
 
 ### Setup wizard
 
-First time you open the panel, **Start setup** walks you through five short steps: tick your switches, name the zones, pick days, start time and minutes, choose "one zone at a time" or "all together", then save. It creates the zones, the plan and its schedule for you. Run it again any time with **+ New watering plan**.
+First time you open the panel, **Start setup** walks you through four short steps: tick your switches (a new zone gets its name right there), choose when (days of the week or every 2 to 30 days; a set time, or sunrise / sunset with minutes before or after) and the minutes per zone, choose "one zone at a time" or "all together" and name the plan, then check and save. The last step also asks which weather or rain sensor to use to skip watering when it rains, if none is set yet. It creates the zones, the plan and its schedule for you. Run it again any time with **+ New watering plan**.
 
 ![Setup wizard](docs/screenshots/panel-wizard.png)
 
 ### Home
 
-One status card at the top: watering now (with time left and Stop), paused for rain, or the next run. Below it, a card per zone with minutes and **Water now**. Pause for rain (all zones or one zone), stop everything, recent activity and **Reports** are all here.
+One status card at the top: watering now (with time left and Stop), paused for rain, or the next run. Below it, the last watering ("Last watering: yesterday 06:00, 3 zones · 30 min", or a skip after it) and a card per zone with minutes and **Water now**. Each zone shows the next run that will really water; after **Skip day** or during a rain pause it says so ("Skipped Fri 6:00 AM. Next: Mon 6:00 AM · 10 min"). Pause for rain (all zones or one zone), stop everything (asked in the panel first), recent activity by day with **Today / Yesterday / Last 7 days** and a total per day, and **Reports** are all here. A run started with **Water now** in the panel, on the card or from a dashboard button reads "manual (Water now)"; one started by an automation reads "service".
 
 ![Home](docs/screenshots/panel-home.png)
 
@@ -110,13 +110,21 @@ Every zone with its schedule written out ("Mon, Thu at 06:00 · 10 min" or "Ever
 
 ![Zones](docs/screenshots/panel-zones.png)
 
-### Programs
+### Plans
 
-Your watering plans: zones in order, the days and times they run, Run now / Pause / Stop, and Edit for the full step editor.
+Your watering plans: zones in order, with **Run now** / Pause / Stop, **Edit plan** (steps, name, on/off) and **Delete plan** at the top of each plan, and its **Watering times** below as their own group, each with Skip next, on/off, **Edit time** and **Delete time**.
 
 ### Every N days
 
 In a watering time's editor, set **Repeat** to **Every 2 to 30 days** instead of **Days of the week**, then pick the **days between waterings** (2 to 30) and **First watering on** (today by default). A line under the fields shows the first run (for example "First run: Sat, Oct 3 06:00, then every 2 days") and says so when today's time has already passed. The schedule runs on that date and every N days after it, at the same time, with the same zone or plan, skips and conditions as a weekday schedule. Days are counted on the calendar in your Home Assistant time zone, so runs stay at the same clock time when daylight saving time starts or ends. The next-run times, the week view, `calendar.schedule_wizard_watering_schedule` and `sensor.schedule_wizard_next_schedule` all follow it, including a first watering date months ahead. Schedules created before 0.14.0 keep their days of the week.
+
+### Sunrise and sunset
+
+In a watering time's editor, set **Start at** to **Sunrise** or **Sunset** instead of **A set time**, then enter the **Minutes** (0 to 180) and pick **before** or **after**: for example 30 minutes before sunrise. The start time is worked out for each day from your Home Assistant location (Settings → System → General) and time zone, so it moves with the seasons and stays right when daylight saving time starts or ends. A line under the fields shows the next three start times. It works with days of the week and with every N days, for zones and plans; next-run times, the week view, the calendar entity, reminders and `sensor.schedule_wizard_next_schedule` follow it.
+
+- A start that the offset would push past midnight runs on its own day at 00:00 or 23:59.
+- On a day without a sunrise or sunset (polar day or night) the schedule does not run.
+- Services: `time_mode: sunrise` (or `sunset`, default `clock`) and `sun_offset_minutes` (-180 to 180, negative = before). A clock `time` is then optional; it is kept, so switching back to `clock` restores it.
 
 ![Watering plans](docs/screenshots/panel-programs.png)
 
@@ -139,6 +147,8 @@ Options flow (Settings → Devices & Services → Schedule Wizard → Configure)
 | `calendar_entity`         | (none)                                     | HA calendar entity to poll. Optional.                |
 | `calendar_lookahead_min`  | 10                                         | Minutes ahead to scan for matching events.           |
 | `poll_interval`           | 60                                         | Calendar poll interval in seconds (10–3600).         |
+| `calendar_keyword`        | (none)                                     | Only calendar events whose title starts with this word water (for example `water:`). Up to 40 characters. |
+| `max_external_minutes`    | 120                                        | Longest run a calendar event or webhook call may start (1 to 1440 minutes); longer ones are shortened. |
 | `default_duration`        | 10                                         | Default run duration when a valve has none set.      |
 | `rain_entity`             | (none)                                     | Weather / sensor / binary_sensor entity for rain.    |
 | `rain_skip_states`        | `rainy,pouring,snowy,lightning-rainy`      | Skip when entity state matches any of these.         |
@@ -154,10 +164,15 @@ The HA **Configure** dialog only edits the basic options; it no longer wipes the
 
 ## Calendar event format
 
-- **Summary** must contain the valve label (case-insensitive substring match). Example for label `Front lawn`:
+- **Summary** must contain the zone label or plan name as **whole words** (case-insensitive). Only the summary is read, never the description, location or attendees. Example for label `Front lawn`:
   - `Front lawn` ✓
   - `Front Lawn morning cycle` ✓
+  - `Front lawns` ✗ (since 0.14.1: part of a longer word no longer counts)
   - `Garden zone 1` ✗
+- A label or name of 1 or 2 characters (for example `A` or `B2`) only matches an event whose whole summary is exactly that label, so ordinary events such as "Lunch with a friend" never start zone `A`.
+- Anyone who can put an event on the selected calendar can start watering. If your calendar accepts invitations automatically (Google, Outlook, CalDAV), pick a dedicated calendar for watering. Home Assistant does not tell integrations who organised an event, so it cannot be filtered by sender.
+- **Calendar keyword** (Settings → More options → Calendar fine-tuning, optional): when set, for example `water:`, only events whose title starts with it count (any case), and the zone or plan name is matched in the rest of the title: `water: Front lawn` ✓, `Front lawn` ✗. An invitation from someone else then only waters if its title starts with your keyword.
+- **Longest calendar or webhook run** (same group, default 120 minutes): a longer event, or one whose description asks for more, is shortened to it. History keeps the requested minutes in the note (`capped:300`) and Recent activity shows "shortened from 300 min". Plans keep their own step times.
 - **Description**: minutes to run, written as `15 min` / `15 minutes` / `15 דקות`, or the description is just the number (`15`). Other numbers (like "Zone 2") are ignored. Falls back to event duration (end − start), then to the valve's default duration.
 - **Start time** triggers the run. Events within the lookahead window are caught on the next poll. Rain delay, rain skip, moisture skip and seasonal adjustment are evaluated when the event fires.
 - **All-day events are ignored** (they would otherwise run a valve for 24 hours).
@@ -165,14 +180,16 @@ The HA **Configure** dialog only edits the basic options; it no longer wipes the
 
 ## Services
 
+Limits (since 0.14.1): zone labels and plan / watering time names up to 80 characters, moisture attributes and condition values up to 255; at most 200 zones, 200 watering times and 200 plans. Existing longer labels keep working; only new or changed ones are checked.
+
 | Service                           | Purpose                                                                                       |
 | --------------------------------- | --------------------------------------------------------------------------------------------- |
 | `schedule_wizard.run_valve`       | Open an entity for `duration_minutes`. Auto-closes when done.                                 |
 | `schedule_wizard.stop_valve`      | Close an entity now. Cancels any active timer.                                                |
 | `schedule_wizard.add_valve`       | Register or update a valve (entity_id + label + default duration; optional soak and per-valve moisture fields). |
 | `schedule_wizard.remove_valve`    | Unregister a valve and delete its schedules.                                                  |
-| `schedule_wizard.add_schedule`    | Add a recurring schedule (time + `days` **or** `every_n_days` (2 to 30) with optional `start_date` (default today) + duration; targets a registered valve or a cycle; optional `conditions`). Returns new id. |
-| `schedule_wizard.update_schedule` | Patch an existing schedule by id. `days` switches it to weekdays, `every_n_days` / `start_date` to every N days. |
+| `schedule_wizard.add_schedule`    | Add a recurring schedule (time, or `time_mode` sunrise / sunset + `sun_offset_minutes` + `days` **or** `every_n_days` (2 to 30) with optional `start_date` (default today) + duration; targets a registered valve or a cycle; optional `conditions`). Returns new id. |
+| `schedule_wizard.update_schedule` | Patch an existing schedule by id. `days` switches it to weekdays, `every_n_days` / `start_date` to every N days, `time` alone to a clock time, `time_mode` / `sun_offset_minutes` to sunrise or sunset. |
 | `schedule_wizard.remove_schedule` | Delete a schedule by id.                                                                      |
 | `schedule_wizard.add_cycle`       | Create a cycle: ordered list of `{entity_id, duration_minutes}` steps.                        |
 | `schedule_wizard.update_cycle`    | Patch an existing cycle.                                                                      |
@@ -265,7 +282,7 @@ Trigger a cycle from:
 
 - **Panel** — Cycles tab → Run on a cycle row.
 - **Schedule** — add a schedule whose target is a cycle instead of a single valve.
-- **Calendar event** — event summary contains the cycle name (case-insensitive substring).
+- **Calendar event** — event summary contains the cycle name as whole words (case-insensitive; see [Calendar event format](#calendar-event-format)).
 - **Service call**:
   ```yaml
   service: schedule_wizard.run_cycle
@@ -348,7 +365,7 @@ data:
 
 ## Master valve / pump
 
-Optional in Settings → Advanced → **Master valve / pump**. Pick a switch entity and a pre-open delay (seconds).
+Optional in Settings → Advanced → **Master valve / pump**. Pick an existing switch, valve, light, cover or input_boolean entity and a pre-open delay (seconds). Other domains (scripts, automations...) are rejected.
 
 - Auto-opens before any zone runs (sequence: master ON → wait `pre_open_sec` → zone ON).
 - Auto-closes once all active zones AND active cycles are done.
@@ -515,6 +532,8 @@ Push events to any `notify.*` service (HA Companion app, Telegram, Pushover, ema
 
 **On phone:** install the Home Assistant Companion app, it auto-creates `notify.mobile_app_<device>` services. Those appear in the target list automatically.
 
+**Wording and language:** notifications use your Home Assistant language (the 17 panel languages, English otherwise) and read like the panel: "Front lawn started, 10 min", "Front lawn watered 10 min", "Front lawn stopped", "Watering paused for 24 h (rain)", "Rain pause ended for all zones". The title is the zone or plan name, so a phone shows which zone it is about; rain pause and leak alerts are titled Schedule Wizard. Reminders with **Skip today** / **Water now** are translated the same way.
+
 **Multi-device:** pick multiple targets — notifications fan out to all picked services in parallel.
 
 **Failure behavior:** notify errors log a warning; they never block the valve or cycle itself.
@@ -527,7 +546,9 @@ Three modes, checked in this order (a threshold of 0 or blank disables the numer
 
 1. **Attribute + threshold** — reads `attribute` off the entity, compares numerically to `threshold`. Skip if ≥.
 2. **Threshold only** — parses the entity's state as a number, compares to `threshold`. Skip if ≥.
-3. **Skip states** — compares entity state to comma-separated list in `rain_skip_states`. Skip if match.
+3. **Skip states** — compares entity state to comma-separated list in `rain_skip_states`. Skip if match. A `binary_sensor` also counts as rain while it is `on`.
+
+In the panel (Settings, and the last step of the setup wizard) the rain source is picked from a list of your weather entities, rain sensors and other sensors; under it a line says what counts as rain, what the source reports now and whether watering would be skipped right now, or warns when the entity no longer exists. Saving a rain source that does not exist is refused.
 
 Skipped runs log `skipped_rain` in history. Manual runs are **not** affected by rain skip.
 
@@ -550,7 +571,7 @@ rain_threshold: 1
 
 ## Webhook trigger
 
-Each integration install gets a unique webhook ID. Fire runs from anything that can POST:
+Each integration install gets a unique webhook ID. Fire runs of a zone set up in Schedule Wizard from anything that can POST:
 
 ```bash
 curl -X POST https://<your-ha-url>/api/webhook/<WEBHOOK_ID> \
@@ -566,13 +587,17 @@ curl -X POST https://<your-ha-url>/api/webhook/<WEBHOOK_ID> \
   -d '{"entity_id": "switch.front_lawn_valve", "action": "stop"}'
 ```
 
-Find your webhook ID: Developer Tools → Services → `schedule_wizard.list_config` → the panel Settings tab also surfaces it.
+Find the URL in the panel: Settings → More options → Webhook (administrators only).
 
-No HA auth token required for webhooks — the webhook ID itself is the secret. Rotate by removing and re-adding the integration if leaked.
+No HA auth token required for webhooks: the webhook ID itself is the secret. If it leaks, press **New URL** there; the old URL stops working at once.
+
+- Only zones set up in Schedule Wizard are accepted: any other entity, or a zone whose entity no longer exists, gets `404 unknown zone` and nothing is switched or recorded. A disabled zone gets `409`.
+- `action` is `run` (default) or `stop`; anything else, or a body that is not a JSON object, gets `400`.
+- A run is at most **Longest calendar or webhook run** (Settings → More options → Calendar fine-tuning, default 120 minutes). A longer `duration_minutes` is shortened: the reply has `"duration_minutes": 120, "shortened_from": 300` and the history note `capped:300`.
 
 ## Lovelace card
 
-The integration auto-registers a dashboard card resource. Add to any view:
+The integration auto-registers a dashboard card resource. Add it from the dashboard card picker ("Schedule Wizard") and set it up in the visual editor, or in YAML:
 
 ```yaml
 type: custom:schedule-wizard-card
@@ -586,9 +611,9 @@ valves:
 
 Options:
 - `title` — card header. Default `"Schedule Wizard"`.
-- `show_active` — show active runs section. Default `true`.
-- `show_quick_run` — show quick run/stop rows. Default `true`.
-- `valves` — optional list of entity_ids to filter. If omitted, all valves are shown.
+- `show_active` — show running zones at the top. Default `true`. A zone in this section is not listed again below it.
+- `show_quick_run` — show the zone list with minutes and **Water now** (**Stop watering** while it runs). Default `true`.
+- `valves` — optional list of zone entity_ids to show. If omitted or empty, all zones are shown.
 
 ## Languages
 
@@ -802,7 +827,7 @@ Cycles and soak sequences are not resumed after a restart: the valve open at shu
 ## Troubleshooting
 
 - **Integration won't load.** Check `Settings → System → Logs`, filter `schedule_wizard`. Min HA version is 2024.7.
-- **Calendar events don't fire.** Verify calendar entity is selected in Settings tab. Check event summary contains the valve label *exactly* (case-insensitive substring). Enable debug logging:
+- **Calendar events don't fire.** Verify calendar entity is selected in Settings tab. Check event summary contains the valve label as whole words (case-insensitive; a 1 or 2 character label must be the whole summary). Enable debug logging:
   ```yaml
   logger:
     default: warning

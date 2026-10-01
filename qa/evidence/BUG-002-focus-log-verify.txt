@@ -1,0 +1,252 @@
+BUG-002 (#41) verification log, 2026-10-01, dev 127.0.0.1:8172 (HA 2026.9.4, local main @ fccacfa), qa_admin.
+Chromium (Playwright 1.63.0), real key presses (Tab/Enter/Space/typing). No screen reader.
+Each IDLE line: focus sampled every 500 ms, deep through shadow roots; [same node] = the very element focused at the start; [NEW node] = a replacement got focus; focusin events = focus events fired during the idle.
+Script: scratchpad bug002_verify.mjs (not committed). Order of runs: en 1440, en 1440 long, he 320, he 1440, en 320, he 320.
+
+##### en-1440
+[en 1440px +0.0s] === scenario tabs ===
+[en 1440px +8.9s] panel dir=ltr
+[en 1440px +9.0s] TAB x5 -> Zones tab: button.tab role=tab aria-selected=false "Zones"
+[en 1440px +17.1s] IDLE 8s (Zones tab focused) focusin events=0: @0.5s button.tab role=tab aria-selected=false "Zones" [same node]
+[en 1440px +18.0s] after Enter: button.tab.active role=tab aria-selected=true "Zones"
+[en 1440px +25.1s] IDLE 7s (after Enter on Zones) focusin events=0: @0.5s button.tab.active role=tab aria-selected=true "Zones" [same node]
+[en 1440px +25.2s] screenshot BUG-002-tab-en-1440-verify.png
+[en 1440px +0.0s] === scenario water ===
+[en 1440px +8.9s] TAB x11 -> More time (Front lawn): button aria-label=More time type=button "+" row=input_boolean.zone_front
+[en 1440px +8.9s] stepper after 2x Enter: 20 min focus button aria-label=More time type=button "+" row=input_boolean.zone_front
+[en 1440px +17.0s] IDLE 8s (stepper + focused) focusin events=0: @0.5s button aria-label=More time type=button "+" row=input_boolean.zone_front [same node]
+[en 1440px +17.0s] stepper value after idle: 20 min
+[en 1440px +17.1s] TAB x1 -> Water now (Front lawn): button.btn.primary "Water now" row=input_boolean.zone_front
+[en 1440px +25.1s] IDLE 8s (Water now focused) focusin events=0: @0.5s button.btn.primary "Water now" row=input_boolean.zone_front [same node]
+[en 1440px +26.7s] after Enter on Water now: button.btn.danger "Stop" row=input_boolean.zone_front
+[en 1440px +26.7s] screenshot BUG-002-water-to-stop-en-1440-verify.png
+[en 1440px +34.8s] IDLE 8s (after Water now) focusin events=0: @0.5s button.btn.danger "Stop" row=input_boolean.zone_front [same node]
+[en 1440px +36.3s] after Enter on Stop: button aria-label=More time type=button "+" row=input_boolean.zone_front
+[en 1440px +43.4s] IDLE 7s (after Stop) focusin events=0: @0.5s button aria-label=More time type=button "+" row=input_boolean.zone_front [same node]
+[en 1440px +43.4s] === scenario switch ===
+[en 1440px +52.4s] TAB x5 -> Zones tab: button.tab role=tab aria-selected=false "Zones"
+[en 1440px +53.4s] TAB x7 -> first Enabled switch: button.switch role=switch aria-label=Enabled aria-checked=true
+[en 1440px +53.4s] switch context: Skip nextEditDelete
+[en 1440px +54.9s] after Space #1: button.switch role=switch aria-label=Enabled aria-checked=false | context: EditDelete
+[en 1440px +62.0s] IDLE 7s (after switch off) focusin events=0: @0.5s button.switch role=switch aria-label=Enabled aria-checked=false [same node]
+[en 1440px +63.5s] after Space #2: button.switch role=switch aria-label=Enabled aria-checked=true | context: Skip nextEditDelete
+[en 1440px +63.6s] === scenario skip ===
+[en 1440px +72.5s] TAB x20 -> Skip day: button.btn.ghost.small "Skip day"
+[en 1440px +72.5s] skip day head: TomorrowFri 10/2Skip day
+[en 1440px +72.5s] native confirm "Skip all watering on Fri 10/2?" -> accept
+[en 1440px +74.0s] after Enter on Skip day: button.btn.ghost.small "Skip day" | in head: Mon10/5Skip day
+[en 1440px +81.1s] IDLE 7s (after Skip day) focusin events=0: @0.5s button.btn.ghost.small "Skip day" [same node]
+[en 1440px +81.2s] === scenario settings ===
+[en 1440px +90.1s] TAB x7 -> Settings tab: button.tab role=tab aria-selected=false "Settings"
+[en 1440px +91.1s] after Enter on Settings tab: button.tab.active role=tab aria-selected=true "Settings"
+[en 1440px +91.1s] TAB x1 -> first text/number field in Settings: input type=text value="" caret=0
+[en 1440px +91.1s] typed: input type=text value="7" caret=1
+[en 1440px +99.2s] IDLE 8s (Settings field typed) focusin events=0: @0.5s input type=text value="7" caret=1 [same node]
+[en 1440px +99.2s] restored (Backspace): input type=text value="" caret=0
+[en 1440px +99.2s] TAB x18 -> a Settings button/switch: button.btn.primary "Save settings"
+[en 1440px +107.3s] IDLE 8s (Settings button focused) focusin events=0: @0.5s button.btn.primary "Save settings" [same node]
+[en 1440px +107.4s] === scenario dialog ===
+[en 1440px +116.3s] TAB x5 -> Zones tab: button.tab role=tab aria-selected=false "Zones"
+[en 1440px +117.3s] TAB x4 -> Edit zone: button.btn.small "Edit zone"
+[en 1440px +118.2s] after Enter on Edit zone: button.btn.small "Edit zone"
+[en 1440px +118.2s] TAB x18 -> dialog label input: input type=text value="Front lawn" caret=0 in-dialog
+[en 1440px +118.2s] typed in dialog: input type=text value="Front lawn X" caret=11 in-dialog
+[en 1440px +126.3s] IDLE 8s (dialog input typed) focusin events=0: @0.5s input type=text value="Front lawn X" caret=11 in-dialog [same node]
+[en 1440px +126.3s] TAB x6 -> a dialog button: button.btn.small type=button "Show advanced" in-dialog
+[en 1440px +134.4s] IDLE 8s (dialog button focused) focusin events=0: @0.5s button.btn.small type=button "Show advanced" in-dialog [same node]
+[en 1440px +134.5s] screenshot BUG-002-dialog-en-1440-verify.png
+[en 1440px +135.3s] after Escape: BODY dialogOpen=false
+[en 1440px +135.3s] === scenario card ===
+[en 1440px +144.2s] card has fix: true
+[en 1440px +144.3s] TAB x8 -> card minutes input (Front lawn): input type=number value="10" row=input_boolean.zone_front
+[en 1440px +144.3s] typed card minutes: input type=number value="2" row=input_boolean.zone_front
+[en 1440px +152.4s] IDLE 8s (card minutes typed) focusin events=0: @0.5s input type=number value="2" row=input_boolean.zone_front [same node]
+[en 1440px +152.4s] Tab -> button.run "Run" row=input_boolean.zone_front
+[en 1440px +160.4s] IDLE 8s (card Run focused) focusin events=0: @0.5s button.run "Run" row=input_boolean.zone_front [same node]
+[en 1440px +162.0s] after Enter on Run: button.stop "Stop" row=input_boolean.zone_front
+[en 1440px +162.0s] screenshot BUG-002-card-run-to-stop-en-1440-verify.png
+[en 1440px +170.1s] IDLE 8s (after card Run) focusin events=0: @0.5s button.stop "Stop" row=input_boolean.zone_front [same node]
+[en 1440px +171.6s] after Enter on card Stop: button.stop "Stop" row=input_boolean.zone_front
+[en 1440px +178.7s] IDLE 7s (after card Stop) focusin events=0: @0.5s button.stop "Stop" row=input_boolean.zone_front [same node]
+[en 1440px +0.0s] === scenario long ===
+[en 1440px +9.0s] TAB x12 -> Water now (Front lawn): button.btn.primary "Water now" row=input_boolean.zone_front
+[en 1440px +84.3s] IDLE 75s (Water now focused, 75 s, Herbs running) focusin events=1: @0.5s button.btn.primary "Water now" row=input_boolean.zone_front [same node]  =>  @56.1s button.btn.primary "Water now" row=input_boolean.zone_front [NEW node]
+
+##### he-320
+[he 320px +0.0s] === scenario tabs ===
+[he 320px +8.9s] panel dir=rtl
+[he 320px +8.9s] TAB x3 -> Zones tab: button.tab role=tab aria-selected=false "אזורים"
+[he 320px +17.0s] IDLE 8s (Zones tab focused) focusin events=0: @0.5s button.tab role=tab aria-selected=false "אזורים" [same node]
+[he 320px +17.9s] after Enter: button.tab.active role=tab aria-selected=true "אזורים"
+[he 320px +25.0s] IDLE 7s (after Enter on Zones) focusin events=0: @0.5s button.tab.active role=tab aria-selected=true "אזורים" [same node]
+[he 320px +25.0s] screenshot BUG-002-tab-he-320-verify.png
+[he 320px +25.0s] === scenario water ===
+[he 320px +34.0s] TAB x9 -> More time (Front lawn): button aria-label=יותר זמן type=button "+" row=input_boolean.zone_front
+[he 320px +34.0s] stepper after 2x Enter: 20 דק׳ focus button aria-label=יותר זמן type=button "+" row=input_boolean.zone_front
+[he 320px +42.1s] IDLE 8s (stepper + focused) focusin events=0: @0.5s button aria-label=יותר זמן type=button "+" row=input_boolean.zone_front [same node]
+[he 320px +42.1s] stepper value after idle: 20 דק׳
+[he 320px +42.1s] TAB x1 -> Water now (Front lawn): button.btn.primary "השקה עכשיו" row=input_boolean.zone_front
+[he 320px +50.2s] IDLE 8s (Water now focused) focusin events=0: @0.5s button.btn.primary "השקה עכשיו" row=input_boolean.zone_front [same node]
+[he 320px +51.7s] after Enter on Water now: button.btn.danger "עצירה" row=input_boolean.zone_front
+[he 320px +51.7s] screenshot BUG-002-water-to-stop-he-320-verify.png
+[he 320px +59.8s] IDLE 8s (after Water now) focusin events=0: @0.5s button.btn.danger "עצירה" row=input_boolean.zone_front [same node]
+[he 320px +61.4s] after Enter on Stop: button aria-label=פחות זמן type=button "−" row=input_boolean.zone_front
+[he 320px +68.5s] IDLE 7s (after Stop) focusin events=0: @0.5s button aria-label=פחות זמן type=button "−" row=input_boolean.zone_front [same node]
+[he 320px +68.5s] === scenario long ===
+[he 320px +77.5s] TAB x10 -> Water now (Front lawn): button.btn.primary "השקה עכשיו" row=input_boolean.zone_front
+[he 320px +77.5s] countdown before: 27:06,27:06
+[he 320px +89.7s] IDLE 12s (Water now focused, Herbs running (countdown check)) focusin events=0: @0.5s button.btn.primary "השקה עכשיו" row=input_boolean.zone_front [same node]
+[he 320px +89.7s] countdown after 12 s: 26:51,26:51
+[he 320px +152.9s] IDLE 63s (continued to pass the 60 s rebuild) focusin events=1: @0.5s button.btn.primary "השקה עכשיו" row=input_boolean.zone_front [same node]  =>  @44.0s button.btn.primary "השקה עכשיו" row=input_boolean.zone_front [NEW node]
+[he 320px +153.0s] === scenario card ===
+[he 320px +161.9s] card has fix: true
+[he 320px +161.9s] TAB x4 -> card minutes input (Front lawn): input type=number value="10" row=input_boolean.zone_front
+[he 320px +161.9s] typed card minutes: input type=number value="2" row=input_boolean.zone_front
+[he 320px +170.0s] IDLE 8s (card minutes typed) focusin events=0: @0.5s input type=number value="2" row=input_boolean.zone_front [same node]
+[he 320px +170.0s] Tab -> button.run "הפעלה" row=input_boolean.zone_front
+[he 320px +178.1s] IDLE 8s (card Run focused) focusin events=0: @0.5s button.run "הפעלה" row=input_boolean.zone_front [same node]
+[he 320px +179.6s] after Enter on Run: button.stop "עצירה" row=input_boolean.zone_front
+[he 320px +179.6s] screenshot BUG-002-card-run-to-stop-he-320-verify.png
+[he 320px +187.7s] IDLE 8s (after card Run) focusin events=0: @0.5s button.stop "עצירה" row=input_boolean.zone_front [same node]
+[he 320px +189.3s] after Enter on card Stop: button.stop "עצירה" row=input_boolean.zone_front
+[he 320px +196.4s] IDLE 7s (after card Stop) focusin events=0: @0.5s button.stop "עצירה" row=input_boolean.zone_front [same node]
+[he 320px +0.0s] === scenario switch ===
+[he 320px +8.9s] TAB x3 -> Zones tab: button.tab role=tab aria-selected=false "אזורים"
+[he 320px +10.0s] TAB x7 -> first Enabled switch: button.switch role=switch aria-label=פעיל aria-checked=true
+[he 320px +10.0s] switch context: ביטולעריכהמחיקה
+[he 320px +11.5s] after Space #1: button.switch role=switch aria-label=פעיל aria-checked=false | context: עריכהמחיקה
+[he 320px +18.6s] IDLE 7s (after switch off) focusin events=0: @0.5s button.switch role=switch aria-label=פעיל aria-checked=false [same node]
+[he 320px +20.1s] after Space #2: button.switch role=switch aria-label=פעיל aria-checked=true | context: ביטולעריכהמחיקה
+[he 320px +20.2s] === scenario skip ===
+[he 320px +29.1s] TAB x18 -> Skip day: button.btn.ghost.small "דילוג על היום הזה"
+[he 320px +29.1s] skip day head: ג׳6.10דילוג על היום הזה
+[he 320px +29.1s] native confirm "לדלג על כל ההשקיות של ג׳ 6.10?" -> accept
+[he 320px +30.6s] after Enter on Skip day: button.btn.ghost.small "דילוג על היום הזה" | in head: ד׳7.10דילוג על היום הזה
+[he 320px +37.7s] IDLE 7s (after Skip day) focusin events=0: @0.5s button.btn.ghost.small "דילוג על היום הזה" [same node]
+[he 320px +37.8s] === scenario settings ===
+[he 320px +46.7s] TAB x5 -> Settings tab: button.tab role=tab aria-selected=false "הגדרות"
+[he 320px +47.7s] after Enter on Settings tab: button.tab.active role=tab aria-selected=true "הגדרות"
+[he 320px +47.7s] TAB x1 -> first text/number field in Settings: input type=text value="" caret=0
+[he 320px +47.7s] typed: input type=text value="7" caret=1
+[he 320px +55.8s] IDLE 8s (Settings field typed) focusin events=0: @0.5s input type=text value="7" caret=1 [same node]
+[he 320px +55.8s] restored (Backspace): input type=text value="" caret=0
+[he 320px +55.9s] TAB x18 -> a Settings button/switch: button.btn.primary "שמירת הגדרות"
+[he 320px +64.0s] IDLE 8s (Settings button focused) focusin events=0: @0.5s button.btn.primary "שמירת הגדרות" [same node]
+[he 320px +64.0s] === scenario dialog ===
+[he 320px +73.0s] TAB x3 -> Zones tab: button.tab role=tab aria-selected=false "אזורים"
+[he 320px +74.1s] TAB x4 -> Edit zone: button.btn.small "עריכת אזור"
+[he 320px +74.9s] after Enter on Edit zone: button.btn.small "עריכת אזור"
+[he 320px +74.9s] TAB x18 -> dialog label input: input type=text value="Front lawn" caret=0 in-dialog
+[he 320px +74.9s] typed in dialog: input type=text value="Front lawn X" caret=12 in-dialog
+[he 320px +83.0s] IDLE 8s (dialog input typed) focusin events=0: @0.5s input type=text value="Front lawn X" caret=12 in-dialog [same node]
+[he 320px +83.0s] TAB x6 -> a dialog button: button.btn.small type=button "הצגת הגדרות מתקדמות" in-dialog
+[he 320px +91.1s] IDLE 8s (dialog button focused) focusin events=0: @0.5s button.btn.small type=button "הצגת הגדרות מתקדמות" in-dialog [same node]
+[he 320px +91.9s] after Escape: BODY dialogOpen=false
+
+##### he-1440
+[he 1440px +0.0s] === scenario tabs ===
+[he 1440px +8.9s] panel dir=rtl
+[he 1440px +8.9s] TAB x5 -> Zones tab: button.tab role=tab aria-selected=false "אזורים"
+[he 1440px +17.0s] IDLE 8s (Zones tab focused) focusin events=0: @0.5s button.tab role=tab aria-selected=false "אזורים" [same node]
+[he 1440px +17.9s] after Enter: button.tab.active role=tab aria-selected=true "אזורים"
+[he 1440px +25.0s] IDLE 7s (after Enter on Zones) focusin events=0: @0.5s button.tab.active role=tab aria-selected=true "אזורים" [same node]
+[he 1440px +25.0s] === scenario water ===
+[he 1440px +34.0s] TAB x11 -> More time (Front lawn): button aria-label=יותר זמן type=button "+" row=input_boolean.zone_front
+[he 1440px +34.0s] stepper after 2x Enter: 20 דק׳ focus button aria-label=יותר זמן type=button "+" row=input_boolean.zone_front
+[he 1440px +42.1s] IDLE 8s (stepper + focused) focusin events=0: @0.5s button aria-label=יותר זמן type=button "+" row=input_boolean.zone_front [same node]
+[he 1440px +42.1s] stepper value after idle: 20 דק׳
+[he 1440px +42.1s] TAB x1 -> Water now (Front lawn): button.btn.primary "השקה עכשיו" row=input_boolean.zone_front
+[he 1440px +50.2s] IDLE 8s (Water now focused) focusin events=0: @0.5s button.btn.primary "השקה עכשיו" row=input_boolean.zone_front [same node]
+[he 1440px +51.8s] after Enter on Water now: button.btn.danger "עצירה" row=input_boolean.zone_front
+[he 1440px +59.9s] IDLE 8s (after Water now) focusin events=0: @0.5s button.btn.danger "עצירה" row=input_boolean.zone_front [same node]
+[he 1440px +61.4s] after Enter on Stop: button aria-label=פחות זמן type=button "−" row=input_boolean.zone_front
+[he 1440px +68.5s] IDLE 7s (after Stop) focusin events=0: @0.5s button aria-label=פחות זמן type=button "−" row=input_boolean.zone_front [same node]
+[he 1440px +68.5s] === scenario switch ===
+[he 1440px +77.4s] TAB x5 -> Zones tab: button.tab role=tab aria-selected=false "אזורים"
+[he 1440px +78.4s] TAB x7 -> first Enabled switch: button.switch role=switch aria-label=פעיל aria-checked=true
+[he 1440px +78.4s] switch context: ביטולעריכהמחיקה
+[he 1440px +80.0s] after Space #1: button.switch role=switch aria-label=פעיל aria-checked=false | context: עריכהמחיקה
+[he 1440px +87.0s] IDLE 7s (after switch off) focusin events=0: @0.5s button.switch role=switch aria-label=פעיל aria-checked=false [same node]
+[he 1440px +88.6s] after Space #2: button.switch role=switch aria-label=פעיל aria-checked=true | context: ביטולעריכהמחיקה
+[he 1440px +88.6s] === scenario skip ===
+[he 1440px +97.5s] TAB x19 -> Skip day: button.btn.ghost.small "דילוג על היום הזה"
+[he 1440px +97.5s] skip day head: ב׳5.10דילוג על היום הזה
+[he 1440px +97.5s] native confirm "לדלג על כל ההשקיות של ב׳ 5.10?" -> accept
+[he 1440px +99.0s] after Enter on Skip day: button.btn.ghost.small "דילוג על היום הזה" | in head: ג׳6.10דילוג על היום הזה
+[he 1440px +106.1s] IDLE 7s (after Skip day) focusin events=0: @0.5s button.btn.ghost.small "דילוג על היום הזה" [same node]
+[he 1440px +106.2s] === scenario settings ===
+[he 1440px +115.1s] TAB x7 -> Settings tab: button.tab role=tab aria-selected=false "הגדרות"
+[he 1440px +116.1s] after Enter on Settings tab: button.tab.active role=tab aria-selected=true "הגדרות"
+[he 1440px +116.1s] TAB x1 -> first text/number field in Settings: input type=text value="" caret=0
+[he 1440px +116.1s] typed: input type=text value="7" caret=1
+[he 1440px +124.2s] IDLE 8s (Settings field typed) focusin events=0: @0.5s input type=text value="7" caret=1 [same node]
+[he 1440px +124.2s] restored (Backspace): input type=text value="" caret=0
+[he 1440px +124.3s] TAB x18 -> a Settings button/switch: button.btn.primary "שמירת הגדרות"
+[he 1440px +132.4s] IDLE 8s (Settings button focused) focusin events=0: @0.5s button.btn.primary "שמירת הגדרות" [same node]
+[he 1440px +132.9s] === scenario dialog ===
+[he 1440px +141.8s] TAB x5 -> Zones tab: button.tab role=tab aria-selected=false "אזורים"
+[he 1440px +142.8s] TAB x4 -> Edit zone: button.btn.small "עריכת אזור"
+[he 1440px +143.6s] after Enter on Edit zone: button.btn.small "עריכת אזור"
+[he 1440px +143.7s] TAB x18 -> dialog label input: input type=text value="Front lawn" caret=0 in-dialog
+[he 1440px +143.7s] typed in dialog: input type=text value="Front lawn X" caret=12 in-dialog
+[he 1440px +151.8s] IDLE 8s (dialog input typed) focusin events=0: @0.5s input type=text value="Front lawn X" caret=12 in-dialog [same node]
+[he 1440px +151.8s] TAB x6 -> a dialog button: button.btn.small type=button "הצגת הגדרות מתקדמות" in-dialog
+[he 1440px +159.9s] IDLE 8s (dialog button focused) focusin events=0: @0.5s button.btn.small type=button "הצגת הגדרות מתקדמות" in-dialog [same node]
+[he 1440px +160.7s] after Escape: BODY dialogOpen=false
+[he 1440px +160.7s] === scenario card ===
+[he 1440px +169.6s] card has fix: true
+[he 1440px +169.7s] TAB x9 -> card minutes input (Front lawn): input type=number value="10" row=input_boolean.zone_front
+[he 1440px +169.7s] typed card minutes: input type=number value="2" row=input_boolean.zone_front
+[he 1440px +177.8s] IDLE 8s (card minutes typed) focusin events=0: @0.5s input type=number value="2" row=input_boolean.zone_front [same node]
+[he 1440px +177.9s] Tab -> button.run "הפעלה" row=input_boolean.zone_front
+[he 1440px +186.0s] IDLE 8s (card Run focused) focusin events=0: @0.5s button.run "הפעלה" row=input_boolean.zone_front [same node]
+[he 1440px +187.5s] after Enter on Run: button.stop "עצירה" row=input_boolean.zone_front
+[he 1440px +195.6s] IDLE 8s (after card Run) focusin events=0: @0.5s button.stop "עצירה" row=input_boolean.zone_front [same node]
+[he 1440px +197.1s] after Enter on card Stop: button.stop "עצירה" row=input_boolean.zone_front
+[he 1440px +204.2s] IDLE 7s (after card Stop) focusin events=0: @0.5s button.stop "עצירה" row=input_boolean.zone_front [same node]
+
+##### en-320
+[en 320px +0.0s] === scenario tabs ===
+[en 320px +9.0s] panel dir=ltr
+[en 320px +9.0s] TAB x3 -> Zones tab: button.tab role=tab aria-selected=false "Zones"
+[en 320px +17.1s] IDLE 8s (Zones tab focused) focusin events=0: @0.5s button.tab role=tab aria-selected=false "Zones" [same node]
+[en 320px +17.9s] after Enter: button.tab.active role=tab aria-selected=true "Zones"
+[en 320px +25.1s] IDLE 7s (after Enter on Zones) focusin events=0: @0.5s button.tab.active role=tab aria-selected=true "Zones" [same node]
+[en 320px +25.1s] === scenario water ===
+[en 320px +34.0s] TAB x9 -> More time (Front lawn): button aria-label=More time type=button "+" row=input_boolean.zone_front
+[en 320px +34.0s] stepper after 2x Enter: 20 min focus button aria-label=More time type=button "+" row=input_boolean.zone_front
+[en 320px +42.1s] IDLE 8s (stepper + focused) focusin events=0: @0.5s button aria-label=More time type=button "+" row=input_boolean.zone_front [same node]
+[en 320px +42.1s] stepper value after idle: 20 min
+[en 320px +42.1s] TAB x1 -> Water now (Front lawn): button.btn.primary "Water now" row=input_boolean.zone_front
+[en 320px +50.2s] IDLE 8s (Water now focused) focusin events=0: @0.5s button.btn.primary "Water now" row=input_boolean.zone_front [same node]
+[en 320px +51.7s] after Enter on Water now: button.btn.danger "Stop" row=input_boolean.zone_front
+[en 320px +59.8s] IDLE 8s (after Water now) focusin events=0: @0.5s button.btn.danger "Stop" row=input_boolean.zone_front [same node]
+[en 320px +61.3s] after Enter on Stop: button aria-label=Less time type=button "−" row=input_boolean.zone_front
+[en 320px +68.4s] IDLE 7s (after Stop) focusin events=0: @0.5s button aria-label=Less time type=button "−" row=input_boolean.zone_front [same node]
+[en 320px +68.4s] === scenario switch ===
+[en 320px +77.3s] TAB x3 -> Zones tab: button.tab role=tab aria-selected=false "Zones"
+[en 320px +78.3s] TAB x7 -> first Enabled switch: button.switch role=switch aria-label=Enabled aria-checked=true
+[en 320px +78.3s] switch context: UndoEditDelete
+[en 320px +79.9s] after Space #1: button.switch role=switch aria-label=Enabled aria-checked=false | context: EditDelete
+[en 320px +86.9s] IDLE 7s (after switch off) focusin events=0: @0.5s button.switch role=switch aria-label=Enabled aria-checked=false [same node]
+[en 320px +88.5s] after Space #2: button.switch role=switch aria-label=Enabled aria-checked=true | context: UndoEditDelete
+[en 320px +88.5s] === scenario settings ===
+[en 320px +97.4s] TAB x5 -> Settings tab: button.tab role=tab aria-selected=false "Settings"
+[en 320px +98.5s] after Enter on Settings tab: button.tab.active role=tab aria-selected=true "Settings"
+[en 320px +98.5s] TAB x1 -> first text/number field in Settings: input type=text value="" caret=0
+[en 320px +98.5s] typed: input type=text value="7" caret=1
+[en 320px +106.6s] IDLE 8s (Settings field typed) focusin events=0: @0.5s input type=text value="7" caret=1 [same node]
+[en 320px +106.6s] restored (Backspace): input type=text value="" caret=0
+[en 320px +106.6s] TAB x18 -> a Settings button/switch: button.btn.primary "Save settings"
+[en 320px +114.7s] IDLE 8s (Settings button focused) focusin events=0: @0.5s button.btn.primary "Save settings" [same node]
+[en 320px +114.8s] === scenario card ===
+[en 320px +123.7s] card has fix: true
+[en 320px +123.7s] TAB x4 -> card minutes input (Front lawn): input type=number value="10" row=input_boolean.zone_front
+[en 320px +123.7s] typed card minutes: input type=number value="2" row=input_boolean.zone_front
+[en 320px +131.8s] IDLE 8s (card minutes typed) focusin events=0: @0.5s input type=number value="2" row=input_boolean.zone_front [same node]
+[en 320px +131.8s] Tab -> button.run "Run" row=input_boolean.zone_front
+[en 320px +139.9s] IDLE 8s (card Run focused) focusin events=0: @0.5s button.run "Run" row=input_boolean.zone_front [same node]
+[en 320px +141.4s] after Enter on Run: button.stop "Stop" row=input_boolean.zone_front
+[en 320px +149.5s] IDLE 8s (after card Run) focusin events=0: @0.5s button.stop "Stop" row=input_boolean.zone_front [same node]
+[en 320px +151.0s] after Enter on card Stop: button.stop "Stop" row=input_boolean.zone_front
+[en 320px +158.1s] IDLE 7s (after card Stop) focusin events=0: @0.5s button.stop "Stop" row=input_boolean.zone_front [same node]
