@@ -34,3 +34,18 @@
 - **Template switch rows:** `stop_all` / `remove_valve` on a zone whose valve is unavailable leaves a `pending_closes`
   entry (by design since #80). Clear it from `.storage` (HA stopped) when removing test switches.
 - **Scale data without YAML:** `input_boolean/create` (`PZ01`..`PZ20`) and `input_boolean/delete` need no restart.
+
+## Added 2026-10-01 (polish batch verification, #87 / #88 / #89)
+
+- **A pending close without YAML:** run a zone, `POST /api/states/input_boolean.zone_<x> {"state":"unavailable"}`, then
+  `stop_valve` -> "close ... not delivered" and the entry is in `.storage` at once. `POST ... {"state":"on"}` is the valve
+  coming back; the pending close then turns the real input_boolean off.
+- **Stop races:** send `homeassistant.stop` on an already-open WS right after the `POST`. Read the real gap from the recorder
+  (`events` `schedule_wizard_valve_ended` vs `homeassistant_stop`, ms). `asyncio.sleep(0.02)` on Windows gave ~34 ms
+  (timer granularity): use 0 and ~10 ms to land inside a 0-20 ms window.
+- **8172 restarts in ~3 s** (stop) + ~3 s (start to `get_state`) with `Start-Process -WindowStyle Hidden` and stdout/stderr
+  redirected to scratchpad files.
+- **Notification text per language without restarting:** WS `config/core/update {"language":"de"}` changes `hass.config.language`
+  live even though `configuration.yaml` sets `language: he`; restore it afterwards. Read the texts with notify target
+  `persistent_notification` and WS `persistent_notification/subscribe` (first event lists all current ones).
+- **Legacy history rows:** inject only with HA stopped, back the store up first, and remove the row again the same way.

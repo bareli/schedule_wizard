@@ -17,3 +17,8 @@
 - A test entity for keyboard-only "add zone" checks: WS `input_boolean/create` (name "QA a11y verify"),
   then `remove_valve` + `input_boolean/delete` afterwards. Every real input_boolean on 8172 is already a zone.
 - `unskip` needs both `schedule_id` and `date`; the pending skips are in `get_state` → `skips`.
+- **Card picker (HA 2026.9):** the card registers `preview: true`, so Edit dashboard -> Add card -> "By card" shows a live
+  preview and never the `description`. Read the description from `window.customCards`. The dialog opens on "By entity";
+  click the "By card" tab (`getByRole("tab", { name: /by card|לפי כרטיס|nach karte/i })`).
+- **Card at 320 in German:** the zone-name column shrinks to ~51 px and long sub-lines (`Regenverzögerung`) run under the
+  minutes field (seen 2026-10-01, not filed). Check de, not only en / he, when judging the card at 320.
