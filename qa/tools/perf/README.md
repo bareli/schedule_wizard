@@ -1,0 +1,2 @@
+Perf harness used for PERF-001..003 (dev 8174). Paths, the HA pid (41996) and the scratchpad location are hardcoded: edit before reuse.
+Order: seed.py (needs 20 input_boolean PZ01..PZ20 first), hist.py (history to 500), gs.py (get_state size), watch.py (store writes), bench.py (planner timing on a copy of the store), then the .mjs files via node from ~/.claude/qa-playwright (they import ./lib.mjs and playwright). clean.py removes what seed created.
