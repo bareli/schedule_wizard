@@ -49,11 +49,31 @@
     },
     "add_schedule": {
       "name": "Add schedule",
-      "description": "Add a recurring schedule for a registered valve or cycle."
+      "description": "Add a recurring schedule for a registered valve or cycle, on days of the week or every N days.",
+      "fields": {
+        "every_n_days": {
+          "name": "Every N days",
+          "description": "Repeat every N days (2 to 30) from the start date, instead of on days of the week."
+        },
+        "start_date": {
+          "name": "Start date",
+          "description": "First day of an every-N-days schedule. Defaults to today."
+        }
+      }
     },
     "update_schedule": {
       "name": "Update schedule",
-      "description": "Patch an existing schedule by id."
+      "description": "Patch an existing schedule by id. Omitted fields stay unchanged.",
+      "fields": {
+        "every_n_days": {
+          "name": "Every N days",
+          "description": "Repeat every N days (2 to 30) from the start date, instead of on days of the week."
+        },
+        "start_date": {
+          "name": "Start date",
+          "description": "First day of an every-N-days schedule. Defaults to today."
+        }
+      }
     },
     "remove_schedule": {
       "name": "Remove schedule",

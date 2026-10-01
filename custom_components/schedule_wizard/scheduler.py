@@ -20,7 +20,6 @@ from homeassistant.helpers.event import (
 from homeassistant.util import dt as dt_util
 
 from .const import (
-    DAY_BITS,
     DOMAIN,
     EVENT_CONDITION_SKIPPED,
     EVENT_CYCLE_ENDED,
@@ -272,7 +271,6 @@ class Scheduler:
     def _on_minute(self, now: datetime) -> None:
         # Global rain delay is checked per trigger: indoor (rain-exempt) valves still run.
         local = dt_util.as_local(now)
-        bit = DAY_BITS[local.weekday()]
         hhmm = local.strftime("%H:%M")
         today = local.date().isoformat()
         if hhmm == "00:00":
@@ -281,7 +279,8 @@ class Scheduler:
         for sched in self.store.schedules:
             if not sched.get("enabled"):
                 continue
-            if not (int(sched.get("days_mask", 0)) & bit):
+            # Local calendar date, not elapsed seconds: every-N-days stays on time across DST changes.
+            if not planner.runs_on(sched, local.date()):
                 continue
             if sched.get("time_hhmm") != hhmm:
                 continue

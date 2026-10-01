@@ -93,7 +93,7 @@ class PlanEnabledSwitch(WizardEntity, SwitchEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         occ = next(
-            (o for o in planner.occurrences(self.store, self.scheduler.options, dt_util.now(), dt_util.now() + timedelta(days=8))
+            (o for o in planner.occurrences(self.store, self.scheduler.options, dt_util.now(), dt_util.now() + timedelta(days=planner.NEXT_RUN_DAYS))
              if o["kind"] == "cycle" and o["target"] == self._cycle_id),
             None,
         )

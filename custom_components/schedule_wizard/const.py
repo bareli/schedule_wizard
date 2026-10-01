@@ -158,6 +158,12 @@ LOW_FLOW_RATIO = 0.5
 LOW_FLOW_MIN_RUNS = 3
 LOW_FLOW_MIN_MINUTES = 2
 
+# Every-N-days schedules (#27): repeat = "interval", interval_days N, start_date YYYY-MM-DD (local).
+REPEAT_WEEKDAYS = "weekdays"
+REPEAT_INTERVAL = "interval"
+INTERVAL_MIN_DAYS = 2
+INTERVAL_MAX_DAYS = 30
+
 DAY_BITS = {0: 1, 1: 2, 2: 4, 3: 8, 4: 16, 5: 32, 6: 64}
 
 SERVICE_RUN_VALVE = "run_valve"

@@ -14,6 +14,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.util import dt as dt_util
 
+from . import planner
 from .const import DOMAIN, SIGNAL_STATE_CHANGED
 from .entity_base import WizardEntity, hub_device, track_zones, zone_device
 
@@ -202,36 +203,24 @@ class NextScheduleSensor(SensorEntity):
         }
 
     def _compute_next(self) -> dict | None:
-        from datetime import timedelta
         now = dt_util.now()
         best = None
         best_delta = None
         for s in self._store.schedules:
             if not s.get("enabled"):
                 continue
-            try:
-                hh, mm = [int(x) for x in s["time_hhmm"].split(":")]
-            except Exception:
+            fire = planner.next_fire(s, now)
+            if fire is None:
                 continue
-            mask = int(s.get("days_mask", 0))
-            for delta_days in range(0, 8):
-                check = now + timedelta(days=delta_days)
-                bit = 1 << check.weekday()
-                if not (mask & bit):
-                    continue
-                fire = check.replace(hour=hh, minute=mm, second=0, microsecond=0)
-                if fire <= now:
-                    continue
-                delta = fire - now
-                if best_delta is None or delta < best_delta:
-                    best_delta = delta
-                    best = {
-                        "valve_entity_id": s.get("valve_entity_id", ""),
-                        "cycle_id": s.get("cycle_id", ""),
-                        "schedule_id": s["id"],
-                        "duration_min": s["duration_min"],
-                        "fires_in_minutes": int(delta.total_seconds() // 60),
-                        "time_label": fire.strftime("%a %H:%M"),
-                    }
-                break
+            delta = fire - now
+            if best_delta is None or delta < best_delta:
+                best_delta = delta
+                best = {
+                    "valve_entity_id": s.get("valve_entity_id", ""),
+                    "cycle_id": s.get("cycle_id", ""),
+                    "schedule_id": s["id"],
+                    "duration_min": s["duration_min"],
+                    "fires_in_minutes": int(delta.total_seconds() // 60),
+                    "time_label": fire.strftime("%a %H:%M"),
+                }
         return best
