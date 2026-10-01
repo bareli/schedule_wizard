@@ -66,3 +66,14 @@ def test_zone_week_singular_in_every_language():
         one = strings["valves.week_one"]
         assert "{runs}" not in one and "{min}" in one, lang
         assert one != strings["valves.week"], lang
+
+
+def test_toast_lives_inside_the_panel():
+    """#51: a toast appended to document.body gets none of the panel's styles and lands off-screen."""
+    body = _method(PANEL, "_toast")
+    assert "document.body" not in body
+    assert "this._toastRoot" in body
+    assert re.search(r'el\("div", \{ class: "toast-host", role: "status" \}\)', PANEL)
+    host_css = re.search(r"\.toast-host \{(.*?)\}", PANEL, re.S)
+    assert host_css and "position: fixed" in host_css.group(1)
+    assert 'role: error ? "alert"' in body

@@ -274,12 +274,18 @@ bdi { unicode-bidi: isolate; }
 details.more > summary { font-size: 16px; }
 .check-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
 .check-wrap label { display: flex; gap: 6px; align-items: center; font-size: 13px; padding: 4px 8px; border: 1px solid var(--sw-border); border-radius: 999px; cursor: pointer; }
+.toast-host {
+  position: fixed; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); inset-inline: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding-inline: 16px; z-index: 200; pointer-events: none;
+}
+/* In a dialog the message sits at the top, clear of the dialog's Save / Cancel buttons. */
+.modal .toast-host { bottom: auto; top: calc(12px + env(safe-area-inset-top, 0px)); }
 .toast {
-  position: fixed; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); inset-inline: 0; margin-inline: auto;
-  width: max-content; max-width: calc(100% - 32px);
+  max-width: min(560px, 100%);
   padding: 10px 16px; background: var(--sw-text); color: var(--sw-bg);
-  border-radius: 999px; font-size: 13px;
-  z-index: 200; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  border-radius: 18px; font-size: 14px; line-height: 1.4; text-align: center;
+  overflow-wrap: anywhere; box-shadow: 0 4px 12px rgba(0,0,0,0.25);
 }
 .toast.error { background: var(--sw-danger); color: #fff; }
 .toast.ok { background: var(--sw-success); color: #fff; }
@@ -636,6 +642,8 @@ class ScheduleWizardPanel extends HTMLElement {
     this.appendChild(app);
     this._modalRoot = el("div", { id: "modal-root" });
     this.appendChild(this._modalRoot);
+    this._toastRoot = el("div", { class: "toast-host", role: "status" });
+    this.appendChild(this._toastRoot);
     this.addEventListener("focusin", (ev) => {
       const t = ev.target;
       this._editing = !!(t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT"));
@@ -703,11 +711,20 @@ class ScheduleWizardPanel extends HTMLElement {
     ]));
   }
 
+  // Toasts live inside the panel, where the .toast styles apply (#51); errors are alerts and stay longer.
+  // An error raised while a dialog is open goes inside it (the dialog stays open on errors), so assistive
+  // tech that honours aria-modal still hears it; anything else stays on the panel and outlives a closing dialog.
   _toast(msg, kind = "") {
-    const t = el("div", { class: "toast " + kind, role: "status" }, msg);
+    const host = this._toastRoot;
+    if (!host) return;
+    const error = kind === "error";
+    const parent = (error && this._modalRoot && this._modalRoot.querySelector('[aria-modal="true"]')) || this;
+    if (host.parentNode !== parent) parent.appendChild(host);
+    const t = el("div", { class: "toast " + kind, role: error ? "alert" : null }, msg);
     this._applyDir(t);
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 2800);
+    while (host.children.length >= 3) host.firstChild.remove();
+    host.appendChild(t);
+    setTimeout(() => t.remove(), error ? 6000 : 2800);
   }
 
   _fmtAgo(secs) {
