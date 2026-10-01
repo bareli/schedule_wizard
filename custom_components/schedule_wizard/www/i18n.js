@@ -433,7 +433,18 @@ export const STRINGS = /*JSON-START*/ {
     "set.g_interleave_d": "Uses soak pauses to water other zones in the same plan.",
     "set.interleave_toggle": "While one zone soaks, water the next zone in the plan",
     "set.interleave_hint": "Plans finish much sooner. Turn off to water each zone's parts back to back.",
-    "settings.flow_water_hint": "The flow meter also measures water per zone (Reports) and warns about low flow."
+    "settings.flow_water_hint": "The flow meter also measures water per zone (Reports) and warns about low flow.",
+    "sched.repeat": "Repeat",
+    "sched.repeat_weekdays": "Days of the week",
+    "sched.repeat_interval": "Every N days",
+    "sched.interval_days": "Every how many days (2 to 30)",
+    "sched.start_date": "Starting on",
+    "sched.every_n_at": "Every {n} days from {date} at {time}",
+    "sched.err_interval": "Enter a whole number from 2 to 30",
+    "sched.err_start_date": "Pick a start date",
+    "status.skipped_seasonal_zero": "skipped (temperature 0 %)",
+    "event.skipped_seasonal": "Skipped (temperature 0 %)",
+    "settings.preview_skip": "Current: {temp} {arrow} factor 0% {arrow} scheduled watering is skipped"
   },
   "de": {
     "common.save": "Speichern",
@@ -867,7 +878,18 @@ export const STRINGS = /*JSON-START*/ {
     "set.g_interleave_d": "Nutzt Sickerpausen, um andere Zonen desselben Plans zu bewässern.",
     "set.interleave_toggle": "Während eine Zone einsickert, die nächste Zone im Plan bewässern",
     "set.interleave_hint": "Pläne sind viel schneller fertig. Ausschalten, um die Abschnitte jeder Zone direkt nacheinander zu bewässern.",
-    "settings.flow_water_hint": "Der Durchflussmesser misst außerdem den Wasserverbrauch pro Zone (Berichte) und warnt bei zu geringem Durchfluss."
+    "settings.flow_water_hint": "Der Durchflussmesser misst außerdem den Wasserverbrauch pro Zone (Berichte) und warnt bei zu geringem Durchfluss.",
+    "sched.repeat": "Wiederholen",
+    "sched.repeat_weekdays": "Wochentage",
+    "sched.repeat_interval": "Alle N Tage",
+    "sched.interval_days": "Alle wie viele Tage (2 bis 30)",
+    "sched.start_date": "Ab dem",
+    "sched.every_n_at": "Alle {n} Tage ab {date} um {time}",
+    "sched.err_interval": "Eine ganze Zahl von 2 bis 30 eingeben",
+    "sched.err_start_date": "Ein Startdatum wählen",
+    "status.skipped_seasonal_zero": "übersprungen (Temperatur 0 %)",
+    "event.skipped_seasonal": "Übersprungen (Temperatur 0 %)",
+    "settings.preview_skip": "Aktuell: {temp} {arrow} Faktor 0 % {arrow} geplante Bewässerung wird übersprungen"
   },
   "he": {
     "common.save": "שמירה",
@@ -1301,7 +1323,18 @@ export const STRINGS = /*JSON-START*/ {
     "set.g_interleave_d": "מנצל את הפסקות הספיגה כדי להשקות אזורים אחרים באותה תוכנית.",
     "set.interleave_toggle": "בזמן שאזור אחד סופג, להשקות את האזור הבא בתוכנית",
     "set.interleave_hint": "התוכניות מסתיימות הרבה יותר מהר. כבה כדי להשקות את כל המקטעים של כל אזור ברצף.",
-    "settings.flow_water_hint": "מד הזרימה מודד גם את צריכת המים לכל אזור (דוחות) ומתריע על זרימה חלשה."
+    "settings.flow_water_hint": "מד הזרימה מודד גם את צריכת המים לכל אזור (דוחות) ומתריע על זרימה חלשה.",
+    "sched.repeat": "חזרה",
+    "sched.repeat_weekdays": "ימים בשבוע",
+    "sched.repeat_interval": "כל N ימים",
+    "sched.interval_days": "כל כמה ימים (2 עד 30)",
+    "sched.start_date": "החל מתאריך",
+    "sched.every_n_at": "כל {n} ימים מ־{date} ב־{time}",
+    "sched.err_interval": "יש להזין מספר שלם בין 2 ל־30",
+    "sched.err_start_date": "יש לבחור תאריך התחלה",
+    "status.skipped_seasonal_zero": "דולג (טמפרטורה 0%)",
+    "event.skipped_seasonal": "דולג (טמפרטורה 0%)",
+    "settings.preview_skip": "כעת: {temp} {arrow} מקדם 0% {arrow} ההשקיה המתוזמנת תדולג"
   },
   "es": {
     "common.save": "Guardar",
@@ -1735,7 +1768,18 @@ export const STRINGS = /*JSON-START*/ {
     "set.g_interleave_d": "Aprovecha las pausas de absorción para regar otras zonas del mismo plan.",
     "set.interleave_toggle": "Mientras una zona absorbe, regar la siguiente zona del plan",
     "set.interleave_hint": "Los planes terminan mucho antes. Desactívalo para regar las partes de cada zona una tras otra.",
-    "settings.flow_water_hint": "El caudalímetro también mide el agua por zona (Informes) y avisa de caudal bajo."
+    "settings.flow_water_hint": "El caudalímetro también mide el agua por zona (Informes) y avisa de caudal bajo.",
+    "sched.repeat": "Repetir",
+    "sched.repeat_weekdays": "Días de la semana",
+    "sched.repeat_interval": "Cada N días",
+    "sched.interval_days": "Cada cuántos días (2 a 30)",
+    "sched.start_date": "A partir del",
+    "sched.every_n_at": "Cada {n} días desde el {date} a las {time}",
+    "sched.err_interval": "Introduce un número entero de 2 a 30",
+    "sched.err_start_date": "Elige una fecha de inicio",
+    "status.skipped_seasonal_zero": "omitido (temperatura 0 %)",
+    "event.skipped_seasonal": "Omitido (temperatura 0 %)",
+    "settings.preview_skip": "Actual: {temp} {arrow} factor 0% {arrow} el riego programado se omite"
   },
   "fr": {
     "common.save": "Enregistrer",
@@ -2169,7 +2213,18 @@ export const STRINGS = /*JSON-START*/ {
     "set.g_interleave_d": "Utilise les pauses d'infiltration pour arroser d'autres zones du même programme.",
     "set.interleave_toggle": "Pendant qu'une zone s'infiltre, arroser la zone suivante du programme",
     "set.interleave_hint": "Les programmes se terminent bien plus tôt. Désactivez pour arroser les parties de chaque zone à la suite.",
-    "settings.flow_water_hint": "Le débitmètre mesure aussi l'eau par zone (Rapports) et avertit en cas de débit faible."
+    "settings.flow_water_hint": "Le débitmètre mesure aussi l'eau par zone (Rapports) et avertit en cas de débit faible.",
+    "sched.repeat": "Répétition",
+    "sched.repeat_weekdays": "Jours de la semaine",
+    "sched.repeat_interval": "Tous les N jours",
+    "sched.interval_days": "Tous les combien de jours (2 à 30)",
+    "sched.start_date": "À partir du",
+    "sched.every_n_at": "Tous les {n} jours à partir du {date} à {time}",
+    "sched.err_interval": "Saisissez un nombre entier de 2 à 30",
+    "sched.err_start_date": "Choisissez une date de début",
+    "status.skipped_seasonal_zero": "ignoré (température 0 %)",
+    "event.skipped_seasonal": "Ignoré (température 0 %)",
+    "settings.preview_skip": "Actuel : {temp} {arrow} facteur 0% {arrow} l'arrosage planifié est ignoré"
   },
   "it": {
     "common.save": "Salva",
@@ -2603,7 +2658,18 @@ export const STRINGS = /*JSON-START*/ {
     "set.g_interleave_d": "Sfrutta le pause di assorbimento per irrigare altre zone dello stesso piano.",
     "set.interleave_toggle": "Mentre una zona assorbe, irriga la zona successiva del piano",
     "set.interleave_hint": "I piani finiscono molto prima. Disattiva per irrigare le parti di ogni zona una dopo l'altra.",
-    "settings.flow_water_hint": "Il misuratore di flusso misura anche l'acqua per zona (Report) e avvisa in caso di flusso basso."
+    "settings.flow_water_hint": "Il misuratore di flusso misura anche l'acqua per zona (Report) e avvisa in caso di flusso basso.",
+    "sched.repeat": "Ripeti",
+    "sched.repeat_weekdays": "Giorni della settimana",
+    "sched.repeat_interval": "Ogni N giorni",
+    "sched.interval_days": "Ogni quanti giorni (da 2 a 30)",
+    "sched.start_date": "A partire dal",
+    "sched.every_n_at": "Ogni {n} giorni dal {date} alle {time}",
+    "sched.err_interval": "Inserisci un numero intero da 2 a 30",
+    "sched.err_start_date": "Scegli una data di inizio",
+    "status.skipped_seasonal_zero": "saltato (temperatura 0 %)",
+    "event.skipped_seasonal": "Saltato (temperatura 0 %)",
+    "settings.preview_skip": "Attuale: {temp} {arrow} fattore 0% {arrow} l'irrigazione programmata viene saltata"
   },
   "nl": {
     "common.save": "Opslaan",
@@ -3037,7 +3103,18 @@ export const STRINGS = /*JSON-START*/ {
     "set.g_interleave_d": "Gebruikt intrekpauzes om andere zones in hetzelfde plan te besproeien.",
     "set.interleave_toggle": "Terwijl een zone intrekt, de volgende zone in het plan besproeien",
     "set.interleave_hint": "Plannen zijn veel sneller klaar. Zet uit om de delen van elke zone direct na elkaar te besproeien.",
-    "settings.flow_water_hint": "De debietmeter meet ook het water per zone (Rapporten) en waarschuwt bij laag debiet."
+    "settings.flow_water_hint": "De debietmeter meet ook het water per zone (Rapporten) en waarschuwt bij laag debiet.",
+    "sched.repeat": "Herhalen",
+    "sched.repeat_weekdays": "Dagen van de week",
+    "sched.repeat_interval": "Elke N dagen",
+    "sched.interval_days": "Om de hoeveel dagen (2 tot 30)",
+    "sched.start_date": "Vanaf",
+    "sched.every_n_at": "Elke {n} dagen vanaf {date} om {time}",
+    "sched.err_interval": "Voer een geheel getal van 2 tot 30 in",
+    "sched.err_start_date": "Kies een startdatum",
+    "status.skipped_seasonal_zero": "overgeslagen (temperatuur 0 %)",
+    "event.skipped_seasonal": "Overgeslagen (temperatuur 0 %)",
+    "settings.preview_skip": "Huidig: {temp} {arrow} factor 0% {arrow} geplande bewatering wordt overgeslagen"
   },
   "pt": {
     "common.save": "Guardar",
@@ -3471,7 +3548,18 @@ export const STRINGS = /*JSON-START*/ {
     "set.g_interleave_d": "Aproveita as pausas de absorção para regar outras zonas do mesmo plano.",
     "set.interleave_toggle": "Enquanto uma zona absorve, regar a zona seguinte do plano",
     "set.interleave_hint": "Os planos terminam muito mais cedo. Desligue para regar as partes de cada zona seguidas.",
-    "settings.flow_water_hint": "O caudalímetro também mede a água por zona (Relatórios) e avisa quando o caudal é baixo."
+    "settings.flow_water_hint": "O caudalímetro também mede a água por zona (Relatórios) e avisa quando o caudal é baixo.",
+    "sched.repeat": "Repetir",
+    "sched.repeat_weekdays": "Dias da semana",
+    "sched.repeat_interval": "A cada N dias",
+    "sched.interval_days": "A cada quantos dias (2 a 30)",
+    "sched.start_date": "A partir de",
+    "sched.every_n_at": "A cada {n} dias desde {date} às {time}",
+    "sched.err_interval": "Introduza um número inteiro de 2 a 30",
+    "sched.err_start_date": "Escolha uma data de início",
+    "status.skipped_seasonal_zero": "ignorado (temperatura 0 %)",
+    "event.skipped_seasonal": "Ignorado (temperatura 0 %)",
+    "settings.preview_skip": "Atual: {temp} {arrow} fator 0% {arrow} a rega agendada é ignorada"
   },
   "ru": {
     "common.save": "Сохранить",
@@ -3905,7 +3993,18 @@ export const STRINGS = /*JSON-START*/ {
     "set.g_interleave_d": "Использует паузы на впитывание, чтобы поливать другие зоны той же программы.",
     "set.interleave_toggle": "Пока одна зона впитывает, поливать следующую зону программы",
     "set.interleave_hint": "Программы завершаются намного быстрее. Выключите, чтобы поливать части каждой зоны подряд.",
-    "settings.flow_water_hint": "Расходомер также измеряет воду по зонам (Отчёты) и предупреждает о низком расходе."
+    "settings.flow_water_hint": "Расходомер также измеряет воду по зонам (Отчёты) и предупреждает о низком расходе.",
+    "sched.repeat": "Повтор",
+    "sched.repeat_weekdays": "Дни недели",
+    "sched.repeat_interval": "Каждые N дней",
+    "sched.interval_days": "Через сколько дней (от 2 до 30)",
+    "sched.start_date": "Начиная с",
+    "sched.every_n_at": "Каждые {n} дн. с {date} в {time}",
+    "sched.err_interval": "Введите целое число от 2 до 30",
+    "sched.err_start_date": "Выберите дату начала",
+    "status.skipped_seasonal_zero": "пропущено (температура 0 %)",
+    "event.skipped_seasonal": "Пропущено (температура 0 %)",
+    "settings.preview_skip": "Сейчас: {temp} {arrow} коэффициент 0% {arrow} полив по расписанию пропускается"
   },
   "uk": {
     "common.save": "Зберегти",
@@ -4339,7 +4438,18 @@ export const STRINGS = /*JSON-START*/ {
     "set.g_interleave_d": "Використовує паузи на вбирання, щоб поливати інші зони тієї ж програми.",
     "set.interleave_toggle": "Поки одна зона вбирає, поливати наступну зону програми",
     "set.interleave_hint": "Програми завершуються значно швидше. Вимкніть, щоб поливати частини кожної зони поспіль.",
-    "settings.flow_water_hint": "Лічильник потоку також вимірює воду за зонами (Звіти) і попереджає про низький потік."
+    "settings.flow_water_hint": "Лічильник потоку також вимірює воду за зонами (Звіти) і попереджає про низький потік.",
+    "sched.repeat": "Повтор",
+    "sched.repeat_weekdays": "Дні тижня",
+    "sched.repeat_interval": "Кожні N днів",
+    "sched.interval_days": "Через скільки днів (від 2 до 30)",
+    "sched.start_date": "Починаючи з",
+    "sched.every_n_at": "Кожні {n} дн. з {date} о {time}",
+    "sched.err_interval": "Введіть ціле число від 2 до 30",
+    "sched.err_start_date": "Виберіть дату початку",
+    "status.skipped_seasonal_zero": "пропущено (температура 0 %)",
+    "event.skipped_seasonal": "Пропущено (температура 0 %)",
+    "settings.preview_skip": "Зараз: {temp} {arrow} коефіцієнт 0% {arrow} полив за розкладом пропускається"
   },
   "pl": {
     "common.save": "Zapisz",
@@ -4773,7 +4883,18 @@ export const STRINGS = /*JSON-START*/ {
     "set.g_interleave_d": "Wykorzystuje przerwy na wsiąkanie do podlewania innych stref tego samego planu.",
     "set.interleave_toggle": "Gdy jedna strefa wsiąka, podlewaj następną strefę planu",
     "set.interleave_hint": "Plany kończą się dużo szybciej. Wyłącz, aby podlewać części każdej strefy jedna po drugiej.",
-    "settings.flow_water_hint": "Przepływomierz mierzy też wodę na strefę (Raporty) i ostrzega o niskim przepływie."
+    "settings.flow_water_hint": "Przepływomierz mierzy też wodę na strefę (Raporty) i ostrzega o niskim przepływie.",
+    "sched.repeat": "Powtarzanie",
+    "sched.repeat_weekdays": "Dni tygodnia",
+    "sched.repeat_interval": "Co N dni",
+    "sched.interval_days": "Co ile dni (od 2 do 30)",
+    "sched.start_date": "Od dnia",
+    "sched.every_n_at": "Co {n} dni od {date} o {time}",
+    "sched.err_interval": "Wpisz liczbę całkowitą od 2 do 30",
+    "sched.err_start_date": "Wybierz datę początkową",
+    "status.skipped_seasonal_zero": "pominięto (temperatura 0 %)",
+    "event.skipped_seasonal": "Pominięto (temperatura 0 %)",
+    "settings.preview_skip": "Teraz: {temp} {arrow} współczynnik 0% {arrow} podlewanie wg harmonogramu jest pomijane"
   },
   "ar": {
     "common.save": "حفظ",
@@ -5207,7 +5328,18 @@ export const STRINGS = /*JSON-START*/ {
     "set.g_interleave_d": "يستغل فترات التشرّب لري مناطق أخرى في الخطة نفسها.",
     "set.interleave_toggle": "أثناء تشرّب منطقة، ري المنطقة التالية في الخطة",
     "set.interleave_hint": "تنتهي الخطط أسرع بكثير. أوقفه لري أجزاء كل منطقة متتالية.",
-    "settings.flow_water_hint": "يقيس عداد التدفق أيضًا المياه لكل منطقة (التقارير) وينبّه عند انخفاض التدفق."
+    "settings.flow_water_hint": "يقيس عداد التدفق أيضًا المياه لكل منطقة (التقارير) وينبّه عند انخفاض التدفق.",
+    "sched.repeat": "التكرار",
+    "sched.repeat_weekdays": "أيام الأسبوع",
+    "sched.repeat_interval": "كل N أيام",
+    "sched.interval_days": "كل كم يومًا (من 2 إلى 30)",
+    "sched.start_date": "بدءًا من",
+    "sched.every_n_at": "كل {n} أيام من {date} الساعة {time}",
+    "sched.err_interval": "أدخل عددًا صحيحًا من 2 إلى 30",
+    "sched.err_start_date": "اختر تاريخ البدء",
+    "status.skipped_seasonal_zero": "تم التخطي (درجة الحرارة 0%)",
+    "event.skipped_seasonal": "تم التخطي (درجة الحرارة 0%)",
+    "settings.preview_skip": "الحالي: {temp} {arrow} المعامل 0% {arrow} يتم تخطي الري المجدول"
   },
   "zh-hans": {
     "common.save": "保存",
@@ -5641,7 +5773,18 @@ export const STRINGS = /*JSON-START*/ {
     "set.g_interleave_d": "利用渗透暂停为同一计划中的其他区域浇水。",
     "set.interleave_toggle": "一个区域渗透时,为计划中的下一个区域浇水",
     "set.interleave_hint": "计划完成得快得多。关闭后,每个区域的各段将连续浇水。",
-    "settings.flow_water_hint": "流量计还会按区域统计用水量(报告),并在流量过低时发出警告。"
+    "settings.flow_water_hint": "流量计还会按区域统计用水量(报告),并在流量过低时发出警告。",
+    "sched.repeat": "重复",
+    "sched.repeat_weekdays": "按星期几",
+    "sched.repeat_interval": "每 N 天",
+    "sched.interval_days": "每隔几天(2 到 30)",
+    "sched.start_date": "开始日期",
+    "sched.every_n_at": "从 {date} 起每 {n} 天 {time}",
+    "sched.err_interval": "请输入 2 到 30 之间的整数",
+    "sched.err_start_date": "请选择开始日期",
+    "status.skipped_seasonal_zero": "已跳过(温度 0%)",
+    "event.skipped_seasonal": "已跳过(温度 0%)",
+    "settings.preview_skip": "当前:{temp} {arrow} 系数 0% {arrow} 定时浇水将被跳过"
   },
   "sv": {
     "common.save": "Spara",
@@ -6075,7 +6218,18 @@ export const STRINGS = /*JSON-START*/ {
     "set.g_interleave_d": "Använder blötläggningspauser för att vattna andra zoner i samma plan.",
     "set.interleave_toggle": "Medan en zon blötläggs, vattna nästa zon i planen",
     "set.interleave_hint": "Planer blir klara mycket snabbare. Stäng av för att vattna varje zons delar direkt efter varandra.",
-    "settings.flow_water_hint": "Flödesmätaren mäter också vatten per zon (Rapporter) och varnar vid lågt flöde."
+    "settings.flow_water_hint": "Flödesmätaren mäter också vatten per zon (Rapporter) och varnar vid lågt flöde.",
+    "sched.repeat": "Upprepa",
+    "sched.repeat_weekdays": "Veckodagar",
+    "sched.repeat_interval": "Var N:e dag",
+    "sched.interval_days": "Hur många dagar emellan (2 till 30)",
+    "sched.start_date": "Från och med",
+    "sched.every_n_at": "Var {n}:e dag från {date} kl. {time}",
+    "sched.err_interval": "Ange ett heltal från 2 till 30",
+    "sched.err_start_date": "Välj ett startdatum",
+    "status.skipped_seasonal_zero": "överhoppad (temperatur 0 %)",
+    "event.skipped_seasonal": "Överhoppad (temperatur 0 %)",
+    "settings.preview_skip": "Nu: {temp} {arrow} faktor 0 % {arrow} schemalagd bevattning hoppas över"
   },
   "da": {
     "common.save": "Gem",
@@ -6509,7 +6663,18 @@ export const STRINGS = /*JSON-START*/ {
     "set.g_interleave_d": "Bruger nedsivningspauser til at vande andre zoner i samme plan.",
     "set.interleave_toggle": "Mens en zone siver, vandes næste zone i planen",
     "set.interleave_hint": "Planer bliver meget hurtigere færdige. Slå fra for at vande hver zones dele lige efter hinanden.",
-    "settings.flow_water_hint": "Flowmåleren måler også vand pr. zone (Rapporter) og advarer om lavt flow."
+    "settings.flow_water_hint": "Flowmåleren måler også vand pr. zone (Rapporter) og advarer om lavt flow.",
+    "sched.repeat": "Gentag",
+    "sched.repeat_weekdays": "Ugedage",
+    "sched.repeat_interval": "Hver N. dag",
+    "sched.interval_days": "Hvor mange dage imellem (2 til 30)",
+    "sched.start_date": "Fra og med",
+    "sched.every_n_at": "Hver {n}. dag fra {date} kl. {time}",
+    "sched.err_interval": "Indtast et helt tal fra 2 til 30",
+    "sched.err_start_date": "Vælg en startdato",
+    "status.skipped_seasonal_zero": "sprunget over (temperatur 0 %)",
+    "event.skipped_seasonal": "Sprunget over (temperatur 0 %)",
+    "settings.preview_skip": "Nu: {temp} {arrow} faktor 0 % {arrow} planlagt vanding springes over"
   },
   "nb": {
     "common.save": "Lagre",
@@ -6943,7 +7108,18 @@ export const STRINGS = /*JSON-START*/ {
     "set.g_interleave_d": "Bruker infiltrasjonspauser til å vanne andre soner i samme plan.",
     "set.interleave_toggle": "Mens én sone infiltrerer, vannes neste sone i planen",
     "set.interleave_hint": "Planer blir ferdige mye raskere. Slå av for å vanne hver sones deler rett etter hverandre.",
-    "settings.flow_water_hint": "Vannføringsmåleren måler også vann per sone (Rapporter) og varsler om lav vannføring."
+    "settings.flow_water_hint": "Vannføringsmåleren måler også vann per sone (Rapporter) og varsler om lav vannføring.",
+    "sched.repeat": "Gjenta",
+    "sched.repeat_weekdays": "Ukedager",
+    "sched.repeat_interval": "Hver N. dag",
+    "sched.interval_days": "Hvor mange dager mellom (2 til 30)",
+    "sched.start_date": "Fra og med",
+    "sched.every_n_at": "Hver {n}. dag fra {date} kl. {time}",
+    "sched.err_interval": "Skriv inn et heltall fra 2 til 30",
+    "sched.err_start_date": "Velg en startdato",
+    "status.skipped_seasonal_zero": "hoppet over (temperatur 0 %)",
+    "event.skipped_seasonal": "Hoppet over (temperatur 0 %)",
+    "settings.preview_skip": "Nå: {temp} {arrow} faktor 0 % {arrow} planlagt vanning hoppes over"
   },
   "fi": {
     "common.save": "Tallenna",
@@ -7377,7 +7553,18 @@ export const STRINGS = /*JSON-START*/ {
     "set.g_interleave_d": "Käyttää imeytystaukoja saman suunnitelman muiden alueiden kasteluun.",
     "set.interleave_toggle": "Kun yksi alue imeytyy, kastele suunnitelman seuraava alue",
     "set.interleave_hint": "Suunnitelmat valmistuvat paljon nopeammin. Poista käytöstä kastellaksesi kunkin alueen osat peräkkäin.",
-    "settings.flow_water_hint": "Virtausmittari mittaa myös vettä alueittain (Raportit) ja varoittaa heikosta virtauksesta."
+    "settings.flow_water_hint": "Virtausmittari mittaa myös vettä alueittain (Raportit) ja varoittaa heikosta virtauksesta.",
+    "sched.repeat": "Toisto",
+    "sched.repeat_weekdays": "Viikonpäivät",
+    "sched.repeat_interval": "N päivän välein",
+    "sched.interval_days": "Kuinka monen päivän välein (2 - 30)",
+    "sched.start_date": "Alkaen",
+    "sched.every_n_at": "{n} päivän välein {date} alkaen klo {time}",
+    "sched.err_interval": "Anna kokonaisluku väliltä 2 - 30",
+    "sched.err_start_date": "Valitse aloituspäivä",
+    "status.skipped_seasonal_zero": "ohitettu (lämpötila 0 %)",
+    "event.skipped_seasonal": "Ohitettu (lämpötila 0 %)",
+    "settings.preview_skip": "Nyt: {temp} {arrow} kerroin 0 % {arrow} ajastettu kastelu ohitetaan"
   }
 } /*JSON-END*/;
 

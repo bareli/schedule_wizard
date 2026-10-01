@@ -100,6 +100,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
   font: inherit;
 }
 .field input[type="checkbox"] { width: auto; }
+.field-error { color: var(--sw-danger); font-size: 12px; margin-top: 4px; }
+.field input[aria-invalid="true"] { border-color: var(--sw-danger); }
+.modal [hidden] { display: none !important; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .progress-wrap { height: 8px; background: var(--sw-border); border-radius: 999px; overflow: hidden; }
 .progress-bar { height: 100%; background: var(--sw-primary); border-radius: inherit; transition: width 0.5s linear; }
@@ -342,7 +345,7 @@ function iso(text) {
 
 // Plain-text label for <option> (no child nodes allowed): isolate label and entity id with Unicode isolates.
 function optLabel(label, entityId) {
-  return `⁨${label}⁩ (⁦${entityId}⁩)`;
+  return `\u2068${label}\u2069 (\u2066${entityId}\u2069)`;
 }
 
 // Join text/node parts with a separator, skipping empty parts.
@@ -371,6 +374,21 @@ function deepActiveElement() {
 function daysFromMaskNames(mask) {
   return DAYS.filter((_, i) => mask & DAY_BITS[i]);
 }
+
+// Service fields that recreate a stored schedule's repeat rule.
+function repeatPayload(s) {
+  return s.repeat === "interval"
+    ? { every_n_days: s.interval_days, start_date: s.start_date }
+    : { days: daysFromMaskNames(s.days_mask) };
+}
+
+// Today's date (YYYY-MM-DD) in Home Assistant's time zone.
+function todayKey(hass) {
+  return I18N.dayKey(Date.now() / 1000, hass);
+}
+
+const INTERVAL_MIN = 2;
+const INTERVAL_MAX = 30;
 
 // Minutes stepper: 1-minute steps up to 10, then 5-minute steps; clamped to 1-1440.
 function stepMinutes(value, dir) {
@@ -495,7 +513,18 @@ class ScheduleWizardPanel extends HTMLElement {
     return names.join(", ") || this._t("sched.no_days");
   }
 
+  // "YYYY-MM-DD" (a local calendar date) formatted without shifting it through a time zone.
+  _fmtDay(day) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(day || ""));
+    if (!m) return String(day || "");
+    const ts = Date.UTC(+m[1], +m[2] - 1, +m[3], 12) / 1000;
+    return I18N.fmtDate(ts, this._lang, { hass: this._hass, timeZone: "UTC", year: "numeric", month: "short", day: "numeric" });
+  }
+
   _whenNodes(s) {
+    if (s.repeat === "interval") {
+      return this._tn("sched.every_n_at", { n: s.interval_days, date: this._fmtDay(s.start_date), time: ltr(s.time_hhmm) });
+    }
     return this._tn("sched.days_at", { days: this._daysFromMask(s.days_mask), time: ltr(s.time_hhmm) });
   }
 
@@ -541,6 +570,15 @@ class ScheduleWizardPanel extends HTMLElement {
   set panel(v) { this._panel = v; }
 
   connectedCallback() {
+    // Home Assistant can set properties before this element is upgraded (the module first awaits
+    // i18n.js); such own properties hide the setters, so re-apply them through the setters.
+    ["panel", "route", "narrow", "hass"].forEach((prop) => {
+      if (Object.prototype.hasOwnProperty.call(this, prop)) {
+        const value = this[prop];
+        delete this[prop];
+        this[prop] = value;
+      }
+    });
     if (this._hass && !this._initialized) {
       this._init();
     } else if (this._initialized && !this._refreshTimer) {
@@ -1541,7 +1579,7 @@ class ScheduleWizardPanel extends HTMLElement {
           const payload = {
             valve_entity_id: chosen,
             time: s.time_hhmm,
-            days: daysFromMaskNames(s.days_mask),
+            ...repeatPayload(s),
             duration_minutes: s.duration_min,
             name: s.name || "",
             enabled: !!s.enabled,
@@ -1687,7 +1725,7 @@ class ScheduleWizardPanel extends HTMLElement {
       steps.forEach((s, idx) => {
         const sel = el("select", { "aria-label": this._t("sched.valve") });
         if (s.entity_id && !this._state.valves.some(v => v.entity_id === s.entity_id)) {
-          const stale = el("option", { value: s.entity_id, style: "color:var(--sw-muted);font-style:italic;" }, `${this._t("cycles.missing")} ⁦${s.entity_id}⁩`);
+          const stale = el("option", { value: s.entity_id, style: "color:var(--sw-muted);font-style:italic;" }, `${this._t("cycles.missing")} \u2066${s.entity_id}\u2069`);
           stale.selected = true;
           sel.appendChild(stale);
         }
@@ -1785,7 +1823,8 @@ class ScheduleWizardPanel extends HTMLElement {
     let time = existing ? existing.time_hhmm : "06:00";
     let duration = existing ? existing.duration_min
       : (presetValve ? presetValve.default_duration_min : (this._state.options.default_duration || 10));
-    let mask = existing ? existing.days_mask : 127;
+    let mask = existing && existing.repeat !== "interval" ? existing.days_mask : 127;
+    let repeat = existing && existing.repeat === "interval" ? "interval" : "weekdays";
     let enabled = existing ? !!existing.enabled : true;
 
     const targetSel = el("select", { disabled: locked });
@@ -1837,7 +1876,21 @@ class ScheduleWizardPanel extends HTMLElement {
     enabledInput.checked = enabled;
     enabledInput.addEventListener("change", () => { enabled = enabledInput.checked; });
 
-    const days = el("div", { class: "days" });
+    // Inline validation messages (the server validates the same rules).
+    const errNode = (id) => el("div", { class: "field-error", id, role: "alert", hidden: true });
+    const setErr = (node, input, msg) => {
+      node.textContent = msg || "";
+      node.hidden = !msg;
+      if (input) {
+        if (msg) { input.setAttribute("aria-invalid", "true"); input.setAttribute("aria-describedby", node.id); }
+        else { input.removeAttribute("aria-invalid"); input.removeAttribute("aria-describedby"); }
+      }
+    };
+    const daysErr = errNode("sw-sched-days-err");
+    const intervalErr = errNode("sw-sched-interval-err");
+    const startErr = errNode("sw-sched-start-err");
+
+    const days = el("div", { class: "days", role: "group", "aria-describedby": daysErr.id });
     DAYS.forEach((_, i) => {
       const tog = el("button", {
         type: "button",
@@ -1848,9 +1901,74 @@ class ScheduleWizardPanel extends HTMLElement {
       tog.addEventListener("click", () => {
         mask ^= DAY_BITS[i];
         tog.setAttribute("aria-pressed", (mask & DAY_BITS[i]) ? "true" : "false");
+        if (mask) setErr(daysErr, null, "");
       });
       days.appendChild(tog);
     });
+
+    const repeatSel = el("select", {});
+    repeatSel.appendChild(el("option", { value: "weekdays" }, this._t("sched.repeat_weekdays")));
+    repeatSel.appendChild(el("option", { value: "interval" }, this._t("sched.repeat_interval")));
+    repeatSel.value = repeat;
+    const intervalInput = el("input", {
+      type: "number", min: String(INTERVAL_MIN), max: String(INTERVAL_MAX), step: "1", inputmode: "numeric",
+      value: String(existing && existing.repeat === "interval" ? existing.interval_days : INTERVAL_MIN),
+    });
+    const startInput = el("input", {
+      type: "date",
+      value: existing && existing.repeat === "interval" && existing.start_date ? existing.start_date : todayKey(this._hass),
+    });
+    const intervalValue = () => {
+      const raw = String(intervalInput.value).trim();
+      const n = Number(raw);
+      return raw !== "" && Number.isInteger(n) && n >= INTERVAL_MIN && n <= INTERVAL_MAX ? n : null;
+    };
+    const startValue = () => (/^\d{4}-\d{2}-\d{2}$/.test(startInput.value) ? startInput.value : null);
+    intervalInput.addEventListener("input", () => { if (intervalValue() !== null) setErr(intervalErr, intervalInput, ""); });
+    startInput.addEventListener("input", () => { if (startValue()) setErr(startErr, startInput, ""); });
+    const daysField = el("div", { class: "field" }, [el("span", {}, this._t("sched.days")), days, daysErr]);
+    const intervalRow = el("div", { class: "field-row" }, [
+      el("label", { class: "field" }, [el("span", {}, this._t("sched.interval_days")), intervalInput, intervalErr]),
+      el("label", { class: "field" }, [el("span", {}, this._t("sched.start_date")), startInput, startErr]),
+    ]);
+    const syncRepeat = () => {
+      daysField.hidden = repeat !== "weekdays";
+      intervalRow.hidden = repeat !== "interval";
+    };
+    repeatSel.addEventListener("change", () => { repeat = repeatSel.value; syncRepeat(); });
+    syncRepeat();
+
+    // Service fields for the repeat rule, or null after showing inline errors.
+    const repeatFields = () => {
+      [[daysErr, null], [intervalErr, intervalInput], [startErr, startInput]].forEach(([n, i]) => setErr(n, i, ""));
+      if (repeat === "weekdays") {
+        if (!mask) { setErr(daysErr, null, this._t("sched.pick_day")); return null; }
+        return { days: daysFromMaskNames(mask) };
+      }
+      const n = intervalValue();
+      const start = startValue();
+      if (n === null) setErr(intervalErr, intervalInput, this._t("sched.err_interval"));
+      if (!start) setErr(startErr, startInput, this._t("sched.err_start_date"));
+      if (n === null) { intervalInput.focus(); return null; }
+      if (!start) { startInput.focus(); return null; }
+      return { every_n_days: n, start_date: start };
+    };
+    // Server-side validation errors land next to their field.
+    const submit = async (service, payload) => {
+      try {
+        await this._hass.callService("schedule_wizard", service, payload);
+      } catch (e) {
+        const msg = String((e && (e.message || e.code)) || e);
+        if (/every_n_days/.test(msg)) setErr(intervalErr, intervalInput, this._t("sched.err_interval"));
+        else if (/start_date/.test(msg)) setErr(startErr, startInput, this._t("sched.err_start_date"));
+        else if (/at least one day/.test(msg)) setErr(daysErr, null, this._t("sched.pick_day"));
+        else this._toast(msg, "error");
+        return false;
+      }
+      this._toast(this._t("common.done"), "ok");
+      this._refresh();
+      return true;
+    };
 
     const OPERATORS = ["above", "below", "equals", "not_equals"].map(op => [op, this._t("op." + op)]);
     const conditions = (existing && Array.isArray(existing.conditions) ? existing.conditions : []).map(c => ({
@@ -1912,7 +2030,9 @@ class ScheduleWizardPanel extends HTMLElement {
     const fields = [
       el("label", { class: "field", style: locked ? "display:none;" : null }, [el("span", {}, this._t("sched.target")), targetSel]),
       targetFieldHost,
-      el("div", { class: "field" }, [el("span", {}, this._t("sched.days")), days]),
+      el("label", { class: "field" }, [el("span", {}, this._t("sched.repeat")), repeatSel]),
+      daysField,
+      intervalRow,
       durRow,
       el("label", { class: "field" }, [el("span", {}, this._t("common.name")), nameInput]),
       el("div", { class: "field" }, [el("span", {}, this._t("sched.conditions")), condWrap]),
@@ -1920,30 +2040,31 @@ class ScheduleWizardPanel extends HTMLElement {
     ];
 
     this._showModal(this._t(existing ? "sched.edit_title" : "sched.add_title"), fields, async () => {
-      if (!mask) { this._toast(this._t("sched.pick_day"), "error"); return false; }
+      const rep = repeatFields();
+      if (!rep) return false;
       const conds = collectConditions();
       if (existing) {
-        return await this._callService("update_schedule", {
+        return await submit("update_schedule", {
           schedule_id: existing.id,
           name,
           time,
           duration_minutes: targetKind === "valve" ? duration : 1,
-          days: daysFromMaskNames(mask),
+          ...rep,
           enabled,
           conditions: conds,
         });
       }
       const base = {
         time,
-        days: daysFromMaskNames(mask),
+        ...rep,
         name,
         enabled,
         conditions: conds,
       };
       if (targetKind === "cycle") {
-        return await this._callService("add_schedule", { ...base, cycle_id: cycleId, duration_minutes: 1 });
+        return await submit("add_schedule", { ...base, cycle_id: cycleId, duration_minutes: 1 });
       }
-      return await this._callService("add_schedule", { ...base, valve_entity_id: valveEntity, duration_minutes: duration });
+      return await submit("add_schedule", { ...base, valve_entity_id: valveEntity, duration_minutes: duration });
     });
   }
 
@@ -2585,9 +2706,12 @@ class ScheduleWizardPanel extends HTMLElement {
         else if (temp >= high) pct = maxP;
         else { const f = (temp - low) / (high - low); pct = minP + f * (maxP - minP); }
         const example10 = Math.max(1, Math.round(10 * pct / 100));
-        seasonalPreview.appendChild(el("span", {}, this._tn("settings.preview", {
-          temp: ltr(`${temp}${tempUnit}`), arrow: this._arrow(), pct: pct.toFixed(0), n: example10,
-        })));
+        // 0 % skips scheduled watering (matches the backend: only a factor shown as 0 % skips).
+        seasonalPreview.appendChild(el("span", {}, Math.round(pct) <= 0
+          ? this._tn("settings.preview_skip", { temp: ltr(`${temp}${tempUnit}`), arrow: this._arrow() })
+          : this._tn("settings.preview", {
+            temp: ltr(`${temp}${tempUnit}`), arrow: this._arrow(), pct: pct.toFixed(0), n: example10,
+          })));
       }).catch(() => {
         if (seq !== previewSeq) return;
         seasonalPreview.innerHTML = "";
