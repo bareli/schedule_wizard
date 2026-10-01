@@ -115,6 +115,8 @@ def test_last_watering_counts_a_stopped_run_that_watered():
         {"valve_entity_id": "z.a", "status": "superseded", "ts": D + 1800, "duration_min": 4, "planned_min": 10},
         {"valve_entity_id": "z.a", "status": "cancelled", "ts": D - 3600 + 180, "duration_min": 3, "planned_min": 10},
         {"valve_entity_id": "plan1", "status": "cycle_cancelled", "ts": D + 3700, "duration_min": 0},
+        # Written before 0.15.0: holds the planned 1440 min, not what watered (server totals skip it too).
+        {"valve_entity_id": "z.c", "status": "superseded", "ts": D + 3800, "duration_min": 1440},
     ]
     assert _last_line(D + 7200, history) == "Last watering: today 08:30, 1 zone · 7 min"
 
@@ -266,6 +268,6 @@ def test_zone_card_says_delete_zone():
     assert 'this._t("zones.delete")' in card and '"common.delete"' not in card
     assert STRINGS["en"]["zones.delete"] == "Delete zone"
     assert STRINGS["de"]["zones.delete"] == "Zone löschen"
-    assert STRINGS["he"]["zones.delete"] == "מחיקת האזור"
+    assert STRINGS["he"]["zones.delete"] == "מחיקת אזור"
     for lang, strings in STRINGS.items():
         assert strings["zones.delete"] != strings["common.delete"], lang

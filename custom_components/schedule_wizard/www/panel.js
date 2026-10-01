@@ -1818,10 +1818,12 @@ class ScheduleWizardPanel extends HTMLElement {
     return `${this._fmtDate(ts, { weekday: "short" })} ${time}`;
   }
 
-  // A zone row that really watered (#67): completed, or stopped / replaced after watering some minutes.
+  // A zone row that really watered (#67): completed, or stopped / replaced after watering some minutes. Like the
+  // server's totals (BUG-028), a replaced row from before 0.15.0 (no planned_min) holds the planned length: left out.
   _watered(h) {
     if (this._isPlanId(h.valve_entity_id)) return false;
     if (h.status === "completed") return true;
+    if (h.status === "superseded" && !("planned_min" in h)) return false;
     return (h.status === "cancelled" || h.status === "superseded") && (parseInt(h.duration_min, 10) || 0) > 0;
   }
 

@@ -1445,7 +1445,7 @@ export const STRINGS = /*JSON-START*/ {
     "zones.manual": "מתקדם: הוספת אזור ידנית",
     "zones.min_per_run": "{n} דק׳ לכל השקיה",
     "zones.edit": "עריכת אזור",
-    "zones.delete": "מחיקת האזור",
+    "zones.delete": "מחיקת אזור",
     "zones.in_plan": "בתוכנית {plan}: {when}",
     "zones.plan_no_times": "עדיין אין זמנים",
     "zones.no_times": "עדיין אין זמני השקיה.",
