@@ -160,7 +160,7 @@ remove_valve:
 
 add_schedule:
   name: Add schedule
-  description: Schedule a recurring run at a fixed time on selected days.
+  description: Schedule a recurring run at a fixed time, on selected days of the week or every N days.
   fields:
     valve_entity_id:
       name: Valve entity
@@ -191,7 +191,8 @@ add_schedule:
           unit_of_measurement: min
     days:
       name: Days
-      required: true
+      description: Days of the week. Use either days or every N days.
+      required: false
       selector:
         select:
           multiple: true
@@ -203,6 +204,23 @@ add_schedule:
             - fri
             - sat
             - sun
+    every_n_days:
+      name: Every N days
+      description: Repeat every N days (2 to 30) from the start date, instead of on days of the week.
+      required: false
+      example: 2
+      selector:
+        number:
+          min: 2
+          max: 30
+          step: 1
+          mode: box
+    start_date:
+      name: Start date
+      description: First day of an every-N-days schedule (local date). Defaults to today.
+      required: false
+      selector:
+        date:
     name:
       name: Name
       required: false
@@ -256,6 +274,7 @@ update_schedule:
           unit_of_measurement: min
     days:
       name: Days
+      description: Days of the week. Switches an every-N-days schedule back to weekdays.
       required: false
       selector:
         select:
@@ -268,6 +287,23 @@ update_schedule:
             - fri
             - sat
             - sun
+    every_n_days:
+      name: Every N days
+      description: Repeat every N days (2 to 30) from the start date, instead of on days of the week.
+      required: false
+      example: 2
+      selector:
+        number:
+          min: 2
+          max: 30
+          step: 1
+          mode: box
+    start_date:
+      name: Start date
+      description: First day of an every-N-days schedule (local date). Defaults to today when switching to every N days.
+      required: false
+      selector:
+        date:
     enabled:
       name: Enabled
       required: false

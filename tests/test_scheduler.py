@@ -414,7 +414,11 @@ async def test_add_schedule_requires_registered_valve(hass: HomeAssistant):
 
 async def test_webhook_rejects_unsupported_domain(hass: HomeAssistant):
     entry = await setup_wizard(hass)
-    handler = hass.data["webhook"][data(hass, entry)["webhook_id"]]["handler"]
+    from homeassistant.components import webhook as webhook_component
+
+    handlers_key = getattr(webhook_component, "_HANDLERS", "webhook")  # HassKey on newer HA
+    registered = hass.data[handlers_key][data(hass, entry)["webhook_id"]]
+    handler = registered["handler"] if isinstance(registered, dict) else registered.handler  # dataclass on newer HA
 
     class Req:
         method = "POST"

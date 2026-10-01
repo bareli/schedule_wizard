@@ -1,12 +1,80 @@
 """Upcoming schedule occurrences, shared by the calendar entity, the week view and reminders."""
 from __future__ import annotations
 
-from datetime import datetime, time as dtime, timedelta
+from datetime import date, datetime, time as dtime, timedelta
 from typing import Any, Optional
 
 from homeassistant.util import dt as dt_util
 
+from .const import INTERVAL_MAX_DAYS
 from .storage import WizardStore
+
+# Far enough to find the next run of an every-N-days schedule (N up to 30).
+NEXT_RUN_DAYS = INTERVAL_MAX_DAYS + 1
+
+
+def parse_day(value: Any) -> Optional[date]:
+    try:
+        return date.fromisoformat(str(value)[:10]) if value else None
+    except (TypeError, ValueError):
+        return None
+
+
+def runs_on(sched: dict, day: date) -> bool:
+    """Whether a schedule has a run on this local date (weekdays, or every N days from start_date)."""
+    if sched.get("repeat") == "interval":
+        start = parse_day(sched.get("start_date"))
+        try:
+            n = int(sched.get("interval_days") or 0)
+        except (TypeError, ValueError):
+            return False
+        if start is None or n < 1:
+            return False
+        delta = (day - start).days
+        return delta >= 0 and delta % n == 0
+    try:
+        mask = int(sched.get("days_mask") or 0)
+    except (TypeError, ValueError):
+        return False
+    return bool(mask & (1 << day.weekday()))
+
+
+def _tz():
+    return dt_util.get_default_time_zone() if hasattr(dt_util, "get_default_time_zone") else dt_util.DEFAULT_TIME_ZONE
+
+
+def _hhmm(sched: dict) -> Optional[tuple[int, int]]:
+    try:
+        hh, mm = (int(x) for x in str(sched.get("time_hhmm", "")).split(":"))
+    except (TypeError, ValueError):
+        return None
+    return hh, mm
+
+
+def _first_day(sched: dict, day: date) -> date:
+    """Where a next-run search starts: an every-N-days schedule has no run before its start date."""
+    if sched.get("repeat") == "interval":
+        start = parse_day(sched.get("start_date"))
+        if start is not None and start > day:
+            return start
+    return day
+
+
+def next_fire(sched: dict, now: Optional[datetime] = None, days: int = NEXT_RUN_DAYS) -> Optional[datetime]:
+    """Next local start time of a schedule strictly after `now` (ignores enabled flags and skips)."""
+    hm = _hhmm(sched)
+    if not hm:
+        return None
+    now_l = dt_util.as_local(now or dt_util.now())
+    tz = _tz()
+    day = _first_day(sched, now_l.date())
+    for _ in range(days + 1):
+        if runs_on(sched, day):
+            fire = datetime.combine(day, dtime(*hm), tzinfo=tz)
+            if fire > now_l:
+                return fire
+        day += timedelta(days=1)
+    return None
 
 
 def _rain_delay_until(options: dict) -> int:
@@ -81,7 +149,7 @@ def occurrences(
     store: WizardStore, options: dict, start: datetime, end: datetime, limit: int = 500,
 ) -> list[dict[str, Any]]:
     """All schedule runs whose start falls in [start, end), sorted by time."""
-    tz = dt_util.get_default_time_zone() if hasattr(dt_util, "get_default_time_zone") else dt_util.DEFAULT_TIME_ZONE
+    tz = _tz()
     start_l = dt_util.as_local(start)
     end_l = dt_util.as_local(end)
     out: list[dict[str, Any]] = []
@@ -89,14 +157,13 @@ def occurrences(
         target = schedule_target(store, sched)
         if not target:
             continue
-        try:
-            hh, mm = (int(x) for x in str(sched.get("time_hhmm", "")).split(":"))
-        except (TypeError, ValueError):
+        hm = _hhmm(sched)
+        if not hm:
             continue
-        mask = int(sched.get("days_mask") or 0)
+        hh, mm = hm
         day = start_l.date()
         while day <= end_l.date():
-            if mask & (1 << day.weekday()):
+            if runs_on(sched, day):
                 fire = datetime.combine(day, dtime(hh, mm), tzinfo=tz)
                 if start_l <= fire < end_l:
                     fire_ts = int(fire.timestamp())
@@ -119,9 +186,22 @@ def occurrences(
 
 
 def next_occurrence(store: WizardStore, options: dict, schedule_id: Optional[str] = None,
-                    now: Optional[datetime] = None, days: int = 8) -> Optional[dict[str, Any]]:
+                    now: Optional[datetime] = None, days: int = NEXT_RUN_DAYS) -> Optional[dict[str, Any]]:
     now = now or dt_util.now()
+    sched = store.get_schedule(schedule_id) if schedule_id else None
+    if sched:
+        today = dt_util.as_local(now).date()
+        first = _first_day(sched, today)
+        if first > today:
+            now = dt_util.start_of_local_day(first)
     for occ in occurrences(store, options, now, now + timedelta(days=days)):
         if schedule_id is None or occ["schedule_id"] == schedule_id:
             return occ
     return None
+
+
+def lookahead_end(store: WizardStore, now: datetime) -> datetime:
+    """End of a window long enough to hold every schedule's next run, including distant start dates."""
+    today = dt_util.as_local(now).date()
+    first = max((_first_day(s, today) for s in store.schedules), default=today)
+    return dt_util.start_of_local_day(first) + timedelta(days=NEXT_RUN_DAYS + 1)

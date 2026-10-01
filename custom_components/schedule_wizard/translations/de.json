@@ -49,11 +49,31 @@
     },
     "add_schedule": {
       "name": "Zeitplan hinzufügen",
-      "description": "Fügt einen wiederkehrenden Zeitplan hinzu."
+      "description": "Fügt einen wiederkehrenden Zeitplan hinzu, an Wochentagen oder alle N Tage.",
+      "fields": {
+        "every_n_days": {
+          "name": "Alle N Tage",
+          "description": "Alle N Tage (2 bis 30) ab dem Startdatum wiederholen, statt an Wochentagen."
+        },
+        "start_date": {
+          "name": "Startdatum",
+          "description": "Erster Tag eines Alle-N-Tage-Zeitplans. Standard: heute."
+        }
+      }
     },
     "update_schedule": {
       "name": "Zeitplan aktualisieren",
-      "description": "Ändert einen bestehenden Zeitplan."
+      "description": "Ändert einen bestehenden Zeitplan. Nicht angegebene Felder bleiben unverändert.",
+      "fields": {
+        "every_n_days": {
+          "name": "Alle N Tage",
+          "description": "Alle N Tage (2 bis 30) ab dem Startdatum wiederholen, statt an Wochentagen."
+        },
+        "start_date": {
+          "name": "Startdatum",
+          "description": "Erster Tag eines Alle-N-Tage-Zeitplans. Standard: heute."
+        }
+      }
     },
     "remove_schedule": {
       "name": "Zeitplan entfernen",

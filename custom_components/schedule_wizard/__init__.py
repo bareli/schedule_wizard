@@ -24,6 +24,10 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    INTERVAL_MAX_DAYS,
+    INTERVAL_MIN_DAYS,
+    REPEAT_INTERVAL,
+    REPEAT_WEEKDAYS,
     CONF_CALENDAR_ENTITY,
     CONF_CALENDAR_LOOKAHEAD,
     CONF_DEFAULT_DURATION,
@@ -183,7 +187,9 @@ SCHEMA_ADD_SCHEDULE = vol.Schema({
     vol.Optional("cycle_id"): cv.string,
     vol.Required("time"): _hhmm,
     vol.Optional("duration_minutes", default=1): vol.All(int, vol.Range(min=1, max=1440)),
-    vol.Required("days"): vol.All(cv.ensure_list, [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])]),
+vol.Optional("days"): vol.All(cv.ensure_list, [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])], vol.Length(min=1, msg="pick at least one day")),
+    vol.Optional("every_n_days"): vol.All(vol.Coerce(int), vol.Range(min=INTERVAL_MIN_DAYS, max=INTERVAL_MAX_DAYS, msg="every_n_days must be 2 to 30")),
+    vol.Optional("start_date"): cv.date,
     vol.Optional("name", default=""): cv.string,
     vol.Optional("enabled", default=True): cv.boolean,
     vol.Optional("conditions"): SCHEMA_CONDITIONS,
@@ -265,7 +271,9 @@ SCHEMA_UPDATE_SCHEDULE = vol.Schema({
     vol.Optional("name"): cv.string,
     vol.Optional("time"): _hhmm,
     vol.Optional("duration_minutes"): vol.All(int, vol.Range(min=1, max=1440)),
-    vol.Optional("days"): vol.All(cv.ensure_list, [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])]),
+vol.Optional("days"): vol.All(cv.ensure_list, [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])], vol.Length(min=1, msg="pick at least one day")),
+    vol.Optional("every_n_days"): vol.All(vol.Coerce(int), vol.Range(min=INTERVAL_MIN_DAYS, max=INTERVAL_MAX_DAYS, msg="every_n_days must be 2 to 30")),
+    vol.Optional("start_date"): cv.date,
     vol.Optional("enabled"): cv.boolean,
     vol.Optional("conditions"): SCHEMA_CONDITIONS,
 })
@@ -277,6 +285,33 @@ OPTION_KEYS = tuple(k for k in DEFAULT_OPTIONS if k != CONF_RAIN_DELAY_UNTIL)
 
 def _build_options(entry: ConfigEntry) -> dict[str, Any]:
     return {k: entry.options.get(k, default) for k, default in DEFAULT_OPTIONS.items()}
+
+
+def _repeat_fields(data: dict, current: dict | None = None) -> dict[str, Any]:
+    """Validate days / every_n_days / start_date of add_schedule or update_schedule (#27)."""
+    has_days = "days" in data
+    has_n = "every_n_days" in data
+    if has_days and has_n:
+        raise HomeAssistantError("provide either days or every_n_days, not both")
+    if has_days:
+        if "start_date" in data:
+            raise HomeAssistantError("start_date only applies with every_n_days")
+        return {"repeat": REPEAT_WEEKDAYS, "days_mask": _days_to_mask(data["days"])}
+    interval_now = bool(current) and current.get("repeat") == REPEAT_INTERVAL
+    if has_n or ("start_date" in data and interval_now):
+        start = data.get("start_date")
+        if start is None and interval_now and current.get("start_date"):
+            start_s = current["start_date"]
+        else:
+            start_s = (start or dt_util.now().date()).isoformat()
+        out: dict[str, Any] = {"repeat": REPEAT_INTERVAL, "start_date": start_s}
+        out["interval_days"] = int(data["every_n_days"]) if has_n else int(current.get("interval_days") or 0)
+        return out
+    if "start_date" in data:
+        raise HomeAssistantError("start_date only applies with every_n_days")
+    if current is None:
+        raise HomeAssistantError("either days or every_n_days is required")
+    return {}
 
 
 def _days_to_mask(days: list[str]) -> int:
@@ -455,30 +490,19 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
                                 break
                 if not matches:
                     continue
-                try:
-                    hh, mm = [int(x) for x in s.get("time_hhmm", "00:00").split(":")]
-                except Exception:
+                fire = planner.next_fire(s, now_dt)
+                if fire is None:
                     continue
-                mask = int(s.get("days_mask", 0) or 0)
-                for dd in range(8):
-                    check = now_dt + _td(days=dd)
-                    bit = 1 << check.weekday()
-                    if not (mask & bit):
-                        continue
-                    fire = check.replace(hour=hh, minute=mm, second=0, microsecond=0)
-                    if fire <= now_dt:
-                        continue
-                    delta_sec = int((fire - now_dt).total_seconds())
-                    if best is None or delta_sec < best["in_seconds"]:
-                        best = {
-                            "fires_at": int(fire.timestamp()),
-                            "in_seconds": delta_sec,
-                            "time_label": fire.strftime("%a %H:%M"),
-                            "duration_min": duration_for_valve,
-                            "schedule_id": s["id"],
-                            "cycle_id": s.get("cycle_id") or "",
-                        }
-                    break
+                delta_sec = int((fire - now_dt).total_seconds())
+                if best is None or delta_sec < best["in_seconds"]:
+                    best = {
+                        "fires_at": int(fire.timestamp()),
+                        "in_seconds": delta_sec,
+                        "time_label": fire.strftime("%a %H:%M"),
+                        "duration_min": duration_for_valve,
+                        "schedule_id": s["id"],
+                        "cycle_id": s.get("cycle_id") or "",
+                    }
             return best
 
         valves_enriched = []
@@ -500,6 +524,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "soaking": scheduler.soaking,
             "flow": scheduler.flow_status,
             "forecast": scheduler.forecast_status,
+            "seasonal": scheduler.seasonal_status,
             "water_total_l": store.water_total_l,
             "week": planner.occurrences(
                 store, options, dt_util.start_of_local_day(), dt_util.start_of_local_day() + _td(days=7),
@@ -678,11 +703,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             raise HomeAssistantError("cycle not found")
         if valve_entity_id and not store.get_valve(valve_entity_id):
             raise HomeAssistantError("valve not registered: add it with add_valve first")
-        mask = _days_to_mask(call.data["days"])
+        repeat = _repeat_fields(call.data)
         sched = await store.async_add_schedule(
             valve_entity_id=valve_entity_id or None,
             cycle_id=cycle_id or None,
-            days_mask=mask,
+            days_mask=repeat.get("days_mask", 0),
+            repeat=repeat["repeat"],
+            interval_days=repeat.get("interval_days", 0),
+            start_date=repeat.get("start_date", ""),
             time_hhmm=call.data["time"],
             duration_min=int(call.data.get("duration_minutes", 1)),
             name=call.data.get("name", ""),
@@ -810,8 +838,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             fields["time_hhmm"] = call.data["time"]
         if "duration_minutes" in call.data:
             fields["duration_min"] = int(call.data["duration_minutes"])
-        if "days" in call.data:
-            fields["days_mask"] = _days_to_mask(call.data["days"])
+        current = store.get_schedule(call.data["schedule_id"])
+        if current is None:
+            raise HomeAssistantError("schedule not found")
+        fields.update(_repeat_fields(call.data, current))
         if "enabled" in call.data:
             fields["enabled"] = bool(call.data["enabled"])
         if "conditions" in call.data:

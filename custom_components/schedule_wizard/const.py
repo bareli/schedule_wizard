@@ -107,6 +107,7 @@ NOTIFY_EVENTS = (
     "skipped_rain",
     "skipped_moisture",
     "skipped_condition",
+    "skipped_seasonal",
     "valve_failed",
     "rain_delay",
     "leak_detected",
@@ -142,6 +143,7 @@ EVENT_CYCLE_PAUSED = f"{DOMAIN}_cycle_paused"
 EVENT_CYCLE_RESUMED = f"{DOMAIN}_cycle_resumed"
 EVENT_MOISTURE_SKIPPED = f"{DOMAIN}_moisture_skipped"
 EVENT_CONDITION_SKIPPED = f"{DOMAIN}_condition_skipped"
+EVENT_SEASONAL_SKIPPED = f"{DOMAIN}_seasonal_skipped"
 EVENT_VALVE_SOAKING = f"{DOMAIN}_valve_soaking"
 EVENT_LEAK_DETECTED = f"{DOMAIN}_leak_detected"
 EVENT_LOW_FLOW = f"{DOMAIN}_low_flow"
@@ -155,6 +157,12 @@ FLOW_UNIT_TO_LPM = {
 LOW_FLOW_RATIO = 0.5
 LOW_FLOW_MIN_RUNS = 3
 LOW_FLOW_MIN_MINUTES = 2
+
+# Every-N-days schedules (#27): repeat = "interval", interval_days N, start_date YYYY-MM-DD (local).
+REPEAT_WEEKDAYS = "weekdays"
+REPEAT_INTERVAL = "interval"
+INTERVAL_MIN_DAYS = 2
+INTERVAL_MAX_DAYS = 30
 
 DAY_BITS = {0: 1, 1: 2, 2: 4, 3: 8, 4: 16, 5: 32, 6: 64}
 

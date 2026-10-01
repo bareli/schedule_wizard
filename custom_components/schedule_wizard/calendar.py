@@ -51,7 +51,7 @@ class WateringCalendar(WizardEntity, CalendarEntity):
     @property
     def event(self) -> CalendarEvent | None:
         now = dt_util.now()
-        occs = planner.occurrences(self.store, self.scheduler.options, now - timedelta(hours=24), now + timedelta(days=8))
+        occs = planner.occurrences(self.store, self.scheduler.options, now - timedelta(hours=24), planner.lookahead_end(self.store, now))
         current = next((o for o in occs if o["end"] > now.timestamp()), None)
         return _to_event(current) if current else None
 

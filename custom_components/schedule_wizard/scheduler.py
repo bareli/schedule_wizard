@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import re
 import time
 from datetime import datetime, timedelta
@@ -20,7 +21,6 @@ from homeassistant.helpers.event import (
 from homeassistant.util import dt as dt_util
 
 from .const import (
-    DAY_BITS,
     DOMAIN,
     EVENT_CONDITION_SKIPPED,
     EVENT_CYCLE_ENDED,
@@ -36,6 +36,7 @@ from .const import (
     LOW_FLOW_RATIO,
     EVENT_MOISTURE_SKIPPED,
     EVENT_RAIN_SKIPPED,
+    EVENT_SEASONAL_SKIPPED,
     EVENT_VALVE_ENDED,
     EVENT_VALVE_FAILED,
     EVENT_VALVE_SOAKING,
@@ -62,6 +63,7 @@ SKIP_EVENTS = {
     "rain_delay": EVENT_RAIN_SKIPPED,
     "moisture": EVENT_MOISTURE_SKIPPED,
     "condition": EVENT_CONDITION_SKIPPED,
+    "seasonal_zero": EVENT_SEASONAL_SKIPPED,
 }
 REMINDER_TEXT = {
     "en": {"title": "Watering soon", "body": "{name} starts at {time} ({minutes} min).", "skip": "Skip today", "run": "Water now"},
@@ -75,7 +77,45 @@ SKIP_TEXT = {
     "rain_delay": "rain delay active",
     "moisture": "soil moisture above threshold",
     "condition": "schedule condition not met",
+    "seasonal_zero": "temperature adjustment 0 % (too cool)",
 }
+# Same words as the panel's status.skipped_seasonal_zero (tests/test_i18n.py keeps them equal).
+SEASONAL_SKIP_TEXT = {
+    "en": "skipped: temperature adjustment 0 % (too cool)",
+    "de": "übersprungen: Temperaturanpassung 0 % (zu kühl)",
+    "he": "דולג: התאמת טמפרטורה 0% (קר מדי)",
+    "es": "omitido: ajuste por temperatura 0 % (demasiado fresco)",
+    "fr": "ignoré : ajustement à la température 0 % (trop frais)",
+    "it": "saltato: regolazione temperatura 0 % (troppo freddo)",
+    "nl": "overgeslagen: temperatuuraanpassing 0 % (te koel)",
+    "pt": "ignorado: ajuste por temperatura 0 % (demasiado frio)",
+    "ru": "пропущено: поправка по температуре 0 % (слишком прохладно)",
+    "uk": "пропущено: поправка за температурою 0 % (надто прохолодно)",
+    "pl": "pominięto: korekta temperaturowa 0 % (za chłodno)",
+    "ar": "تم التخطي: تعديل الحرارة 0% (الجو بارد جدًا)",
+    "zh-hans": "已跳过:温度调整 0%(太冷)",
+    "sv": "överhoppad: temperaturjustering 0 % (för svalt)",
+    "da": "sprunget over: temperaturjustering 0 % (for køligt)",
+    "nb": "hoppet over: temperaturjustering 0 % (for kjølig)",
+    "fi": "ohitettu: lämpötilasäätö 0 % (liian viileää)",
+}
+NOTIFY_FOR_SKIP = {"rain_delay": "skipped_rain", "forecast": "skipped_rain", "seasonal_zero": "skipped_seasonal"}
+
+
+def panel_lang(language: Optional[str]) -> str:
+    """HA language code to a key of the panel's language tables (en when not translated)."""
+    lang = (language or "en").lower()
+    if lang in ("zh", "zh-hans", "zh-cn", "zh-sg"):
+        return "zh-hans"
+    base = lang.split("-")[0]
+    if base in ("no", "nn"):
+        base = "nb"
+    return base if base in SEASONAL_SKIP_TEXT else "en"
+
+
+def seasonal_percent(factor: float) -> int:
+    """Factor as the whole percent the panel shows: half rounds up, like JS Math.round (#29)."""
+    return int(math.floor(factor * 100 + 0.5 + 1e-9))
 
 
 class Scheduler:
@@ -268,7 +308,6 @@ class Scheduler:
     def _on_minute(self, now: datetime) -> None:
         # Global rain delay is checked per trigger: indoor (rain-exempt) valves still run.
         local = dt_util.as_local(now)
-        bit = DAY_BITS[local.weekday()]
         hhmm = local.strftime("%H:%M")
         today = local.date().isoformat()
         if hhmm == "00:00":
@@ -277,7 +316,8 @@ class Scheduler:
         for sched in self.store.schedules:
             if not sched.get("enabled"):
                 continue
-            if not (int(sched.get("days_mask", 0)) & bit):
+            # Local calendar date, not elapsed seconds: every-N-days stays on time across DST changes.
+            if not planner.runs_on(sched, local.date()):
                 continue
             if sched.get("time_hhmm") != hhmm:
                 continue
@@ -426,8 +466,12 @@ class Scheduler:
                                   source, ref, base_min, sched)
                 return
             factor = self._seasonal_factor()
+            if self._seasonal_skips(factor):
+                self._record_skip("seasonal_zero", "valve", entity_id, self._entity_label(entity_id),
+                                  source, ref, base_min, sched)
+                return
             minutes = self._scale_minutes(base_min, factor)
-            note = ref + (f"|seasonal:{round(factor * 100)}%" if factor != 1.0 else "")
+            note = ref + (f"|seasonal:{seasonal_percent(factor)}%" if factor != 1.0 else "")
             if len(self._soak_chunks(entity_id, minutes)) > 1:
                 await self._async_run_sequence(entity_id, minutes, source, note, owner="standalone")
             else:
@@ -476,7 +520,11 @@ class Scheduler:
                                   source, ref, 0, sched)
                 return
             factor = self._seasonal_factor()
-            note = ref + (f"|seasonal:{round(factor * 100)}%" if factor != 1.0 else "")
+            if self._seasonal_skips(factor):
+                self._record_skip("seasonal_zero", "cycle", cycle_id, cycle.get("name", cycle_id),
+                                  source, ref, 0, sched)
+                return
+            note = ref + (f"|seasonal:{seasonal_percent(factor)}%" if factor != 1.0 else "")
             await self.async_run_cycle(cycle_id, source=source, note=note, duration_factor=factor)
         except asyncio.CancelledError:
             raise
@@ -539,12 +587,16 @@ class Scheduler:
             "reason": reason,
         }
         payload["name" if kind == "cycle" else "label"] = name
+        if reason == "seasonal_zero":
+            # Same words as the panel history row "<name>: <status>" (#31), in the HA language.
+            message = f"{name}: {SEASONAL_SKIP_TEXT[panel_lang(getattr(self.hass.config, 'language', 'en'))]}"
+        else:
+            what = f"cycle {name}" if kind == "cycle" else name
+            message = f"Skipped {what}: {SKIP_TEXT[reason]}"
+        payload["message"] = message
         self.hass.bus.async_fire(SKIP_EVENTS[reason], payload)
-        what = f"cycle {name}" if kind == "cycle" else name
-        notify_event = "skipped_rain" if reason in ("rain_delay", "forecast") else f"skipped_{reason}"
-        self.hass.async_create_task(self._notify(
-            notify_event, "Schedule Wizard", f"Skipped {what}: {SKIP_TEXT[reason]}",
-        ))
+        notify_event = NOTIFY_FOR_SKIP.get(reason, f"skipped_{reason}")
+        self.hass.async_create_task(self._notify(notify_event, "Schedule Wizard", message))
 
     # ------------------------------------------------------------------ calendar
 
@@ -779,10 +831,23 @@ class Scheduler:
             pct = min_pct + t * (max_pct - min_pct)
         return max(0.0, pct / 100.0)
 
+    @property
+    def seasonal_status(self) -> dict[str, Any]:
+        """Current temperature factor as the panel shows it, and whether scheduled runs are skipped (#29)."""
+        factor = self._seasonal_factor()
+        return {"pct": seasonal_percent(factor), "skips": self._seasonal_skips(factor)}
+
+    @staticmethod
+    def _seasonal_skips(factor: float) -> bool:
+        """A factor shown as 0 % means no watering (#26); any higher factor keeps a 1-minute minimum."""
+        return seasonal_percent(factor) <= 0
+
     @staticmethod
     def _scale_minutes(base: int, factor: float) -> int:
         if factor == 1.0:
             return int(base)
+        if Scheduler._seasonal_skips(factor):
+            return 0
         return max(1, int(round(base * factor)))
 
     def _is_rain_delay_active(self) -> int:

@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
 
-from .const import SIGNAL_CONFIG_CHANGED, STORAGE_KEY, STORAGE_VERSION
+from .const import REPEAT_INTERVAL, REPEAT_WEEKDAYS, SIGNAL_CONFIG_CHANGED, STORAGE_KEY, STORAGE_VERSION
 
 MAX_HISTORY = 500
 
@@ -79,6 +79,11 @@ class WizardStore:
         if data:
             self._data["valves"] = data.get("valves", [])
             self._data["schedules"] = data.get("schedules", [])
+            for sched in self._data["schedules"]:
+                # Schedules saved before 0.14.0 repeat on weekdays.
+                sched.setdefault("repeat", REPEAT_WEEKDAYS)
+                sched.setdefault("interval_days", 0)
+                sched.setdefault("start_date", "")
             self._data["history"] = data.get("history", [])
             self._data["active_runs"] = data.get("active_runs", [])
             self._data["cycles"] = data.get("cycles", [])
@@ -261,13 +266,20 @@ class WizardStore:
         valve_entity_id: Optional[str] = None,
         cycle_id: Optional[str] = None,
         conditions: Optional[list[dict]] = None,
+        repeat: str = REPEAT_WEEKDAYS,
+        interval_days: int = 0,
+        start_date: str = "",
     ) -> dict:
+        interval = repeat == REPEAT_INTERVAL
         sched = {
             "id": uuid.uuid4().hex[:12],
             "valve_entity_id": valve_entity_id or "",
             "cycle_id": cycle_id or "",
             "name": name,
             "days_mask": int(days_mask),
+            "repeat": REPEAT_INTERVAL if interval else REPEAT_WEEKDAYS,
+            "interval_days": int(interval_days) if interval else 0,
+            "start_date": start_date if interval else "",
             "time_hhmm": time_hhmm,
             "duration_min": int(duration_min),
             "enabled": bool(enabled),
@@ -282,9 +294,9 @@ class WizardStore:
         sched = self.get_schedule(schedule_id)
         if not sched:
             return None
-        for k in ("name", "days_mask", "time_hhmm", "duration_min", "enabled"):
+        for k in ("name", "days_mask", "time_hhmm", "duration_min", "enabled", "repeat", "interval_days", "start_date"):
             if k in fields and fields[k] is not None:
-                if k in ("days_mask", "duration_min"):
+                if k in ("days_mask", "duration_min", "interval_days"):
                     sched[k] = int(fields[k])
                 elif k == "enabled":
                     sched[k] = bool(fields[k])
@@ -292,6 +304,10 @@ class WizardStore:
                     sched[k] = fields[k]
         if fields.get("conditions") is not None:
             sched["conditions"] = _clean_conditions(fields["conditions"])
+        if sched.get("repeat") != REPEAT_INTERVAL:
+            sched["repeat"] = REPEAT_WEEKDAYS
+            sched["interval_days"] = 0
+            sched["start_date"] = ""
         await self._async_save_config()
         return sched
 
