@@ -62,3 +62,33 @@ async def test_voice_starts_zone_once(hass: HomeAssistant, lang, label, text, mi
     assert statuses(hass, entry, Z1) == ["started"]
     await hass.services.async_call(DOMAIN, "stop_all", {}, blocking=True)
     await settle(hass)
+
+
+# ---------------------------------------------------------------- PERF-002 #75: calendar range not capped
+
+
+async def test_calendar_returns_every_occurrence_in_range(hass: HomeAssistant):
+    await setup_wizard(hass)
+    every_day = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    for i in range(20):
+        zone = f"switch.zone_{i:02d}"
+        await add_valve(hass, zone, f"Zone {i:02d}")
+        await hass.services.async_call(
+            DOMAIN, "add_schedule",
+            {"valve_entity_id": zone, "time": f"{4 + i // 6:02d}:{(i % 6) * 10:02d}", "days": every_day,
+             "duration_minutes": 5},
+            blocking=True,
+        )
+    await settle(hass)
+    start = dt_util.start_of_local_day() + timedelta(days=1)
+    resp = await hass.services.async_call(
+        "calendar", "get_events",
+        {"entity_id": "calendar.schedule_wizard_watering_schedule", "start_date_time": start.isoformat(),
+         "end_date_time": (start + timedelta(days=62)).isoformat()},
+        blocking=True, return_response=True,
+    )
+    events = resp["calendar.schedule_wizard_watering_schedule"]["events"]
+    assert len(events) == 20 * 62
+    days = sorted({e["start"][:10] for e in events})
+    assert len(days) == 62
+    assert days[-1] == (start + timedelta(days=61)).date().isoformat()
