@@ -1791,6 +1791,48 @@ class Scheduler:
 
     # ------------------------------------------------------------------ cycle persistence / resume
 
+    def zone_start_offsets(self, cycle_id: str) -> dict[str, int]:
+        """Seconds from a plan's start to each zone's first watering, in the order the plan really runs (#94).
+
+        Same steps, durations (today's temperature factor) and order as _cycle_plan with _run_steps_sequential or
+        _run_steps_interleaved. A zone skipped at run time (rain, moisture) moves the later zones earlier.
+        """
+        cycle = self.store.get_cycle(cycle_id)
+        if not cycle:
+            return {}
+        factor = self._seasonal_factor()
+        if self._seasonal_skips(factor):
+            factor = 1.0  # the whole run is skipped; keep the plan's own lengths
+        plan = []
+        for step in cycle.get("steps") or []:
+            entity_id = step.get("entity_id")
+            duration = self._scale_minutes(int(step.get("duration_min", 1)), factor)
+            if not entity_id or duration <= 0:
+                continue
+            valve = self.store.get_valve(entity_id) or {}
+            plan.append({
+                "entity_id": entity_id, "duration": duration, "chunks": self._soak_chunks(entity_id, duration),
+                "pause": int(valve.get("soak_pause_min") or 0) * 60, "ready_at": 0,
+            })
+        out: dict[str, int] = {}
+        t = 0
+        if self._interleave_enabled() and any(len(p["chunks"]) > 1 for p in plan):
+            while any(p["chunks"] for p in plan):
+                ready = [p for p in plan if p["chunks"] and p["ready_at"] <= t]
+                if not ready:
+                    t = min(p["ready_at"] for p in plan if p["chunks"])
+                    continue
+                p = ready[0]
+                out.setdefault(p["entity_id"], t)
+                t += p["chunks"].pop(0) * 60
+                if p["chunks"]:
+                    p["ready_at"] = t + p["pause"]
+        else:
+            for p in plan:
+                out.setdefault(p["entity_id"], t)
+                t += self._sequence_seconds(p["entity_id"], p["duration"])
+        return out
+
     def _sequence_seconds(self, entity_id: str, minutes: int) -> int:
         chunks = self._soak_chunks(entity_id, minutes)
         pause = int((self.store.get_valve(entity_id) or {}).get("soak_pause_min") or 0)

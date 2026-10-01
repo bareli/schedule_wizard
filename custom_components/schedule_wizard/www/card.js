@@ -196,11 +196,14 @@ function iso(text) {
   return el("bdi", {}, String(text == null ? "" : text));
 }
 
+// Whole units, counted down like the panel's "ago" times (#95): 3 days 12 hours is "in 3d", never "in 4d".
+// Under a minute still reads "in 1m".
 function fmtIn(t, secs) {
-  const m = Math.max(0, Math.round(secs / 60));
-  return m < 60 ? t("time.in_m", { n: m })
-    : m < 1440 ? t("time.in_h", { n: Math.round(m / 60) })
-      : t("time.in_d", { n: Math.round(m / 1440) });
+  const s = Math.max(0, Number(secs) || 0);
+  const m = Math.floor(s / 60);
+  return m < 60 ? t("time.in_m", { n: Math.max(s > 0 ? 1 : 0, m) })
+    : m < 1440 ? t("time.in_h", { n: Math.floor(m / 60) })
+      : t("time.in_d", { n: Math.floor(m / 1440) });
 }
 
 function fmtRemaining(s) {

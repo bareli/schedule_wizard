@@ -278,11 +278,13 @@ def occurrences(
             continue
         if time_mode(sched) == TIME_MODE_CLOCK and not _hhmm(sched):
             continue
+        # A run before the schedule existed never happened: not a past run in the week or the calendar (#93).
+        created = int(sched.get("created_at") or 0)
         day = start_l.date()
         while day <= end_l.date():
             if runs_on(sched, day):
                 fire = fire_at(sched, day, hass)
-                if fire is not None and start_l <= fire < end_l:
+                if fire is not None and start_l <= fire < end_l and int(fire.timestamp()) >= created:
                     fire_ts = int(fire.timestamp())
                     day_s = day.isoformat()
                     out.append({

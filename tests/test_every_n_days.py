@@ -182,11 +182,15 @@ async def test_next_run_with_distant_start_date(hass: HomeAssistant, hass_ws_cli
 
 
 async def test_calendar_and_week_view(hass: HomeAssistant, hass_ws_client):
-    await setup_wizard(hass)
+    entry = await setup_wizard(hass)
     await add_valve(hass, Z1, "Front")
     today = dt_util.now().date()
-    await add_schedule(hass, valve_entity_id=Z1, time="06:00", every_n_days=2,
-                       start_date=today.isoformat(), duration_minutes=10)
+    sched = await add_schedule(hass, valve_entity_id=Z1, time="06:00", every_n_days=2,
+                               start_date=today.isoformat(), duration_minutes=10)
+    # Created yesterday: today's 06:00 run is a real (past) run of the week, whatever the time now (#93 hides runs
+    # from before a schedule existed).
+    data(hass, entry)["store"].get_schedule(sched["id"])["created_at"] = int(
+        (dt_util.start_of_local_day() - timedelta(days=1)).timestamp())
     await settle(hass)
     start = dt_util.start_of_local_day() + timedelta(days=1)
     resp = await hass.services.async_call(

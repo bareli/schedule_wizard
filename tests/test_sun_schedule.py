@@ -212,6 +212,21 @@ async def test_sun_schedule_validation(hass: HomeAssistant):
 
 # ---------------------------------------------------------------- next run, sensor, calendar, preview
 
+# Noon in Caesarea, far from sunrise and sunset (#97). On the real clock this test failed while today's
+# sunset run (sunset - 15 min, 7 min long) was in progress: the calendar entity then shows that ongoing run,
+# not the next one.
+MIDDAY_CAESAREA = "2026-06-10 09:00:30+00:00"
+
+
+@pytest.fixture
+def midday_clock():
+    import freezegun
+
+    with freezegun.freeze_time(MIDDAY_CAESAREA, tick=True):
+        yield
+
+
+@pytest.mark.usefixtures("midday_clock")
 async def test_next_run_sensor_calendar_and_preview(hass: HomeAssistant, hass_ws_client):
     zone = await at_place(hass, "caesarea")
     await setup_wizard(hass)
@@ -223,6 +238,7 @@ async def test_next_run_sensor_calendar_and_preview(hass: HomeAssistant, hass_ws
     assert expected is not None
     today = now.astimezone(zone).date()
     assert expected in (oracle("caesarea", "sunset", today, -15), oracle("caesarea", "sunset", today + timedelta(days=1), -15))
+    assert expected == oracle("caesarea", "sunset", today, -15), "at noon the next run is this evening"
 
     client = await hass_ws_client(hass)
     await client.send_json({"id": 1, "type": f"{DOMAIN}/get_state"})

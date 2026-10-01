@@ -605,6 +605,13 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         cycles_snapshot = store.cycles
         cycles_by_id = {c["id"]: c for c in cycles_snapshot}
         now_dt = dt_util.now()
+        zone_offsets: dict[str, dict[str, int]] = {}
+
+        def _zone_offset(cycle_id: str, valve_id: str) -> int:
+            """Seconds after the plan's start this zone starts: zones in a plan water one after another (#94)."""
+            if cycle_id not in zone_offsets:
+                zone_offsets[cycle_id] = scheduler.zone_start_offsets(cycle_id)
+            return zone_offsets[cycle_id].get(valve_id, 0)
 
         def _next_run_for(valve: dict) -> tuple[dict | None, dict | None]:
             """The next run that will water this zone, and the earlier run it skips, if any (UX-010)."""
@@ -630,19 +637,25 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
                 if not matches:
                     continue
                 fire, s_skip = planner.next_zone_run(store, options, s, valve, now_dt, hass=hass_inner)
+                offset = _zone_offset(s["cycle_id"], valve_id) if s.get("cycle_id") else 0
+                if s_skip:
+                    s_skip = {**s_skip, "fires_at": s_skip["fires_at"] + offset}
                 if s_skip and (skip is None or s_skip["fires_at"] < skip["fires_at"]):
                     skip = {**s_skip, "schedule_id": s["id"]}
                 if fire is None:
                     continue
+                plan_start = int(fire.timestamp())
+                fire = fire + _td(seconds=offset)
                 delta_sec = int((fire - now_dt).total_seconds())
                 if best is None or delta_sec < best["in_seconds"]:
                     best = {
                         "fires_at": int(fire.timestamp()),
                         "in_seconds": delta_sec,
-                        "time_label": fire.strftime("%a %H:%M"),
+                        "time_label": dt_util.as_local(fire).strftime("%a %H:%M"),
                         "duration_min": duration_for_valve,
                         "schedule_id": s["id"],
                         "cycle_id": s.get("cycle_id") or "",
+                        "plan_starts_at": plan_start,
                     }
             # Only a skipped run before the next real one is worth telling.
             if skip and best and skip["fires_at"] > best["fires_at"]:
@@ -683,6 +696,8 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "options": options,
             "controllable": controllable,
             "calendars": calendars,
+            # Entities this integration created: never a zone or a rain source (#70, #91).
+            "own_entities": sorted(own),
             "notify_services": notify_services,
             "notify_targets_info": notify_targets_info,
             "notify_events": list(NOTIFY_EVENTS),
@@ -768,6 +783,12 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             # that has since gone missing does not block saving, it has its own repair.
             if rain.split(".")[0] not in RAIN_SOURCE_DOMAINS or hass_inner.states.get(rain) is None:
                 connection.send_error(msg["id"], "invalid_format", f"rain_entity {rain} not found")
+                return
+            if rain in _own_entity_ids(hass_inner):
+                # Its own sensors report watering, not rain (#91).
+                connection.send_error(
+                    msg["id"], "invalid_format", f"rain_entity {rain} belongs to Schedule Wizard and cannot be a rain source",
+                )
                 return
         if rain is not None:
             msg = {**msg, CONF_RAIN_ENTITY: rain}

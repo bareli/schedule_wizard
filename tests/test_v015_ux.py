@@ -196,8 +196,9 @@ def test_activity_has_a_day_filter_and_day_totals():
 
 @needs_node
 def test_last_watering_line_reads_well():
-    """ "Last watering: yesterday 06:00, 2 zones · 25 min · Skipped today 06:00: skipped (rain)". """
-    fns = {name: _method(PANEL, name) for name in ("_lastWateringLine", "_wateredTotal", "_relWhen")}
+    """ "Last watering: yesterday 07:15, 2 zones · 25 min · Skipped (rain), today 06:00" (#67: when the last
+    watering finished, skipped said once). """
+    fns = {name: _method(PANEL, name) for name in ("_lastWateringLine", "_wateredTotal", "_watered", "_relWhen")}
     script = (
         f"const I = await import({json.dumps((WWW / 'i18n.js').as_uri())});"
         # new Function() bodies see globals only: the module helpers they use go on globalThis.
@@ -209,7 +210,7 @@ def test_last_watering_line_reads_well():
         "const self = { _t: I.makeT('en'), _hass: hass, _isPlanId: (id) => !String(id).includes('.'),"
         " _fmtTime: (ts) => I.fmtTime(ts, 'en', { hass, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }),"
         " _fmtDate: () => 'Mon', _statusLabel: (s) => I.makeT('en')('status.' + s) };"
-        + "".join(f"self.{n} = new Function({'ts' if n == '_relWhen' else 'rows' if n == '_wateredTotal' else ''!r}, "
+        + "".join(f"self.{n} = new Function({'ts' if n == '_relWhen' else 'rows' if n == '_wateredTotal' else 'h' if n == '_watered' else ''!r}, "
                   f"{json.dumps(b)}).bind(self);" for n, b in fns.items())
         + "const D = 1781078400;"  # 2026-06-10 08:00 UTC
         "self._state = { now: D + 3600, history: ["
@@ -220,7 +221,7 @@ def test_last_watering_line_reads_well():
         "] };"
         "process.stdout.write(JSON.stringify(self._lastWateringLine()));"
     )
-    assert json.loads(_node(script)) == "Last watering: yesterday 06:00, 2 zones · 25 min · Skipped today 06:00: skipped (rain)"
+    assert json.loads(_node(script)) == "Last watering: yesterday 07:15, 2 zones · 25 min · Skipped (rain), today 06:00"
 
 
 # ---------------------------------------------------------------- #70 UX-015: own entities are no zones
