@@ -702,6 +702,7 @@ class ScheduleWizardPanel extends HTMLElement {
     this._moreOpen = false;
     this._openGroups = new Set();
     this._dialog = null;
+    this._rainPickers = new Set();
   }
 
   set hass(hass) {
@@ -710,11 +711,18 @@ class ScheduleWizardPanel extends HTMLElement {
     if (!this._initialized) this._init();
     else {
       this._syncMenuButton();
+      this._refreshRainChecks();
       if (langChanged) {
         this._closeDialog();
         if (this._state) this._render();
       }
     }
+  }
+
+  // Keeps the rain source check lines of open forms in step with Home Assistant (BUG-038): only the line is
+  // rewritten, and only when its text changed, so the form, the focus and the screen reader are left alone.
+  _refreshRainChecks() {
+    this._rainPickers.forEach(p => { if (p.node.isConnected) p.refresh(); else this._rainPickers.delete(p); });
   }
 
   _applyLang() {
@@ -847,9 +855,9 @@ class ScheduleWizardPanel extends HTMLElement {
         : this._tn("sched.days_sun", { days: this._daysFromMask(s.days_mask), when: sunWhen });
     }
     if (s.repeat === "interval") {
-      return this._tn("sched.every_n_at", { n: s.interval_days, date: this._fmtDay(s.start_date), time: ltr(s.time_hhmm) });
+      return this._tn("sched.every_n_at", { n: s.interval_days, date: this._fmtDay(s.start_date), time: ltr(this._fmtClock(s.time_hhmm)) });
     }
-    return this._tn("sched.days_at", { days: this._daysFromMask(s.days_mask), time: ltr(s.time_hhmm) });
+    return this._tn("sched.days_at", { days: this._daysFromMask(s.days_mask), time: ltr(this._fmtClock(s.time_hhmm)) });
   }
 
   _valveName(id) {
@@ -1819,11 +1827,12 @@ class ScheduleWizardPanel extends HTMLElement {
   }
 
   // A zone row that really watered (#67): completed, or stopped / replaced after watering some minutes. Like the
-  // server's totals (BUG-028), a replaced row from before 0.15.0 (no planned_min) holds the planned length: left out.
+  // server's totals (BUG-028, BUG-037), a stopped or replaced row from before 0.15.0 (no planned_min) holds the
+  // planned length: left out.
   _watered(h) {
     if (this._isPlanId(h.valve_entity_id)) return false;
     if (h.status === "completed") return true;
-    if (h.status === "superseded" && !("planned_min" in h)) return false;
+    if ((h.status === "superseded" || h.status === "cancelled") && !("planned_min" in h)) return false;
     return (h.status === "cancelled" || h.status === "superseded") && (parseInt(h.duration_min, 10) || 0) > 0;
   }
 
@@ -3463,13 +3472,16 @@ class ScheduleWizardPanel extends HTMLElement {
         const id = h.valve_entity_id;
         const s = valveStats[id] = valveStats[id] || { runs_7d: 0, min_7d: 0, runs_30d: 0, min_30d: 0, runs_total: 0, min_total: 0, last: null };
         if (status === "completed" || status === "cancelled") {
-          if (inWindow(h.ts, 7)) { s.runs_7d++; s.min_7d += dur; }
-          if (inWindow(h.ts, 30)) { s.runs_30d++; s.min_30d += dur; }
-          s.runs_total++; s.min_total += dur;
+          // A stopped run from before 0.15.0 (no planned_min) holds the planned length, not what watered
+          // (BUG-037): it stays a run, as before, but adds no minutes.
+          const mins = status === "cancelled" && h.planned_min == null ? 0 : dur;
+          if (inWindow(h.ts, 7)) { s.runs_7d++; s.min_7d += mins; }
+          if (inWindow(h.ts, 30)) { s.runs_30d++; s.min_30d += mins; }
+          s.runs_total++; s.min_total += mins;
           if (!s.last || h.ts > s.last.ts) s.last = h;
           if (inWindow(h.ts, 30)) {
             const dayKey = I18N.dayKey(h.ts, this._hass);
-            dailyMin[dayKey] = (dailyMin[dayKey] || 0) + dur;
+            dailyMin[dayKey] = (dailyMin[dayKey] || 0) + mins;
           }
         } else if (status === "superseded" && h.planned_min != null) {
           // Replaced by a new run on the zone: not a run of its own, but its minutes were watered (BUG-028).
@@ -3706,31 +3718,43 @@ class ScheduleWizardPanel extends HTMLElement {
     sel.value = cur;
     const check = el("p", { class: "check-line muted", id: checkId, "aria-live": "polite" });
     const err = fieldError(errId);
+    // The line reads the states Home Assistant has now, not the ones the form was drawn with (BUG-038).
+    const refresh = () => {
+      const live = (this._hass && this._hass.states) || {};
+      const id = sel.value;
+      const st = id ? live[id] : null;
+      let cls = "check-line muted";
+      let nodes;
+      if (!id) nodes = [this._t("set.rain_check_none")];
+      else if (!st) {
+        cls = "check-line warn";
+        nodes = this._tn("set.rain_check_missing", { entity: ltr(id) });
+      } else {
+        const r = rules();
+        nodes = rainCheckParts(st, r, (key, vars) => this._tn(key, vars), (key) => this._t(key));
+        if (rainWouldSkip(st, r)) nodes.push(" ", this._t("set.rain_would_skip"));
+      }
+      const probe = document.createElement("p");
+      probe.replaceChildren(...nodes);
+      if (check.className === cls && check.innerHTML === probe.innerHTML) return;
+      check.className = cls;
+      check.replaceChildren(...nodes);
+    };
     const update = () => {
       setFieldError(err, sel, "");
       sel.setAttribute("aria-describedby", checkId);
-      const id = sel.value;
-      const st = id ? states[id] : null;
-      check.className = "check-line muted";
-      if (!id) { check.replaceChildren(this._t("set.rain_check_none")); return; }
-      if (!st) {
-        check.className = "check-line warn";
-        check.replaceChildren(...this._tn("set.rain_check_missing", { entity: ltr(id) }));
-        return;
-      }
-      const r = rules();
-      const parts = rainCheckParts(st, r, (key, vars) => this._tn(key, vars), (key) => this._t(key));
-      if (rainWouldSkip(st, r)) parts.push(" ", this._t("set.rain_would_skip"));
-      check.replaceChildren(...parts);
+      refresh();
     };
     sel.addEventListener("change", update);
     update();
     const node = el("div", { class: "field" }, [el("span", { id: labelId }, label || this._t("set.rain_using")), sel, err, check]);
-    return {
-      node, select: sel, update,
+    const picker = {
+      node, select: sel, update, refresh,
       value: () => sel.value,
       setError: (msg) => { setFieldError(err, sel, msg); if (msg) sel.setAttribute("aria-describedby", `${errId} ${checkId}`); },
     };
+    this._rainPickers.add(picker);
+    return picker;
   }
 
   // What a notify service reaches, in words (UX-011): "Phone: Pixel 8", "Home Assistant notifications".

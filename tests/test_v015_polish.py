@@ -339,7 +339,7 @@ def test_reports_totals_include_superseded_minutes():
         {"valve_entity_id": "z.a", "status": "superseded", "duration_min": 4, "planned_min": 10, "ts": now - 3600},
         {"valve_entity_id": "z.a", "status": "superseded", "duration_min": 1440, "ts": now - 3600},  # before 0.15.0
         {"valve_entity_id": "z.a", "status": "completed", "duration_min": 6, "ts": now - 3500},
-        {"valve_entity_id": "z.a", "status": "cancelled", "duration_min": 2, "ts": now - 20 * 86400},
+        {"valve_entity_id": "z.a", "status": "cancelled", "duration_min": 2, "planned_min": 5, "ts": now - 20 * 86400},
         {"valve_entity_id": "z.a", "status": "started", "duration_min": 10, "ts": now - 3600},
     ]
     script = (

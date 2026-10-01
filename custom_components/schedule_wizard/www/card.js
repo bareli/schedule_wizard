@@ -25,6 +25,7 @@ const CARD_STYLES = `
   color: var(--primary-text-color);
   font-family: var(--paper-font-body1_-_font-family, Roboto, sans-serif);
   box-shadow: var(--ha-card-box-shadow, 0 1px 2px rgba(0,0,0,0.04));
+  container-type: inline-size;
 }
 .title {
   font-size: 16px;
@@ -53,6 +54,15 @@ const CARD_STYLES = `
 .name { font-weight: 500; font-size: 14px; overflow-wrap: anywhere; }
 .mins { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--secondary-text-color); white-space: nowrap; }
 .sub { color: var(--secondary-text-color); font-size: 11px; }
+/* Long words (German) wrap inside their column instead of running under the minutes field. */
+.meta { min-width: 0; overflow-wrap: anywhere; hyphens: auto; }
+/* Narrow card: the name takes its own line, the minutes field and button sit below it. */
+@container (max-width: 340px) {
+  .row.zone { grid-template-columns: minmax(0, 1fr) auto; }
+  .row.zone .meta { grid-column: 1 / -1; }
+  .row.zone .mins { justify-self: start; }
+  .row.zone button { justify-self: end; }
+}
 .progress-wrap {
   grid-column: 1 / -1;
   height: 4px;
@@ -592,7 +602,7 @@ class ScheduleWizardCard extends HTMLElement {
     subLines.forEach(s => metaInner.push(el("div", { class: "sub" }, s)));
     const waterNow = this._t("zone.water_now");
     const children = [
-      el("div", {}, metaInner),
+      el("div", { class: "meta" }, metaInner),
       el("label", { class: "mins" }, this._tn("unit.min", { n: minsInput })),
       active || soaking
         ? this._stopButton(v.entity_id, v.label)
@@ -613,7 +623,7 @@ class ScheduleWizardCard extends HTMLElement {
         el("div", { class: "progress-bar", style: `width:${pct}%` })
       ));
     }
-    return el("div", { class: "row", "data-entity": v.entity_id }, children);
+    return el("div", { class: "row zone", "data-entity": v.entity_id }, children);
   }
 
   async _callService(service, data) {
