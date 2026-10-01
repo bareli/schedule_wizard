@@ -232,3 +232,49 @@ async def test_delayed_rows_written_on_unload(hass: HomeAssistant, hass_storage)
     assert await hass.config_entries.async_unload(entry.entry_id)
     await settle(hass)
     assert hass_storage[STORE_KEY]["data"]["history"][0]["note"] == "pending row"
+
+
+# ---------------------------------------------------------------- SEC-008 #77: webhook flood limits
+
+
+async def _post(client, webhook_id: str, body: dict):
+    resp = await client.post(f"/api/webhook/{webhook_id}", json=body)
+    return resp.status, await resp.json(), resp.headers
+
+
+async def test_webhook_repeat_is_not_run_twice(hass: HomeAssistant, hass_client_no_auth):
+    entry = await setup_wizard(hass)
+    await add_valve(hass, Z1, "Front")
+    client = await hass_client_no_auth()
+    wh = data(hass, entry)["webhook_id"]
+    started = async_capture_events(hass, EVENT_VALVE_STARTED)
+
+    first = await _post(client, wh, {"entity_id": Z1, "duration_minutes": 5})
+    second = await _post(client, wh, {"entity_id": Z1, "duration_minutes": 5})
+    await settle(hass)
+    assert first[0] == 200 and "duplicate" not in first[1]
+    assert second[0] == 200 and second[1]["duplicate"] is True
+    assert len(started) == 1
+    assert "superseded" not in statuses(hass, entry, Z1)
+
+    # A different action is not a repeat.
+    status, _body, _h = await _post(client, wh, {"entity_id": Z1, "action": "stop"})
+    await settle(hass)
+    assert status == 200 and not is_on(hass, Z1)
+
+
+async def test_webhook_rate_limited_per_minute(hass: HomeAssistant, hass_client_no_auth):
+    entry = await setup_wizard(hass)
+    await add_valve(hass, Z1, "Front")
+    client = await hass_client_no_auth()
+    wh = data(hass, entry)["webhook_id"]
+
+    for i in range(30):
+        status, _body, _h = await _post(client, wh, {"entity_id": "input_boolean.not_a_zone", "n": i})
+        assert status == 404
+    status, body, headers = await _post(client, wh, {"entity_id": Z1, "duration_minutes": 5})
+    await settle(hass)
+    assert status == 429, body
+    assert int(headers["Retry-After"]) >= 1
+    assert not is_on(hass, Z1)
+    assert data(hass, entry)["store"].history == []
