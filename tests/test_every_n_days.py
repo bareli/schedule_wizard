@@ -151,6 +151,36 @@ async def test_next_run_and_sensor(hass: HomeAssistant, hass_ws_client):
     assert abs(state.attributes["fires_in_minutes"] - (expected - dt_util.now()).total_seconds() // 60) <= 1
 
 
+async def test_next_run_with_distant_start_date(hass: HomeAssistant, hass_ws_client):
+    """#28: a start date more than NEXT_RUN_DAYS ahead is still the next run (zone card, sensor, skip next)."""
+    await setup_wizard(hass)
+    await add_valve(hass, Z1, "Front")
+    today = dt_util.now().date()
+    first = today + timedelta(days=60)
+    sched = await add_schedule(hass, valve_entity_id=Z1, time="07:00", every_n_days=7,
+                               start_date=first.isoformat(), duration_minutes=5)
+    expected = datetime.combine(first, dtime(7, 0), tzinfo=dt_util.get_default_time_zone())
+    assert planner.next_fire(sched, dt_util.now()) == expected
+
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": f"{DOMAIN}/get_state"})
+    valve = (await client.receive_json())["result"]["valves"][0]
+    assert valve["next_run"] is not None
+    assert valve["next_run"]["fires_at"] == int(expected.timestamp())
+
+    await async_update_entity(hass, "sensor.schedule_wizard_next_schedule")
+    state = hass.states.get("sensor.schedule_wizard_next_schedule")
+    assert state.attributes["schedule_id"] == sched["id"]
+
+    await async_update_entity(hass, "calendar.schedule_wizard_watering_schedule")
+    cal = hass.states.get("calendar.schedule_wizard_watering_schedule")
+    assert cal.attributes["start_time"] == expected.strftime("%Y-%m-%d %H:%M:%S")
+
+    resp = await hass.services.async_call(DOMAIN, "skip_next", {"schedule_id": sched["id"]},
+                                          blocking=True, return_response=True)
+    assert resp["skipped"]["day"] == first.isoformat()
+
+
 async def test_calendar_and_week_view(hass: HomeAssistant, hass_ws_client):
     await setup_wizard(hass)
     await add_valve(hass, Z1, "Front")

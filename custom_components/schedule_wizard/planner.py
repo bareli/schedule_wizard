@@ -51,6 +51,15 @@ def _hhmm(sched: dict) -> Optional[tuple[int, int]]:
     return hh, mm
 
 
+def _first_day(sched: dict, day: date) -> date:
+    """Where a next-run search starts: an every-N-days schedule has no run before its start date."""
+    if sched.get("repeat") == "interval":
+        start = parse_day(sched.get("start_date"))
+        if start is not None and start > day:
+            return start
+    return day
+
+
 def next_fire(sched: dict, now: Optional[datetime] = None, days: int = NEXT_RUN_DAYS) -> Optional[datetime]:
     """Next local start time of a schedule strictly after `now` (ignores enabled flags and skips)."""
     hm = _hhmm(sched)
@@ -58,7 +67,7 @@ def next_fire(sched: dict, now: Optional[datetime] = None, days: int = NEXT_RUN_
         return None
     now_l = dt_util.as_local(now or dt_util.now())
     tz = _tz()
-    day = now_l.date()
+    day = _first_day(sched, now_l.date())
     for _ in range(days + 1):
         if runs_on(sched, day):
             fire = datetime.combine(day, dtime(*hm), tzinfo=tz)
@@ -179,7 +188,20 @@ def occurrences(
 def next_occurrence(store: WizardStore, options: dict, schedule_id: Optional[str] = None,
                     now: Optional[datetime] = None, days: int = NEXT_RUN_DAYS) -> Optional[dict[str, Any]]:
     now = now or dt_util.now()
+    sched = store.get_schedule(schedule_id) if schedule_id else None
+    if sched:
+        today = dt_util.as_local(now).date()
+        first = _first_day(sched, today)
+        if first > today:
+            now = dt_util.start_of_local_day(first)
     for occ in occurrences(store, options, now, now + timedelta(days=days)):
         if schedule_id is None or occ["schedule_id"] == schedule_id:
             return occ
     return None
+
+
+def lookahead_end(store: WizardStore, now: datetime) -> datetime:
+    """End of a window long enough to hold every schedule's next run, including distant start dates."""
+    today = dt_util.as_local(now).date()
+    first = max((_first_day(s, today) for s in store.schedules), default=today)
+    return dt_util.start_of_local_day(first) + timedelta(days=NEXT_RUN_DAYS + 1)
