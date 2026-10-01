@@ -15,6 +15,7 @@ from custom_components.schedule_wizard.voice import best_match, parse_number
 
 from .conftest import advance, data, is_on, settle, setup_wizard
 from .test_scheduler import Z1, Z2, _schedule_now, add_cycle, add_valve, fire_minute, statuses
+from custom_components.schedule_wizard.entity_base import find_device
 
 pytestmark = pytest.mark.usefixtures("zones")
 
@@ -37,12 +38,12 @@ async def test_zone_entities_follow_config(hass: HomeAssistant):
     assert hass.states.get("binary_sensor.schedule_wizard_watering").state == "off"
 
     dev_reg = dr.async_get(hass)
-    assert dev_reg.async_get_device(identifiers={(DOMAIN, f"{entry.entry_id}_zone_{Z1}")})
+    assert find_device(dev_reg, (DOMAIN, f"{entry.entry_id}_zone_{Z1}"), entry.entry_id)
     await hass.services.async_call(DOMAIN, "remove_valve", {"entity_id": Z1}, blocking=True)
     await settle(hass)
     assert er.async_get(hass).async_get("switch.front_watering") is None
     assert hass.states.get("switch.front_watering") is None
-    assert dev_reg.async_get_device(identifiers={(DOMAIN, f"{entry.entry_id}_zone_{Z1}")}) is None
+    assert find_device(dev_reg, (DOMAIN, f"{entry.entry_id}_zone_{Z1}"), entry.entry_id) is None
 
 
 async def test_plan_entities(hass: HomeAssistant):

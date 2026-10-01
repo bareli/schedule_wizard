@@ -23,6 +23,15 @@ def hub_device(entry_id: str) -> DeviceInfo:
     )
 
 
+def find_device(dev_reg, identifier: tuple[str, str], entry_id: str):
+    """Device by identifier. HA 2026.9 deprecates async_get_device (errors for integrations);
+    older HA (down to the 2024.7 minimum) only has async_get_device."""
+    by_identifier = getattr(dev_reg, "async_get_device_by_identifier", None)
+    if by_identifier is not None:
+        return by_identifier(identifier, entry_id)
+    return dev_reg.async_get_device(identifiers={identifier})
+
+
 def zone_identifier(entry_id: str, entity_id: str) -> tuple[str, str]:
     return (DOMAIN, f"{entry_id}_zone_{entity_id}")
 
@@ -37,7 +46,6 @@ def zone_device(entry_id: str, valve: dict) -> DeviceInfo:
         name=valve.get("label") or valve["entity_id"],
         manufacturer="Schedule Wizard",
         model="Zone",
-        via_device=(DOMAIN, entry_id),
         entry_type=DeviceEntryType.SERVICE,
     )
 
@@ -48,7 +56,6 @@ def plan_device(entry_id: str, cycle: dict) -> DeviceInfo:
         name=cycle.get("name") or cycle["id"],
         manufacturer="Schedule Wizard",
         model="Watering plan",
-        via_device=(DOMAIN, entry_id),
         entry_type=DeviceEntryType.SERVICE,
     )
 
@@ -125,9 +132,13 @@ class ItemTracker:
             self.hass.async_create_task(self._async_remove(key, ents))
 
     @callback
+    def _device(self, key: str):
+        return find_device(dr.async_get(self.hass), self._identifier(self.entry.entry_id, key), self.entry.entry_id)
+
+    @callback
     def _rename_device(self, key: str, item: dict) -> None:
         dev_reg = dr.async_get(self.hass)
-        device = dev_reg.async_get_device(identifiers={self._identifier(self.entry.entry_id, key)})
+        device = self._device(key)
         name = self._device_name(item)
         if device and device.name != name:
             dev_reg.async_update_device(device.id, name=name)
@@ -140,7 +151,7 @@ class ItemTracker:
             elif ent.hass is not None:
                 await ent.async_remove()
         dev_reg = dr.async_get(self.hass)
-        device = dev_reg.async_get_device(identifiers={self._identifier(self.entry.entry_id, key)})
+        device = self._device(key)
         if device and not er.async_entries_for_device(ent_reg, device.id, include_disabled_entities=True):
             dev_reg.async_remove_device(device.id)
 

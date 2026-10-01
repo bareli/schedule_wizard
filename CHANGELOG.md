@@ -6,6 +6,7 @@
 - **0 % means no watering** (#26): with the temperature adjustment at 0 %, scheduled and calendar runs of zones and plans are skipped instead of watering 1 minute. History shows "skipped (temperature 0 %)" (`skipped_seasonal_zero`), with event `schedule_wizard_seasonal_skipped` and notification `skipped_seasonal`. Any factor above 0 % keeps the 1-minute minimum. The Settings preview says when watering would be skipped.
 - The watering time editor now shows its errors next to the field (no days picked, N outside 2 to 30, missing start date); the server checks the same rules, and `add_schedule` now rejects an empty `days` list.
 - Fixed: the panel could stay blank when Home Assistant handed it its data before it finished loading (seen on HA 2026.9).
+- Fixed for **Home Assistant 2026.9**: zone and plan devices used two device-registry calls that HA 2026.9 deprecated (`via_device`, `async_get_device`), so their switches, sensors and buttons could fail to load. Zone and plan devices are no longer linked under the hub device (cosmetic); everything else is unchanged and still works down to HA 2024.7.
 
 ## 0.13.0: rain forecast, water usage, smarter cycle & soak, resume after restart, 17 languages
 
