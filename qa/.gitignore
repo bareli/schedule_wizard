@@ -1,0 +1,29 @@
+# Credentials. Never committed, in any environment.
+#
+# These files hold real passwords for QA accounts. The QA directory itself IS tracked
+# (that is the point - plans, bug records and test IDs have to survive a clone), so
+# these rules are the only thing standing between a password and the remote.
+fixtures/*.json
+
+# Per-run artifacts. Regenerated on every run, and the reports are large.
+results/*
+!results/.gitkeep
+runs/*
+!runs/.gitkeep
+reports/*
+!reports/.gitkeep
+
+# Screenshots and captured evidence.
+#
+# Ignored everywhere except qa/evidence/. Evidence attached to a bug record has to travel with
+# it: a GitHub issue cannot hold a local file, so the image is committed and linked. Run-by-run
+# screenshots stay out, because they are regenerated every run and would grow the repo forever.
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+!evidence/**/*.png
+!evidence/**/*.jpg
+!evidence/**/*.jpeg
+!evidence/**/*.webp

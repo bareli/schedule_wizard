@@ -1,0 +1,7 @@
+{
+  "product": "Schedule Wizard",
+  "githubRepo": "bareli/schedule_wizard",
+  "mainBranch": "main",
+  "environments": { "dev": { "baseUrl": "http://127.0.0.1:8170", "ignoreHTTPSErrors": true } },
+  "defaults": { "environment": "dev", "viewports": [ { "name": "desktop", "width": 1440, "height": 900 }, { "name": "mobile", "width": 320, "height": 568 } ] }
+}
