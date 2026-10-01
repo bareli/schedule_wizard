@@ -22,6 +22,12 @@
 - **German and other languages** (#88): voice replies say "1 Minute" / "1 Tag" (also English and Hebrew singular), and numbers in notifications use the language's decimal comma, for example "1,5 Std.".
 - **Totals include replaced runs** (#89): when Water now replaces a running zone, the minutes the first run watered now count in Reports and the zone summary (rows from before 0.15.0 are left out, they hold the planned length).
 - **Reports say the period** (#90): the per-zone columns read "Last 7 days" and "Last 30 days" instead of "7d" / "30d".
+- **Rain source check line** (#66): a rain binary sensor now reads "Skips while the sensor is on. Now: off." instead of the weather states; a sensor that reports a number points to the numeric threshold under More options.
+- **Schedule Wizard's own sensors are no rain source** (#91): they are left out of the rain source list and refused on save (one saved earlier keeps working).
+- **Last watering** (#67): the line above the zones shows when the most recent real watering finished (completed, or stopped after watering some minutes), not a start that was cancelled; a later skip reads "Skipped (rain), today 6:00 AM".
+- **Each zone's own start** (#94): in a plan that waters one zone at a time, zone cards and the card show when that zone starts (for example 6:00, 6:10, 6:25 AM), following cycle & soak, instead of the plan's start for every zone.
+- **No runs from before a plan existed** (#93): a plan created in the evening no longer shows this morning's run as a past run in This week or the watering calendar.
+- The every-N-days "First run" line uses the same time format as the rest of the page ("6:00 AM", #92); the card counts down in whole units like the panel ("in 3d" for 3 days 12 hours, #95); the zone card's button reads "Delete zone" (#96).
 
 ## 0.14.0: water every N days, 0 % temperature adjustment skips the run
 

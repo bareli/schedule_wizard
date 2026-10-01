@@ -400,6 +400,22 @@ function rainWouldSkip(st, r) {
   if (r.states.includes(st.state)) return true;
   return String(st.entity_id || "").startsWith("binary_sensor.") && st.state === "on";
 }
+// The check line under the rain source, in the words of the rule the server applies to this source (#66):
+// a number against the threshold, a binary sensor while "on", a weather or text state against the states list
+// (with a hint when a number can never match it). tn(key, vars) gives nodes, t(key) text.
+function rainCheckParts(st, r, tn, t) {
+  const domain = String(st.entity_id || "").split(".")[0];
+  const raw = r.attribute ? (st.attributes || {})[r.attribute] : st.state;
+  const numeric = raw !== undefined && raw !== null && raw !== "" && !isNaN(Number(raw));
+  if (r.threshold > 0 && (r.attribute || numeric)) {
+    return tn("set.rain_check_threshold", { n: r.threshold, state: ltr(raw === undefined || raw === null ? "" : raw) });
+  }
+  const now = ltr(st.state);
+  if (domain === "binary_sensor") return tn("set.rain_check_on", { state: now });
+  const parts = tn("set.rain_check_states", { states: ltr(r.states.join(", ")), state: now });
+  if (numeric && !r.states.includes(String(st.state))) parts.push(" ", t("set.rain_check_numeric"));
+  return parts;
+}
 const DAY_BITS = [1, 2, 4, 8, 16, 32, 64];
 // Largest sunrise / sunset offset in minutes (server: const.SUN_OFFSET_MAX).
 const SUN_OFFSET_MAX = 180;
@@ -734,6 +750,12 @@ class ScheduleWizardPanel extends HTMLElement {
   _fmtDT(ts, opts) { return I18N.fmtDateTime(ts, this._lang, this._fo(opts)); }
   _fmtTime(ts, opts) { return I18N.fmtTime(ts, this._lang, this._fo(opts)); }
   _fmtDate(ts, opts) { return I18N.fmtDate(ts, this._lang, this._fo(opts)); }
+  // A "HH:MM" clock time in the same words as every other time on the page ("6:00 AM" / "6:00") (#92).
+  _fmtClock(hhmm) {
+    const [h, m] = String(hhmm || "").split(":").map(Number);
+    if (isNaN(h) || isNaN(m)) return String(hhmm || "");
+    return this._fmtTime(Date.UTC(2024, 0, 1, h, m) / 1000, { timeZone: "UTC", hour: "numeric", minute: "2-digit" });
+  }
   _fmtNum(n, digits) { return I18N.fmtNumber(n, this._lang, this._fo({ maximumFractionDigits: digits || 0, minimumFractionDigits: digits || 0 })); }
 
   // Litres below 1000, cubic metres (1 decimal) from there on.
@@ -1796,32 +1818,41 @@ class ScheduleWizardPanel extends HTMLElement {
     return `${this._fmtDate(ts, { weekday: "short" })} ${time}`;
   }
 
+  // A zone row that really watered (#67): completed, or stopped / replaced after watering some minutes. Like the
+  // server's totals (BUG-028), a replaced row from before 0.15.0 (no planned_min) holds the planned length: left out.
+  _watered(h) {
+    if (this._isPlanId(h.valve_entity_id)) return false;
+    if (h.status === "completed") return true;
+    if (h.status === "superseded" && !("planned_min" in h)) return false;
+    return (h.status === "cancelled" || h.status === "superseded") && (parseInt(h.duration_min, 10) || 0) > 0;
+  }
+
   // Zones and minutes watered in a list of history rows: "3 zones · 30 min" (UX-012).
   _wateredTotal(rows) {
-    const done = rows.filter(h => h.status === "completed" && !this._isPlanId(h.valve_entity_id));
+    const done = rows.filter(h => this._watered(h));
     if (!done.length) return "";
     const zones = new Set(done.map(h => h.valve_entity_id)).size;
     const min = done.reduce((a, h) => a + (parseInt(h.duration_min, 10) || 0), 0);
     return this._t("act.total", { zones: this._t("act.zones", { n: zones }), min: this._t("unit.min", { n: min }) });
   }
 
-  // One line above the zones that answers "did it water?" (UX-012): the last day anything watered, and a skip
-  // that came after it.
+  // One line above the zones that answers "did it water?" (UX-012): when the most recent watering finished (#67:
+  // a start that never watered is not one), what that day watered, and a skip that came after it.
   _lastWateringLine() {
     const hist = this._state.history || [];
-    const done = hist.filter(h => h.status === "completed" && !this._isPlanId(h.valve_entity_id));
+    const latest = (rows) => rows.reduce((a, h) => (!a || h.ts > a.ts ? h : a), null);
+    const last = latest(hist.filter(h => this._watered(h)));
     const parts = [];
-    if (done.length) {
-      const day = I18N.dayKey(done[0].ts, this._hass);
+    if (last) {
+      const day = I18N.dayKey(last.ts, this._hass);
       const rows = hist.filter(h => I18N.dayKey(h.ts, this._hass) === day);
-      const starts = rows.filter(h => h.status === "started" && !this._isPlanId(h.valve_entity_id)).map(h => h.ts);
-      const first = starts.length ? Math.min(...starts)
-        : Math.min(...rows.filter(h => h.status === "completed").map(h => h.ts - (parseInt(h.duration_min, 10) || 0) * 60));
-      parts.push(this._t("act.last_watering", { when: this._relWhen(first), total: this._wateredTotal(rows) }));
+      parts.push(this._t("act.last_watering", { when: this._relWhen(last.ts), total: this._wateredTotal(rows) }));
     }
-    const skip = hist.find(h => isSkipStatus(h.status));
-    if (skip && (!done.length || skip.ts > done[0].ts)) {
-      parts.push(this._t("act.last_skipped", { when: this._relWhen(skip.ts), reason: this._statusLabel(skip.status) }));
+    const skip = latest(hist.filter(h => isSkipStatus(h.status)));
+    if (skip && (!last || skip.ts > last.ts)) {
+      // "Skipped (rain), today 6:00 AM": the status already says skipped, so it is said once.
+      const reason = String(this._statusLabel(skip.status) || "");
+      parts.push(this._t("act.last_skipped", { when: this._relWhen(skip.ts), reason: reason.charAt(0).toLocaleUpperCase(this._lang) + reason.slice(1) }));
     }
     return parts.length ? el("p", { class: "last-line" }, parts.join(" · ")) : null;
   }
@@ -2010,9 +2041,9 @@ class ScheduleWizardPanel extends HTMLElement {
           el("button", { class: "btn small", "aria-label": this._named(this._t("zones.edit"), v.label), onClick: () => this._openValveModal(v) }, this._t("zones.edit")),
           el("button", {
             class: "btn danger small",
-            "aria-label": this._named(this._t("common.delete"), v.label),
+            "aria-label": this._named(this._t("zones.delete"), v.label),
             onClick: () => this._confirmDelete(this._t("valves.delete_confirm", { name: v.label }), "remove_valve", { entity_id: v.entity_id }),
-          }, this._t("common.delete")),
+          }, this._t("zones.delete")),
         ]),
       ]),
     ]);
@@ -2911,11 +2942,12 @@ class ScheduleWizardPanel extends HTMLElement {
     }
     const [fy, fm, fd] = dayFromNum(first).split("-").map(Number);
     const ts = Date.UTC(fy, fm - 1, fd, 12) / 1000;
+    const clock = this._fmtClock(hhmm);
     const when = el("span", {}, [
       I18N.fmtDate(ts, this._lang, { hass: this._hass, timeZone: "UTC", weekday: "short", month: "short", day: "numeric" }),
-      " ", ltr(hhmm),
+      " ", clock,
     ]);
-    return this._tn(key, { when, n, time: ltr(hhmm) });
+    return this._tn(key, { when, n, time: clock });
   }
 
   // ---------- Setup wizard ----------
@@ -3652,7 +3684,9 @@ class ScheduleWizardPanel extends HTMLElement {
       const dc = String((states[id].attributes || {}).device_class || "");
       return dc === "precipitation" || dc === "precipitation_intensity" || dc === "moisture" || RAIN_WORDS.test(id) || RAIN_WORDS.test(name(id));
     };
-    const ids = Object.keys(states).filter(id => RAIN_DOMAINS.includes(id.split(".")[0]))
+    // Schedule Wizard's own sensors are never a rain source (#91, as #70 did for zones); a saved one stays visible.
+    const own = new Set((this._state && this._state.own_entities) || []);
+    const ids = Object.keys(states).filter(id => RAIN_DOMAINS.includes(id.split(".")[0]) && (!own.has(id) || id === cur))
       .sort((a, b) => name(a).localeCompare(name(b)));
     const weather = ids.filter(id => id.startsWith("weather."));
     const rain = ids.filter(id => !id.startsWith("weather.") && rainy(id));
@@ -3685,12 +3719,7 @@ class ScheduleWizardPanel extends HTMLElement {
         return;
       }
       const r = rules();
-      const domain = id.split(".")[0];
-      const now = ltr(st.state);
-      let parts;
-      if (r.threshold > 0) parts = this._tn("set.rain_check_threshold", { n: r.threshold, state: now });
-      else if (domain === "binary_sensor" && !r.states.length) parts = this._tn("set.rain_check_on", { state: now });
-      else parts = this._tn("set.rain_check_states", { states: ltr(r.states.join(", ")), state: now });
+      const parts = rainCheckParts(st, r, (key, vars) => this._tn(key, vars), (key) => this._t(key));
       if (rainWouldSkip(st, r)) parts.push(" ", this._t("set.rain_would_skip"));
       check.replaceChildren(...parts);
     };
@@ -4135,7 +4164,8 @@ class ScheduleWizardPanel extends HTMLElement {
         return;
       }
       const rainNow = rainPicker.value();
-      if (rainNow && rainNow !== String(opts.rain_entity || "").trim() && !(this._hass.states || {})[rainNow]) {
+      const ownIds = new Set(this._state.own_entities || []);
+      if (rainNow && rainNow !== String(opts.rain_entity || "").trim() && (!(this._hass.states || {})[rainNow] || ownIds.has(rainNow))) {
         rainPicker.setError(this._t("set.rain_invalid", { entity: rainNow }));
         rainPicker.select.focus();
         return;
