@@ -58,6 +58,8 @@ ON_STATES = {"on", "open", "opening", "active"}
 # Calendar names shorter than this only match an event whose whole summary is the name (#38).
 CALENDAR_MIN_WORD_MATCH = 3
 UNAVAILABLE_STATES = {"unavailable", "unknown", ""}
+# A close refused by a valve that is still available is tried again after this long (#80).
+CLOSE_RETRY_SECONDS = 60
 
 SKIP_EVENTS = {
     "rain": EVENT_RAIN_SKIPPED,
@@ -149,6 +151,9 @@ class Scheduler:
         self._known_calendar_events: set[str] = set()
         self._calendar_pending: dict[str, tuple[int, Optional[Callable]]] = {}
         self._restore_watch: dict[str, Callable] = {}
+        # #80: valves whose close could not be delivered (unavailable / refused); closed when they report.
+        self._pending_close: dict[str, dict] = {}
+        self._close_watch: dict[str, Callable] = {}
         self._master_open = False
         self._master_lock = asyncio.Lock()
         self._unsub_action = None
@@ -187,6 +192,7 @@ class Scheduler:
         )
         self._calendar_entity = self.options.get("calendar_entity") or ""
         self._arm_calendar()
+        await self._async_restore_pending_closes()
         await self._async_restore_active_runs()
         await self._async_restore_cycles()
         self._arm_flow()
@@ -244,13 +250,10 @@ class Scheduler:
             is_on = available and state.state in ON_STATES
 
             if available and remaining <= 0:
-                await self._call_service_off(entity_id)
-                await self.store.async_record_run(
-                    entity_id,
-                    run.get("source", "manual"),
-                    int(run.get("duration_min", 0)),
-                    "expired_during_downtime",
-                )
+                await self._async_close_or_defer(entity_id, {
+                    "status": "expired_during_downtime", "source": run.get("source", "manual"),
+                    "duration_min": int(run.get("duration_min", 0)), "note": "",
+                })
                 continue
 
             if available and not is_on:
@@ -274,7 +277,9 @@ class Scheduler:
                 # Keep the run until the valve reports a real state; close it then if it is due.
                 restored["await_state"] = True
                 restored["close_status"] = "expired_during_downtime" if remaining <= 0 else "completed"
-                self._watch_restored(entity_id, restored)
+            # Watch every restored valve: the state read here can be a stale restored `on` that turns
+            # unavailable a moment later (#54).
+            self._watch_restored(entity_id, restored)
             restored["unsub_close"] = async_call_later(
                 self.hass, max(0, remaining), self._make_close_callback(entity_id, restored)
             )
@@ -285,23 +290,29 @@ class Scheduler:
         if self._active:
             async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
 
-    def _watch_restored(self, entity_id: str, run: Optional[dict]) -> None:
-        """Wait for the first real state of a valve that was not available when its run was restored.
+    def _watch_restored(self, entity_id: str, run: dict) -> None:
+        """Follow the valve of a restored run until it reports a real state after being unavailable.
 
-        With run=None the run is already over: only close the valve if it comes back open.
+        Unavailable at load (await_state set), or going unavailable later: the first real state then
+        decides (on = keep the run / close it if due, off = closed during the downtime).
         """
         self._unwatch_restored(entity_id)
 
         @callback
         def _changed(event: Event) -> None:
+            if self._active.get(entity_id) is not run:
+                self._unwatch_restored(entity_id)
+                return
             new = event.data.get("new_state")
             if new is None or new.state in UNAVAILABLE_STATES:
+                if not run.get("await_state"):
+                    run["await_state"] = True
+                    run["close_status"] = "completed"
+                    self.hass.async_create_task(self._async_persist_active())
+                return
+            if not run.get("await_state"):
                 return
             self._unwatch_restored(entity_id)
-            if run is None:
-                if new.state in ON_STATES:
-                    self.hass.async_create_task(self._call_service_off(entity_id))
-                return
             self.hass.async_create_task(self._async_restored_available(entity_id, run, new.state))
 
         self._restore_watch[entity_id] = async_track_state_change_event(self.hass, [entity_id], _changed)
@@ -340,6 +351,127 @@ class Scheduler:
         ]
         await self.store.async_set_active_runs(runs)
 
+    # ------------------------------------------------------------------ pending closes (#80)
+
+    @property
+    def pending_close(self) -> list[str]:
+        return sorted(self._pending_close)
+
+    async def _async_close_or_defer(self, entity_id: str, row: Optional[dict] = None) -> bool:
+        """Close a valve now, or keep a persisted pending close until it reports a real state.
+
+        `row` is the history row (status, source, duration_min, note, liters) recorded once the close
+        is done; None when the close has no row of its own (master valve, Stop on an idle zone).
+        """
+        if await self._call_service_off(entity_id):
+            if row:
+                await self._async_record_end(entity_id, row)
+            return True
+        await self._async_defer_close(entity_id, row)
+        return False
+
+    async def _async_defer_close(self, entity_id: str, row: Optional[dict]) -> None:
+        previous = self._pending_close.get(entity_id) or {}
+        pending = {"entity_id": entity_id, "since": int(time.time()), "row": row or previous.get("row")}
+        self._cancel_close_retry(previous)
+        self._pending_close[entity_id] = pending
+        LOG.warning("close of %s not delivered: it will be closed when it reports a state", entity_id)
+        self._watch_close(entity_id)
+        if self._can_command(entity_id):
+            # Available but the close was refused: try again later, a state change may never come.
+            self._schedule_close_retry(entity_id, pending)
+        await self._async_persist_pending()
+
+    def _watch_close(self, entity_id: str) -> None:
+        if entity_id in self._close_watch:
+            return
+
+        @callback
+        def _changed(event: Event) -> None:
+            new = event.data.get("new_state")
+            if new is None or new.state in UNAVAILABLE_STATES:
+                return
+            self.hass.async_create_task(self._async_try_pending_close(entity_id))
+
+        self._close_watch[entity_id] = async_track_state_change_event(self.hass, [entity_id], _changed)
+
+    def _unwatch_close(self, entity_id: str) -> None:
+        unsub = self._close_watch.pop(entity_id, None)
+        if unsub:
+            unsub()
+        self._cancel_close_retry(self._pending_close.get(entity_id) or {})
+
+    def _schedule_close_retry(self, entity_id: str, pending: dict) -> None:
+        @callback
+        def _retry(_now) -> None:
+            pending["unsub_retry"] = None
+            self.hass.async_create_task(self._async_try_pending_close(entity_id))
+
+        self._cancel_close_retry(pending)
+        pending["unsub_retry"] = async_call_later(self.hass, CLOSE_RETRY_SECONDS, _retry)
+
+    @staticmethod
+    def _cancel_close_retry(pending: dict) -> None:
+        unsub = pending.pop("unsub_retry", None)
+        if unsub:
+            unsub()
+
+    async def _async_try_pending_close(self, entity_id: str) -> None:
+        """The valve reports a real state: close it if it is open; off means it is closed."""
+        pending = self._pending_close.get(entity_id)
+        if not pending or pending.get("busy"):
+            return
+        state = self.hass.states.get(entity_id)
+        if state is None or state.state in UNAVAILABLE_STATES:
+            return
+        pending["busy"] = True
+        try:
+            if state.state in ON_STATES and not await self._call_service_off(entity_id):
+                if self._pending_close.get(entity_id) is pending and self._can_command(entity_id):
+                    self._schedule_close_retry(entity_id, pending)
+                return
+        finally:
+            pending.pop("busy", None)
+        if self._pending_close.get(entity_id) is not pending:
+            return
+        self._unwatch_close(entity_id)
+        self._pending_close.pop(entity_id, None)
+        await self._async_persist_pending()
+        LOG.info("pending close of %s done (state was %s)", entity_id, state.state)
+        if pending.get("row"):
+            await self._async_record_end(entity_id, pending["row"])
+        async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+
+    def _take_pending_close(self, entity_id: str) -> None:
+        """A new command for this valve replaces its pending close; its history row is written now."""
+        pending = self._pending_close.pop(entity_id, None)
+        if pending is None:
+            return
+        self._unwatch_close(entity_id)
+        self._cancel_close_retry(pending)
+        if pending.get("row"):
+            self.hass.async_create_task(self._async_record_end(entity_id, pending["row"]))
+        self.hass.async_create_task(self._async_persist_pending())
+
+    async def _async_persist_pending(self) -> None:
+        if self._stopping:
+            return
+        await self.store.async_set_pending_closes([
+            {k: v for k, v in p.items() if k in ("entity_id", "since", "row")}
+            for p in self._pending_close.values()
+        ])
+
+    async def _async_restore_pending_closes(self) -> None:
+        for saved in self.store.pending_closes:
+            entity_id = saved.get("entity_id") if isinstance(saved, dict) else None
+            if not entity_id or entity_id in self._pending_close:
+                continue
+            row = saved.get("row") if isinstance(saved.get("row"), dict) else None
+            self._pending_close[entity_id] = {"entity_id": entity_id, "since": saved.get("since"), "row": row}
+            self._watch_close(entity_id)
+        for entity_id in list(self._pending_close):
+            await self._async_try_pending_close(entity_id)
+
     @callback
     def _on_ha_stop(self, _event: Event) -> None:
         """HA is shutting down: tasks get cancelled next; leave valves and cycle state for resume."""
@@ -358,6 +490,10 @@ class Scheduler:
         self._cancel_calendar_pending()
         for entity_id in list(self._restore_watch):
             self._unwatch_restored(entity_id)
+        # Pending closes stay persisted and are re-armed on the next start.
+        for entity_id in list(self._pending_close):
+            self._unwatch_close(entity_id)
+        self._pending_close.clear()
         for active in list(self._active.values()):
             self._cancel_run_timer(active)
         self._active.clear()
@@ -1044,6 +1180,7 @@ class Scheduler:
 
         existing = self._active.pop(entity_id, None)
         self._unwatch_restored(entity_id)
+        self._take_pending_close(entity_id)
         if existing:
             self._cancel_run_timer(existing)
             if not existing.get("starting"):
@@ -1073,7 +1210,7 @@ class Scheduler:
         except asyncio.CancelledError:
             if self._active.get(entity_id) is run and not self._stopping:
                 self._active.pop(entity_id, None)
-                await self._call_service_off(entity_id)
+                await self._async_close_or_defer(entity_id)
                 await self._async_master_maybe_close()
             raise
         except Exception:
@@ -1088,7 +1225,7 @@ class Scheduler:
 
         if not opened:
             self._active.pop(entity_id, None)
-            await self._call_service_off(entity_id)
+            await self._async_close_or_defer(entity_id)
             label = self._entity_label(entity_id)
             LOG.error("valve %s did not open within %ss", entity_id, self.options.get("fail_detection_seconds", 5))
             self.hass.bus.async_fire(EVENT_VALVE_FAILED, {
@@ -1160,37 +1297,50 @@ class Scheduler:
         if not active:
             return
         self._cancel_run_timer(active)
-        if active.get("await_state"):
-            # Stopped before the valve came back: still close it once it reports open.
-            self._watch_restored(entity_id, None)
-        await self._call_service_off(entity_id)
-        liters = await self._async_account_water(entity_id, active)
-        await self.store.async_record_run(
-            entity_id,
-            active.get("source", "manual"),
-            active.get("duration_min", 0),
-            status,
-            note or active.get("note", ""),
-            liters=liters,
-        )
+        self._unwatch_restored(entity_id)
+        closed = await self._call_service_off(entity_id)
+        row = {
+            "status": status,
+            "source": active.get("source", "manual"),
+            "duration_min": active.get("duration_min", 0),
+            "note": note or active.get("note", ""),
+            "liters": await self._async_account_water(entity_id, active),
+        }
+        if closed:
+            await self._async_record_end(entity_id, row)
+        else:
+            # Valve unavailable or the close was refused (#80): the row is written when it is closed.
+            await self._async_defer_close(entity_id, row)
         await self._async_persist_active()
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
         self._evaluate_flow()
+        self.hass.async_create_task(self._async_master_maybe_close())
+
+    async def _async_record_end(self, entity_id: str, row: dict) -> None:
+        """History row, valve_ended event and notification of a run whose valve is closed."""
+        status = row.get("status") or "completed"
+        await self.store.async_record_run(
+            entity_id,
+            row.get("source", "manual"),
+            row.get("duration_min", 0),
+            status,
+            row.get("note", ""),
+            liters=row.get("liters"),
+        )
         label = self._entity_label(entity_id)
         self.hass.bus.async_fire(EVENT_VALVE_ENDED, {
             "entity_id": entity_id,
             "label": label,
             "status": status,
-            "source": active.get("source", "manual"),
-            "duration_min": active.get("duration_min", 0),
-            "note": note or active.get("note", ""),
+            "source": row.get("source", "manual"),
+            "duration_min": row.get("duration_min", 0),
+            "note": row.get("note", ""),
         })
         self.hass.async_create_task(self._notify(
             "valve_end",
             "Schedule Wizard",
             f"Closed {label} ({status})",
         ))
-        self.hass.async_create_task(self._async_master_maybe_close())
 
     async def _async_wait_run(self, entity_id: str, run: dict, minutes: int) -> None:
         """Block until `run` ends; close it if the waiting task is cancelled."""
@@ -1472,7 +1622,7 @@ class Scheduler:
         if entity_id in self._active:
             await self._async_complete(entity_id, "cancelled", "manual stop")
             return
-        await self._call_service_off(entity_id)
+        await self._async_close_or_defer(entity_id)
 
     async def async_stop_all(self, reason: str = "manual stop") -> None:
         for cycle_id in list(self._active_cycles):
@@ -1785,7 +1935,15 @@ class Scheduler:
         )
         await self.hass.services.async_call(domain, service, {"entity_id": entity_id}, blocking=True)
 
-    async def _call_service_off(self, entity_id: str) -> None:
+    def _can_command(self, entity_id: str) -> bool:
+        """HA only delivers a service call to an entity that exists and is available."""
+        state = self.hass.states.get(entity_id)
+        return state is not None and state.state not in UNAVAILABLE_STATES
+
+    async def _call_service_off(self, entity_id: str) -> bool:
+        """Send the close command. False when it did not reach the valve: missing, unavailable or refused (#80)."""
+        if not self._can_command(entity_id):
+            return False
         domain = entity_id.split(".")[0]
         service = "close_cover" if domain == "cover" else (
             "close_valve" if domain == "valve" else "turn_off"
@@ -1794,6 +1952,9 @@ class Scheduler:
             await self.hass.services.async_call(domain, service, {"entity_id": entity_id}, blocking=True)
         except Exception as e:
             LOG.warning("close %s failed: %s", entity_id, e)
+            return False
+        # Gone unavailable meanwhile: HA drops the call with only a log warning.
+        return self._can_command(entity_id)
 
     async def _async_master_open(self) -> None:
         master = (self.options.get("master_valve_entity") or "").strip()
@@ -1802,6 +1963,7 @@ class Scheduler:
         async with self._master_lock:
             if self._master_open:
                 return
+            self._take_pending_close(master)
             try:
                 await self._call_service_on(master)
             except Exception as e:
@@ -1819,7 +1981,7 @@ class Scheduler:
         if self._has_running_work() or self._master_lock.locked():
             return
         self._master_open = False
-        await self._call_service_off(master)
+        await self._async_close_or_defer(master)
 
     async def _async_verify_opened(self, entity_id: str) -> bool:
         if not self.options.get("fail_detection_enabled"):
@@ -1990,4 +2152,4 @@ class Scheduler:
             await self.async_stop_all(kind)
             if (self.options.get("master_valve_entity") or "").strip():
                 self._master_open = False
-                await self._call_service_off(self.options["master_valve_entity"].strip())
+                await self._async_close_or_defer(self.options["master_valve_entity"].strip())
