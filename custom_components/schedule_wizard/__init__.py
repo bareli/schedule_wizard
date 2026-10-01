@@ -1,10 +1,13 @@
 """Schedule Wizard integration."""
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import os
 import secrets
 import time
+from collections import deque
 from typing import Any
 
 import voluptuous as vol
@@ -122,6 +125,25 @@ PANEL_REGISTERED_KEY = f"{DOMAIN}_panel_registered"
 WS_COMMANDS_REGISTERED_KEY = f"{DOMAIN}_ws_registered"
 CARD_RESOURCE_REGISTERED_KEY = f"{DOMAIN}_card_registered"
 CARD_RESOURCE_URL = f"{PANEL_STATIC_URL}/card.js"
+# Webhook flood limits (SEC-008): calls per minute per entry, and the window in which a repeat of the
+# same action for the same zone is answered without acting again.
+WEBHOOK_MAX_PER_MINUTE = 30
+WEBHOOK_REPEAT_SECONDS = 2
+# get_state keys that change while watering; a poll that sends the last `rev` gets only these (PERF-001).
+LIVE_STATE_KEYS = (
+    "active", "active_cycles", "soaking", "flow", "forecast", "seasonal", "water_total_l", "rain_delay_until", "now",
+)
+
+
+def _state_rev(state: dict[str, Any]) -> str:
+    """Fingerprint of get_state without the live keys and the per-second next-run countdowns."""
+    heavy = {k: v for k, v in state.items() if k not in LIVE_STATE_KEYS}
+    heavy["valves"] = [
+        {**v, "next_run": {k: x for k, x in v["next_run"].items() if k != "in_seconds"} if v.get("next_run") else None}
+        for v in heavy.get("valves") or []
+    ]
+    raw = json.dumps(heavy, sort_keys=True, default=str, separators=(",", ":"))
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
 
 
 def _entity_in_supported_domain(value: str) -> str:
@@ -455,7 +477,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
     if hass.data.get(WS_COMMANDS_REGISTERED_KEY):
         return
 
-    @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/get_state"})
+    @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/get_state", vol.Optional("rev"): str})
     @websocket_api.async_response
     async def _ws_get_state(hass_inner, connection, msg):
         domain_data = hass_inner.data.get(DOMAIN, {})
@@ -585,7 +607,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             # Secrets for admins only (#35): the webhook id and the notify targets (device names).
             options = {k: v for k, v in options.items() if k != CONF_NOTIFY_TARGETS}
 
-        connection.send_result(msg["id"], {
+        state = {
             "valves": valves_enriched,
             "schedules": store.schedules,
             "cycles": store.cycles,
@@ -610,7 +632,13 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "rain_delay_until": options.get(CONF_RAIN_DELAY_UNTIL, 0),
             "webhook_id": data.get("webhook_id", "") if is_admin else "",
             "now": int(time.time()),
-        })
+        }
+        rev = _state_rev(state)
+        if msg.get("rev") == rev:
+            # Nothing but the live part changed since this client's last full copy (PERF-001).
+            connection.send_result(msg["id"], {**{k: state[k] for k in LIVE_STATE_KEYS}, "rev": rev, "unchanged": True})
+            return
+        connection.send_result(msg["id"], {**state, "rev": rev})
 
     @websocket_api.websocket_command({
         vol.Required("type"): f"{DOMAIN}/update_options",
@@ -765,8 +793,37 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         webhook_id = secrets.token_hex(16)
         hass.config_entries.async_update_entry(entry, data={**entry.data, "webhook_id": webhook_id})
 
+    webhook_calls: deque[float] = deque()
+    webhook_last: dict[tuple, float] = {}
+
     async def _webhook_handler(hass_inner: HomeAssistant, wh_id: str, request: web.Request) -> web.Response:
         try:
+            now_mono = time.monotonic()
+            while webhook_calls and now_mono - webhook_calls[0] >= 60:
+                webhook_calls.popleft()
+            if len(webhook_calls) >= WEBHOOK_MAX_PER_MINUTE:
+                retry = max(1, int(60 - (now_mono - webhook_calls[0])) + 1)
+                return web.json_response(
+                    {"error": "too many requests"}, status=429, headers={"Retry-After": str(retry)},
+                )
+            webhook_calls.append(now_mono)
+
+            def _repeat(key: tuple) -> bool:
+                """True when the same action for the same zone was done moments ago; else claim it now."""
+                for old in [k for k, t in webhook_last.items() if now_mono - t >= WEBHOOK_REPEAT_SECONDS]:
+                    webhook_last.pop(old, None)
+                if key in webhook_last:
+                    return True
+                webhook_last[key] = now_mono
+                return False
+
+            async def _act(key: tuple, call) -> None:
+                try:
+                    await call
+                except BaseException:
+                    webhook_last.pop(key, None)  # a failed action may be retried at once
+                    raise
+
             try:
                 payload = await request.json()
             except Exception:
@@ -789,7 +846,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if not valve:
                 return web.json_response({"error": "unknown zone"}, status=404)
             if action == "stop":
-                await scheduler.async_stop_valve(entity_id)
+                if _repeat(("stop", entity_id)):
+                    return web.json_response({"ok": True, "action": "stop", "entity_id": entity_id, "duplicate": True})
+                await _act(("stop", entity_id), scheduler.async_stop_valve(entity_id))
                 return web.json_response({"ok": True, "action": "stop", "entity_id": entity_id})
             if hass_inner.states.get(entity_id) is None:
                 return web.json_response({"error": "unknown zone"}, status=404)
@@ -806,10 +865,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             requested = duration
             duration = min(duration, scheduler.external_cap())
             note = f"capped:{requested}" if duration < requested else ""
-            await scheduler.async_run_valve(entity_id, duration, source="webhook", note=note)
             body = {"ok": True, "action": "run", "entity_id": entity_id, "duration_minutes": duration}
             if note:
                 body["shortened_from"] = requested
+            if _repeat(("run", entity_id, duration)):
+                return web.json_response({**body, "duplicate": True})
+            await _act(("run", entity_id, duration), scheduler.async_run_valve(entity_id, duration, source="webhook", note=note))
             return web.json_response(body)
         except Exception:
             LOG.exception("webhook handler failed")
@@ -1178,6 +1239,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if data.get("voice"):
             data["voice"].async_stop()
         await data["scheduler"].async_stop()
+        await data["store"].async_flush()
         wh_id = data.get("webhook_id")
         if wh_id:
             try:

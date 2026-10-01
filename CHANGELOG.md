@@ -1,11 +1,18 @@
 # Changelog
 
-## 0.14.1: security fixes
+## 0.15.0: security and reliability fixes
 
 - **Webhook only runs your zones** (#34, #37): the webhook used to switch any switch, light, cover, valve or input_boolean in Home Assistant, including ones that are not zones, and recorded runs for entities that do not exist. It now accepts only zones set up in Schedule Wizard (`404 unknown zone` otherwise, nothing switched or recorded) and refuses to run a disabled zone (`409`). Automations that call the webhook for a zone keep working; calls for other entities stop working.
-- **Webhook URL for administrators only, and a New URL button** (#35): non-admin users no longer receive the webhook ID or the notification targets from the panel. Settings → More options → Webhook has **New URL**, which replaces the secret; the old URL stops working at once.
+- **Webhook URL for administrators only, and a New URL button** (#35): non-admin users no longer receive the webhook ID or the notification targets from the panel or the `list_config` service. Settings → More options → Webhook has **New URL**, which replaces the secret; the old URL stops working at once.
 - **Webhook errors** (#36): a body that is not a JSON object, a non-text or unknown `action`, or a bad `entity_id` now gets `400` with a short message; unexpected errors return `internal error` instead of Python exception text.
 - **Main valve must be a valve** (#40): Settings accepts only an existing switch, valve, light, cover or input_boolean as main valve / pump, checked in the panel and on the server. A main valve of another domain saved earlier (for example a script) is ignored and logged instead of being turned on and off around every run.
+- **Calendar runs match whole words in the event title** (#38): a calendar event starts a zone only when its title contains the zone name as a whole word (case does not matter); the description and location no longer count, and a 1 or 2 letter zone name must be the whole title. "Front lawns" or "Storefront" no longer start the zone "Front". If your calendar auto-accepts invitations, use a dedicated calendar for watering.
+- **Input limits** (#39): names and labels are capped at 80 characters, at most 200 zones, 200 watering times and 200 plans; the Skip day button in a notification only accepts a real date; history CSV cells that start with `=`, `+`, `-` or `@` are escaped so spreadsheets do not run them.
+- **A valve stays under control across a restart** (#54): if a zone was watering when Home Assistant restarted and its switch was not available yet when Schedule Wizard loaded, the run was dropped and the valve could stay open. The run is now kept and the valve is closed at its planned end, or as soon as it reports in if that time has passed.
+- **Keyboard focus is kept** (#41): the panel and the card no longer throw keyboard focus back to the top of the page every 5 seconds or after pressing a button; after Water now, focus moves to that zone's Stop.
+- **Messages are visible** (#51): errors (for example Save with an empty zone name) and confirmations now show on screen, inside the open dialog when there is one, also in Hebrew and on narrow phones.
+- **Deleted plans keep their name in history** (#57) instead of showing an internal id; older rows show "Deleted plan".
+- "1 run" instead of "1 runs" in the zone summary, in all 17 languages (#56).
 
 ## 0.14.0: water every N days, 0 % temperature adjustment skips the run
 

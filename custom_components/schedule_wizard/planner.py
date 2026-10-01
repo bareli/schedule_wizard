@@ -222,9 +222,9 @@ def predicted_skip(store: WizardStore, options: dict, sched: dict, target: dict,
 
 
 def occurrences(
-    store: WizardStore, options: dict, start: datetime, end: datetime, limit: int = 500,
+    store: WizardStore, options: dict, start: datetime, end: datetime, limit: Optional[int] = 500,
 ) -> list[dict[str, Any]]:
-    """All schedule runs whose start falls in [start, end), sorted by time."""
+    """All schedule runs whose start falls in [start, end), sorted by time; the first `limit` (None: all)."""
     hass = store.hass
     start_l = dt_util.as_local(start)
     end_l = dt_util.as_local(end)
@@ -256,7 +256,7 @@ def occurrences(
                     })
             day += timedelta(days=1)
     out.sort(key=lambda o: (o["start"], o["name"]))
-    return out[:limit]
+    return out if limit is None else out[:limit]
 
 
 def next_occurrence(store: WizardStore, options: dict, schedule_id: Optional[str] = None,
