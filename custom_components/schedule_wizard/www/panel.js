@@ -528,14 +528,24 @@ class ScheduleWizardPanel extends HTMLElement {
     return c && this._t.has("status." + c) ? this._t("status." + c) : c;
   }
 
-  _sourceLabel(code) {
+  _sourceLabel(code, planName) {
     const c = String(code || "");
     if (c.startsWith("cycle:")) {
-      const id = c.slice(6).split("|")[0];
-      const cycle = ((this._state && this._state.cycles) || []).find(x => x.id === id);
-      return this._t("source.cycle", { name: cycle ? cycle.name : id });
+      return this._t("source.cycle", { name: this._planName(c.slice(6).split("|")[0], planName) });
     }
     return c && this._t.has("source." + c) ? this._t("source." + c) : c;
+  }
+
+  // History rows keep a plan's id; zones are entity ids (always with a dot) (#57).
+  _isPlanId(id) {
+    return !!id && !String(id).includes(".");
+  }
+
+  // The plan's current name, else the name stored with the history row, else "Deleted plan" (#57).
+  _planName(id, stored) {
+    const cycle = ((this._state && this._state.cycles) || []).find(x => x.id === id);
+    if (cycle) return cycle.name;
+    return stored || this._t("home.deleted_plan");
   }
 
   _daysFromMask(mask) {
@@ -1303,9 +1313,9 @@ class ScheduleWizardPanel extends HTMLElement {
   }
 
   _activitySentence(h) {
-    const cycle = (this._state.cycles || []).find(c => c.id === h.valve_entity_id);
-    const name = cycle ? iso(cycle.name) : this._valveName(h.valve_entity_id);
-    if (!cycle && h.status === "completed") return this._tn("home.act_watered", { zone: name, n: h.duration_min });
+    const plan = this._isPlanId(h.valve_entity_id);
+    const name = plan ? iso(this._planName(h.valve_entity_id, h.name)) : this._valveName(h.valve_entity_id);
+    if (!plan && h.status === "completed") return this._tn("home.act_watered", { zone: name, n: h.duration_min });
     return this._tn("home.act_status", { name, status: this._statusLabel(h.status) });
   }
 
@@ -1313,7 +1323,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const h = g.entry;
     const left = el("div", { style: "min-width:0;" }, [
       el("div", {}, [...this._activitySentence(h), h.liters > 0 ? " · " + this._fmtLiters(h.liters) : null]),
-      el("div", { class: "sub" }, this._sourceLabel(h.source)),
+      el("div", { class: "sub" }, this._sourceLabel(h.source, h.plan_name)),
     ]);
     if (g.kind === "cycle") {
       (g.children || []).filter(c => c.status !== "started").forEach(c => {
@@ -1332,19 +1342,18 @@ class ScheduleWizardPanel extends HTMLElement {
   }
 
   _groupHistory(history) {
-    const cyclesById = Object.fromEntries((this._state.cycles || []).map(c => [c.id, c]));
     const used = new Set();
     const out = [];
     for (let i = 0; i < history.length; i++) {
       if (used.has(i)) continue;
       const h = history[i];
-      if (cyclesById[h.valve_entity_id]) {
+      if (this._isPlanId(h.valve_entity_id)) {
         const cycleId = h.valve_entity_id;
         const children = [];
         for (let j = i + 1; j < history.length; j++) {
           if (used.has(j)) continue;
           const c = history[j];
-          if (cyclesById[c.valve_entity_id] && c.valve_entity_id === cycleId) break;
+          if (c.valve_entity_id === cycleId) break;
           if (c.source && c.source.startsWith(`cycle:${cycleId}`)) {
             children.push(c);
             used.add(j);
@@ -2646,12 +2655,11 @@ class ScheduleWizardPanel extends HTMLElement {
   _downloadHistoryCsv() {
     const history = this._state.history || [];
     const valvesById = Object.fromEntries((this._state.valves || []).map(v => [v.entity_id, v.label]));
-    const cyclesById = Object.fromEntries((this._state.cycles || []).map(c => [c.id, c.name]));
     const header = ["timestamp", "iso_time", "target_kind", "target_id", "target_label", "duration_min", "source", "status", "note", "liters"];
     const rows = history.map(h => {
-      const isCycle = !!cyclesById[h.valve_entity_id];
+      const isCycle = this._isPlanId(h.valve_entity_id);
       const id = h.valve_entity_id || "";
-      const label = isCycle ? cyclesById[id] : (valvesById[id] || id);
+      const label = isCycle ? this._planName(id, h.name) : (valvesById[id] || id);
       const isoTime = new Date(h.ts * 1000).toISOString();
       return [
         h.ts, isoTime,

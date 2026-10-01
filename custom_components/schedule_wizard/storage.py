@@ -399,6 +399,14 @@ class WizardStore:
             "note": note,
             "ts": int(time.time()),
         }
+        # Keep the plan's name with the row so history still reads after the plan is deleted (#57).
+        cycle = self.get_cycle(valve_entity_id) if valve_entity_id else None
+        if cycle is not None:
+            entry["name"] = cycle.get("name", "")
+        if (source or "").startswith("cycle:"):
+            owner = self.get_cycle(source[6:].split("|")[0])
+            if owner is not None:
+                entry["plan_name"] = owner.get("name", "")
         if liters is not None:
             entry["liters"] = round(float(liters), 1)
         self._data["history"].insert(0, entry)
