@@ -6,12 +6,14 @@ const CARD_STYLES = `
   /* Text and fills that reach 4.5:1 with HA's default theme (BUG-006); same rule as the panel. */
   --sw-primary-text: var(--primary-color, #03a9f4);
   --sw-danger-text: var(--error-color, #dc2626);
+  --sw-success-text: var(--success-color, #16a34a);
   --sw-primary-fill: var(--primary-color, #03a9f4);
 }
 @supports (color: color-mix(in srgb, red 50%, blue)) {
   :host {
     --sw-primary-text: color-mix(in srgb, var(--primary-color, #03a9f4) 65%, var(--primary-text-color, #212121));
     --sw-danger-text: color-mix(in srgb, var(--error-color, #dc2626) 70%, var(--primary-text-color, #212121));
+    --sw-success-text: color-mix(in srgb, var(--success-color, #16a34a) 60%, var(--primary-text-color, #212121));
     --sw-primary-fill: color-mix(in srgb, var(--primary-color, #03a9f4) 75%, #000);
   }
 }
@@ -38,7 +40,7 @@ const CARD_STYLES = `
   background: var(--divider-color, #e5e7eb);
   color: var(--secondary-text-color);
 }
-.pill.ok { background: rgba(22,163,74,0.15); color: #15803d; }
+.pill.ok { background: rgba(22,163,74,0.15); color: var(--sw-success-text); }
 .row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -158,7 +160,9 @@ function captureFocus(root) {
   const inRow = row ? all.filter(x => rowKey(x) === row) : [];
   const rowPos = inRow.indexOf(n);
   const near = (list, i) => [list[i + 1], list[i - 1]].filter(Boolean).map(x => focusId(all, x));
-  return { pos, row, rowPos, self: focusId(all, n), rowNear: row ? near(inRow, rowPos) : [], near: near(all, pos) };
+  // Stop and Water now replace each other in a zone row: focus moves to the one that took its place (BUG-024).
+  const swap = n.matches("button.stop") ? "button.run" : n.matches("button.run") ? "button.stop" : null;
+  return { pos, row, rowPos, swap, self: focusId(all, n), rowNear: row ? near(inRow, rowPos) : [], near: near(all, pos) };
 }
 
 function restoreFocus(root, key) {
@@ -169,7 +173,8 @@ function restoreFocus(root, key) {
     return same[id.nth] || same[0];
   };
   const inRow = key.row ? all.filter(x => rowKey(x) === key.row) : [];
-  const target = find(key.self) || key.rowNear.map(find).find(Boolean) ||
+  const swapped = key.swap ? inRow.find(x => x.matches(key.swap)) : null;
+  const target = find(key.self) || swapped || key.rowNear.map(find).find(Boolean) ||
     (inRow.length ? inRow[Math.min(key.rowPos, inRow.length - 1)] : null) ||
     key.near.map(find).find(Boolean) || (all.length ? all[Math.min(key.pos, all.length - 1)] : null);
   if (target) target.focus({ preventScroll: true });
@@ -633,13 +638,22 @@ if (!customElements.get("schedule-wizard-card-editor")) {
   customElements.define("schedule-wizard-card-editor", ScheduleWizardCardEditor);
 }
 
+// The card picker's language: the signed-in user's, read when the picker shows the card (BUG-023).
+function pickerLang() {
+  const ha = typeof document !== "undefined" && document.querySelector ? document.querySelector("home-assistant") : null;
+  if (ha && ha.hass) return I18N.resolveLang(ha.hass);
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem("selectedLanguage") || "null"); } catch (e) { saved = null; }
+  return I18N.resolveLang({ language: saved || (typeof navigator !== "undefined" && navigator.language) || "en" });
+}
+
 if (!customElements.get("schedule-wizard-card")) {
   customElements.define("schedule-wizard-card", ScheduleWizardCard);
   window.customCards = window.customCards || [];
   window.customCards.push({
     type: "schedule-wizard-card",
     name: "Schedule Wizard",
-    description: "Dashboard card for Schedule Wizard: active runs + quick run.",
+    get description() { return I18N.makeT(pickerLang())("card.picker_description"); },
     preview: true,
   });
 }

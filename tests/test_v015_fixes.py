@@ -79,7 +79,8 @@ async def test_stopped_run_records_actual_minutes(hass: HomeAssistant, hass_ws_c
     client = await hass_ws_client(hass)
     await client.send_json({"id": 1, "type": f"{DOMAIN}/get_state"})
     stats = next(v for v in (await client.receive_json())["result"]["valves"] if v["entity_id"] == Z1)["stats"]
-    assert stats["total_min_7d"] == 0 + 2 + 1 + 0  # the last stop_all row is under a minute too
+    # The superseded run's 4 watered minutes count too (BUG-028); the last stop_all row is under a minute.
+    assert stats["total_min_7d"] == 0 + 2 + 4 + 1 + 0
 
 
 # ---------------------------------------------------------------- BUG-014 #53: one voice command, one start

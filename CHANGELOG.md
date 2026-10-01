@@ -13,6 +13,15 @@
 - **Messages are visible** (#51): errors (for example Save with an empty zone name) and confirmations now show on screen, inside the open dialog when there is one, also in Hebrew and on narrow phones.
 - **Deleted plans keep their name in history** (#57) instead of showing an internal id; older rows show "Deleted plan".
 - "1 run" instead of "1 runs" in the zone summary, in all 17 languages (#56).
+- **Bigger touch targets** (#58): on phones and tablets the week view's Skip day, the panel menu button and text fields are at least 44 px high.
+- **Readable colours** (#45, #81): the card's "1 running" pill and past runs in the week view now reach 4.5:1 contrast in light and dark themes; past runs are greyed with a muted colour instead of see-through.
+- **Messages in dialogs** (#83): an error now shows right under the dialog title instead of over it, and pressing Save again replaces the message instead of stacking another one.
+- **Card** (#84, #85): the card picker describes the card in your language; after Stop, keyboard focus moves to that zone's Water now (and back to Stop after Water now).
+- **Screen readers** (#82, #86): no more 1 px sideways scroll in Hebrew on narrow screens; Settings' More options and each option group are announced with their names.
+- **Run history kept on shutdown** (#87): a valve closed late (it was unavailable at the run's end) keeps its "completed" row even if Home Assistant stops at that moment, and the row is never written twice.
+- **German and other languages** (#88): voice replies say "1 Minute" / "1 Tag" (also English and Hebrew singular), and numbers in notifications use the language's decimal comma, for example "1,5 Std.".
+- **Totals include replaced runs** (#89): when Water now replaces a running zone, the minutes the first run watered now count in Reports and the zone summary (rows from before 0.15.0 are left out, they hold the planned length).
+- **Reports say the period** (#90): the per-zone columns read "Last 7 days" and "Last 30 days" instead of "7d" / "30d".
 
 ## 0.14.0: water every N days, 0 % temperature adjustment skips the run
 

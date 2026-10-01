@@ -455,12 +455,17 @@ NOTIFY_TEXT: dict[str, dict[str, str]] = {
 }
 
 
-def fmt_number(value: Any) -> str:
-    """24.0 -> "24", 0.5 -> "0.5", 12.345 -> "12.3"."""
+# Languages that write a decimal comma (BUG-027): "1,5 Std.", not "1.5 Std.".
+DECIMAL_COMMA = frozenset({"de", "es", "fr", "it", "nl", "pt", "ru", "uk", "pl", "sv", "da", "nb", "fi"})
+
+
+def fmt_number(value: Any, lang: str = "en") -> str:
+    """24.0 -> "24", 0.5 -> "0.5" ("0,5" in a decimal-comma language), 12.345 -> "12.3"."""
     try:
-        return f"{round(float(value), 1):g}"
+        text = f"{round(float(value), 1):g}"
     except (TypeError, ValueError):
         return str(value)
+    return text.replace(".", ",") if lang in DECIMAL_COMMA else text
 
 
 def notify_text(lang: str, key: str, **params: Any) -> str:
