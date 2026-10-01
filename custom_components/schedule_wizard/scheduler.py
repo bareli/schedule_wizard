@@ -6,7 +6,7 @@ import logging
 import math
 import re
 import time
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Callable, Optional
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
@@ -113,6 +113,17 @@ def panel_lang(language: Optional[str]) -> str:
     if base in ("no", "nn"):
         base = "nb"
     return base if base in SEASONAL_SKIP_TEXT else "en"
+
+
+def _is_iso_day(value: str) -> bool:
+    """A real calendar date written YYYY-MM-DD."""
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value or ""):
+        return False
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        return False
+    return True
 
 
 def seasonal_percent(factor: float) -> int:
@@ -490,6 +501,10 @@ class Scheduler:
             return
         verb, schedule_id, day = parts
         if not self.store.get_schedule(schedule_id):
+            return
+        if verb == "SKIP" and not _is_iso_day(day):
+            # #39: the event can come from any client; only store real YYYY-MM-DD days.
+            LOG.warning("ignored notification action %s: bad day", action[:80])
             return
         try:
             if verb == "SKIP":

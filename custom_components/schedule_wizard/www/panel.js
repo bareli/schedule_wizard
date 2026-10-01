@@ -1514,7 +1514,7 @@ class ScheduleWizardPanel extends HTMLElement {
     let duration = existing ? existing.default_duration_min : (this._state.options.default_duration || 10);
     let enabled = existing ? !!existing.enabled : true;
 
-    const labelInput = el("input", { type: "text", value: label, placeholder: this._t("valves.label_ph") });
+    const labelInput = el("input", { type: "text", maxlength: "80", value: label, placeholder: this._t("valves.label_ph") });
     labelInput.addEventListener("input", () => { label = labelInput.value; });
 
     const durInput = el("input", { type: "number", min: "1", max: "1440", value: String(duration) });
@@ -1560,7 +1560,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const soakRunInput = el("input", { type: "number", min: "0", max: "1440", value: String(existing ? (existing.soak_run_min || 0) : 0) });
     const soakPauseInput = el("input", { type: "number", min: "0", max: "1440", value: String(existing ? (existing.soak_pause_min || 0) : 0) });
     const vMoistEntity = el("input", { type: "text", dir: "ltr", placeholder: "sensor.zone_moisture", value: String((existing && existing.moisture_entity) || "") });
-    const vMoistAttr = el("input", { type: "text", placeholder: this._t("common.moisture_attr_ph"), value: String((existing && existing.moisture_attribute) || "") });
+    const vMoistAttr = el("input", { type: "text", maxlength: "255", placeholder: this._t("common.moisture_attr_ph"), value: String((existing && existing.moisture_attribute) || "") });
     const vMoistThrRaw = (existing && existing.moisture_threshold !== null && existing.moisture_threshold !== undefined) ? String(existing.moisture_threshold) : "";
     const vMoistThreshold = el("input", { type: "number", min: "0", max: "100", step: "0.5", value: vMoistThrRaw });
 
@@ -1770,7 +1770,7 @@ class ScheduleWizardPanel extends HTMLElement {
       steps.push({ entity_id: v.entity_id, duration_min: v.default_duration_min });
     }
 
-    const nameInput = el("input", { type: "text", value: name, placeholder: this._t("cycles.name_ph") });
+    const nameInput = el("input", { type: "text", maxlength: "80", value: name, placeholder: this._t("cycles.name_ph") });
     nameInput.addEventListener("input", () => { name = nameInput.value; });
 
     const enabledInput = el("input", { type: "checkbox" });
@@ -1927,7 +1927,7 @@ class ScheduleWizardPanel extends HTMLElement {
     };
     renderTargetField();
 
-    const nameInput = el("input", { type: "text", value: name, placeholder: this._t("common.optional") });
+    const nameInput = el("input", { type: "text", maxlength: "80", value: name, placeholder: this._t("common.optional") });
     nameInput.addEventListener("input", () => { name = nameInput.value; });
 
     const enabledInput = el("input", { type: "checkbox" });
@@ -2075,7 +2075,7 @@ class ScheduleWizardPanel extends HTMLElement {
       conditions.forEach((c, idx) => {
         const entInput = el("input", { type: "text", dir: "ltr", placeholder: "sensor.example", value: c.entity_id });
         entInput.addEventListener("input", () => { c.entity_id = entInput.value; });
-        const attrInput = el("input", { type: "text", placeholder: this._t("sched.attr_ph"), value: c.attribute });
+        const attrInput = el("input", { type: "text", maxlength: "255", placeholder: this._t("sched.attr_ph"), value: c.attribute });
         attrInput.addEventListener("input", () => { c.attribute = attrInput.value; });
         const opSel = el("select", {});
         OPERATORS.forEach(([val, lbl]) => {
@@ -2084,7 +2084,7 @@ class ScheduleWizardPanel extends HTMLElement {
           opSel.appendChild(opt);
         });
         opSel.addEventListener("change", () => { c.operator = opSel.value; });
-        const valInput = el("input", { type: "text", placeholder: this._t("sched.value_ph"), value: c.value });
+        const valInput = el("input", { type: "text", maxlength: "255", placeholder: this._t("sched.value_ph"), value: c.value });
         valInput.addEventListener("input", () => { c.value = valInput.value; });
         condWrap.appendChild(el("div", { class: "cond-row" }, [
           entInput, attrInput, opSel, valInput,
@@ -2225,7 +2225,7 @@ class ScheduleWizardPanel extends HTMLElement {
     };
 
     const planNameField = () => {
-      const input = el("input", { type: "text", value: planName(), placeholder: t("cycles.name_ph") });
+      const input = el("input", { type: "text", maxlength: "80", value: planName(), placeholder: t("cycles.name_ph") });
       input.addEventListener("input", () => { wz.plan = input.value; wz.planTouched = true; refreshNext(); });
       return el("label", { class: "field", style: "margin:0;" }, [el("span", {}, t("wiz.plan_name")), input]);
     };
@@ -2275,7 +2275,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const bodyName = () => {
       body.appendChild(el("p", { class: "muted" }, t("wiz.name_hint")));
       wz.picked.filter(isNew).forEach(id => {
-        const input = el("input", { type: "text", value: nameOf(id), placeholder: t("valves.label_ph") });
+        const input = el("input", { type: "text", maxlength: "80", value: nameOf(id), placeholder: t("valves.label_ph") });
         input.addEventListener("input", () => { wz.names[id] = input.value; refreshNext(); });
         body.appendChild(el("label", { class: "field", style: "margin:0;" }, [
           el("span", {}, [iso(friendly(id)), " (", ltr(id), ")"]),
@@ -2665,8 +2665,10 @@ class ScheduleWizardPanel extends HTMLElement {
       ];
     });
     const escape = (v) => {
-      const s = String(v == null ? "" : v);
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      let s = String(v == null ? "" : v);
+      // #39: a text cell starting with = + - @ (or tab / CR) would run as a spreadsheet formula.
+      if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const csv = [header.map(escape).join(","), ...rows.map(r => r.map(escape).join(","))].join("\n");
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });

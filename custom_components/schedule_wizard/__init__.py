@@ -102,6 +102,10 @@ from . import issues, planner
 from .scheduler import Scheduler
 from .storage import WizardStore
 from .voice import VoiceCommands
+from .const import MAX_CYCLES, MAX_NAME_LENGTH, MAX_SCHEDULES, MAX_TEXT_LENGTH, MAX_VALVES
+
+NAME = vol.All(cv.string, vol.Length(max=MAX_NAME_LENGTH, msg=f"at most {MAX_NAME_LENGTH} characters"))
+TEXT = vol.All(cv.string, vol.Length(max=MAX_TEXT_LENGTH, msg=f"at most {MAX_TEXT_LENGTH} characters"))
 
 LOG = logging.getLogger(__name__)
 
@@ -149,13 +153,13 @@ SCHEMA_STOP = vol.Schema({
 
 SCHEMA_ADD_VALVE = vol.Schema({
     vol.Required("entity_id"): _entity_in_supported_domain,
-    vol.Required("label"): cv.string,
+    vol.Required("label"): NAME,
     vol.Optional("default_duration_minutes", default=DEFAULT_DURATION): vol.All(int, vol.Range(min=1, max=1440)),
     vol.Optional("enabled", default=True): cv.boolean,
     vol.Optional("soak_run_minutes"): vol.All(int, vol.Range(min=0, max=1440)),
     vol.Optional("soak_pause_minutes"): vol.All(int, vol.Range(min=0, max=1440)),
     vol.Optional("moisture_entity"): vol.Any(cv.entity_id, ""),
-    vol.Optional("moisture_attribute"): cv.string,
+    vol.Optional("moisture_attribute"): TEXT,
     vol.Optional("moisture_threshold"): vol.Any(vol.Coerce(float), None),
     vol.Optional("rain_exempt"): cv.boolean,
     vol.Optional("flow_rate_lpm"): vol.Any(vol.All(vol.Coerce(float), vol.Range(min=0, max=10000)), None),
@@ -173,9 +177,9 @@ VALVE_FIELD_MAP = {
 
 SCHEMA_CONDITIONS = vol.All(cv.ensure_list, [vol.Schema({
     vol.Required("entity_id"): cv.entity_id,
-    vol.Optional("attribute", default=""): cv.string,
+    vol.Optional("attribute", default=""): TEXT,
     vol.Optional("operator", default="equals"): vol.In(CONDITION_OPERATORS),
-    vol.Required("value"): vol.Any(cv.string, vol.Coerce(float)),
+    vol.Required("value"): vol.Any(TEXT, vol.Coerce(float)),
 })], vol.Length(max=10))
 
 SCHEMA_REMOVE_VALVE = vol.Schema({
@@ -190,13 +194,13 @@ SCHEMA_ADD_SCHEDULE = vol.Schema({
 vol.Optional("days"): vol.All(cv.ensure_list, [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])], vol.Length(min=1, msg="pick at least one day")),
     vol.Optional("every_n_days"): vol.All(vol.Coerce(int), vol.Range(min=INTERVAL_MIN_DAYS, max=INTERVAL_MAX_DAYS, msg="every_n_days must be 2 to 30")),
     vol.Optional("start_date"): cv.date,
-    vol.Optional("name", default=""): cv.string,
+    vol.Optional("name", default=""): NAME,
     vol.Optional("enabled", default=True): cv.boolean,
     vol.Optional("conditions"): SCHEMA_CONDITIONS,
 })
 
 SCHEMA_ADD_CYCLE = vol.Schema({
-    vol.Required("name"): cv.string,
+    vol.Required("name"): NAME,
     vol.Required("steps"): vol.All(
         cv.ensure_list,
         [vol.Schema({
@@ -210,7 +214,7 @@ SCHEMA_ADD_CYCLE = vol.Schema({
 
 SCHEMA_UPDATE_CYCLE = vol.Schema({
     vol.Required("cycle_id"): cv.string,
-    vol.Optional("name"): cv.string,
+    vol.Optional("name"): NAME,
     vol.Optional("steps"): vol.All(
         cv.ensure_list,
         [vol.Schema({
@@ -268,7 +272,7 @@ SCHEMA_REMOVE_SCHEDULE = vol.Schema({
 
 SCHEMA_UPDATE_SCHEDULE = vol.Schema({
     vol.Required("schedule_id"): cv.string,
-    vol.Optional("name"): cv.string,
+    vol.Optional("name"): NAME,
     vol.Optional("time"): _hhmm,
     vol.Optional("duration_minutes"): vol.All(int, vol.Range(min=1, max=1440)),
 vol.Optional("days"): vol.All(cv.ensure_list, [vol.In(["mon", "tue", "wed", "thu", "fri", "sat", "sun"])], vol.Length(min=1, msg="pick at least one day")),
@@ -680,6 +684,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def _svc_add_valve(call: ServiceCall) -> None:
         extra = {dst: call.data[src] for src, dst in VALVE_FIELD_MAP.items() if src in call.data}
+        if not store.get_valve(call.data["entity_id"]) and len(store.valves) >= MAX_VALVES:
+            raise HomeAssistantError(f"at most {MAX_VALVES} zones")
         await store.async_upsert_valve(
             call.data["entity_id"],
             call.data["label"],
@@ -703,6 +709,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             raise HomeAssistantError("cycle not found")
         if valve_entity_id and not store.get_valve(valve_entity_id):
             raise HomeAssistantError("valve not registered: add it with add_valve first")
+        if len(store.schedules) >= MAX_SCHEDULES:
+            raise HomeAssistantError(f"at most {MAX_SCHEDULES} watering times")
         repeat = _repeat_fields(call.data)
         sched = await store.async_add_schedule(
             valve_entity_id=valve_entity_id or None,
@@ -720,6 +728,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return {"schedule": sched}
 
     async def _svc_add_cycle(call: ServiceCall) -> ServiceResponse:
+        if len(store.cycles) >= MAX_CYCLES:
+            raise HomeAssistantError(f"at most {MAX_CYCLES} plans")
         steps = [
             {"entity_id": s["entity_id"], "duration_min": int(s["duration_minutes"])}
             for s in call.data["steps"]

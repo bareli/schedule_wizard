@@ -168,6 +168,8 @@ The HA **Configure** dialog only edits the basic options; it no longer wipes the
 
 ## Services
 
+Limits (since 0.14.1): zone labels and plan / watering time names up to 80 characters, moisture attributes and condition values up to 255; at most 200 zones, 200 watering times and 200 plans. Existing longer labels keep working; only new or changed ones are checked.
+
 | Service                           | Purpose                                                                                       |
 | --------------------------------- | --------------------------------------------------------------------------------------------- |
 | `schedule_wizard.run_valve`       | Open an entity for `duration_minutes`. Auto-closes when done.                                 |
