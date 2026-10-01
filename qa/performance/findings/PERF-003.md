@@ -5,7 +5,7 @@
 | Type | PERFORMANCE OPTIMIZATION |
 | Severity | LOW |
 | Status | DRAFT - claimed 2026-10-01T10:20Z, not yet filed |
-| Issue | |
+| Issue | [#76](https://github.com/bareli/schedule_wizard/issues/76) |
 | Feature | Store persistence in `storage.py`, `scheduler.py` |
 | Test case | none (new: PERF series; related series RUN) |
 | Environment | dev (8174, HA 2026.9.4, Windows) |

@@ -5,7 +5,7 @@
 | Type | SCALABILITY RISK (a cap that the scale target reaches; the effect is missing data, not slowness) |
 | Severity | MEDIUM |
 | Status | DRAFT - claimed 2026-10-01T10:20Z, not yet filed |
-| Issue | |
+| Issue | [#75](https://github.com/bareli/schedule_wizard/issues/75) |
 | Feature | `calendar.schedule_wizard_watering_schedule`, `planner.occurrences` |
 | Test case | none (new: PERF series; related series CAL) |
 | Environment | dev (8174, HA 2026.9.4) |

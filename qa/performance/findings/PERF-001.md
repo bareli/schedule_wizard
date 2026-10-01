@@ -5,7 +5,7 @@
 | Type | PERFORMANCE RISK |
 | Severity | MEDIUM |
 | Status | DRAFT - claimed 2026-10-01T10:20Z, not yet filed |
-| Issue | |
+| Issue | [#74](https://github.com/bareli/schedule_wizard/issues/74) |
 | Feature | Panel polling, WS `schedule_wizard/get_state` |
 | Test case | none (new: PERF series) |
 | Environment | dev (8174, HA 2026.9.4, Windows, other HA instances running on the same machine) |
