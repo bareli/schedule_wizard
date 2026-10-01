@@ -209,7 +209,7 @@ class NextScheduleSensor(SensorEntity):
         for s in self._store.schedules:
             if not s.get("enabled"):
                 continue
-            fire = planner.next_fire(s, now)
+            fire = planner.next_fire(s, now, hass=self.hass)
             if fire is None:
                 continue
             delta = fire - now

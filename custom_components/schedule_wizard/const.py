@@ -55,6 +55,12 @@ CONF_FORECAST_SKIP_MM = "forecast_skip_mm"
 CONF_FORECAST_HOURS = "forecast_hours"
 CONF_INTERLEAVE_SOAK = "interleave_soak"
 CONF_VOICE_ENABLED = "voice_enabled"
+# #78: calendar events count only when their title starts with this word (blank = every event).
+CONF_CALENDAR_KEYWORD = "calendar_keyword"
+MAX_CALENDAR_KEYWORD_LENGTH = 40
+# #79: longest run a webhook call or a calendar event may start, in minutes.
+CONF_MAX_EXTERNAL_MINUTES = "max_external_minutes"
+DEFAULT_MAX_EXTERNAL_MINUTES = 120
 
 DEFAULT_RAIN_SKIP_STATES = "rainy,pouring,snowy,lightning-rainy"
 
@@ -97,6 +103,8 @@ DEFAULT_OPTIONS = {
     CONF_FORECAST_HOURS: 24,
     CONF_INTERLEAVE_SOAK: True,
     CONF_VOICE_ENABLED: True,
+    CONF_CALENDAR_KEYWORD: "",
+    CONF_MAX_EXTERNAL_MINUTES: DEFAULT_MAX_EXTERNAL_MINUTES,
 }
 
 NOTIFY_EVENTS = (
@@ -170,6 +178,13 @@ REPEAT_WEEKDAYS = "weekdays"
 REPEAT_INTERVAL = "interval"
 INTERVAL_MIN_DAYS = 2
 INTERVAL_MAX_DAYS = 30
+
+# Start time (#59): a clock time, or sunrise / sunset at the HA location plus an offset in minutes.
+TIME_MODE_CLOCK = "clock"
+TIME_MODE_SUNRISE = "sunrise"
+TIME_MODE_SUNSET = "sunset"
+TIME_MODES = (TIME_MODE_CLOCK, TIME_MODE_SUNRISE, TIME_MODE_SUNSET)
+SUN_OFFSET_MAX = 180
 
 DAY_BITS = {0: 1, 1: 2, 2: 4, 3: 8, 4: 16, 5: 32, 6: 64}
 

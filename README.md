@@ -118,6 +118,14 @@ Your watering plans: zones in order, the days and times they run, Run now / Paus
 
 In a watering time's editor, set **Repeat** to **Every 2 to 30 days** instead of **Days of the week**, then pick the **days between waterings** (2 to 30) and **First watering on** (today by default). A line under the fields shows the first run (for example "First run: Sat, Oct 3 06:00, then every 2 days") and says so when today's time has already passed. The schedule runs on that date and every N days after it, at the same time, with the same zone or plan, skips and conditions as a weekday schedule. Days are counted on the calendar in your Home Assistant time zone, so runs stay at the same clock time when daylight saving time starts or ends. The next-run times, the week view, `calendar.schedule_wizard_watering_schedule` and `sensor.schedule_wizard_next_schedule` all follow it, including a first watering date months ahead. Schedules created before 0.14.0 keep their days of the week.
 
+### Sunrise and sunset
+
+In a watering time's editor, set **Start at** to **Sunrise** or **Sunset** instead of **A set time**, then enter the **Minutes** (0 to 180) and pick **before** or **after**: for example 30 minutes before sunrise. The start time is worked out for each day from your Home Assistant location (Settings → System → General) and time zone, so it moves with the seasons and stays right when daylight saving time starts or ends. A line under the fields shows the next three start times. It works with days of the week and with every N days, for zones and plans; next-run times, the week view, the calendar entity, reminders and `sensor.schedule_wizard_next_schedule` follow it.
+
+- A start that the offset would push past midnight runs on its own day at 00:00 or 23:59.
+- On a day without a sunrise or sunset (polar day or night) the schedule does not run.
+- Services: `time_mode: sunrise` (or `sunset`, default `clock`) and `sun_offset_minutes` (-180 to 180, negative = before). A clock `time` is then optional; it is kept, so switching back to `clock` restores it.
+
 ![Watering plans](docs/screenshots/panel-programs.png)
 
 ### Reports
@@ -139,6 +147,8 @@ Options flow (Settings → Devices & Services → Schedule Wizard → Configure)
 | `calendar_entity`         | (none)                                     | HA calendar entity to poll. Optional.                |
 | `calendar_lookahead_min`  | 10                                         | Minutes ahead to scan for matching events.           |
 | `poll_interval`           | 60                                         | Calendar poll interval in seconds (10–3600).         |
+| `calendar_keyword`        | (none)                                     | Only calendar events whose title starts with this word water (for example `water:`). Up to 40 characters. |
+| `max_external_minutes`    | 120                                        | Longest run a calendar event or webhook call may start (1 to 1440 minutes); longer ones are shortened. |
 | `default_duration`        | 10                                         | Default run duration when a valve has none set.      |
 | `rain_entity`             | (none)                                     | Weather / sensor / binary_sensor entity for rain.    |
 | `rain_skip_states`        | `rainy,pouring,snowy,lightning-rainy`      | Skip when entity state matches any of these.         |
@@ -160,7 +170,9 @@ The HA **Configure** dialog only edits the basic options; it no longer wipes the
   - `Front lawns` ✗ (since 0.14.1: part of a longer word no longer counts)
   - `Garden zone 1` ✗
 - A label or name of 1 or 2 characters (for example `A` or `B2`) only matches an event whose whole summary is exactly that label, so ordinary events such as "Lunch with a friend" never start zone `A`.
-- Anyone who can put an event on the selected calendar can start watering. If your calendar accepts invitations automatically (Google, Outlook, CalDAV), pick a dedicated calendar for watering.
+- Anyone who can put an event on the selected calendar can start watering. If your calendar accepts invitations automatically (Google, Outlook, CalDAV), pick a dedicated calendar for watering. Home Assistant does not tell integrations who organised an event, so it cannot be filtered by sender.
+- **Calendar keyword** (Settings → More options → Calendar fine-tuning, optional): when set, for example `water:`, only events whose title starts with it count (any case), and the zone or plan name is matched in the rest of the title: `water: Front lawn` ✓, `Front lawn` ✗. An invitation from someone else then only waters if its title starts with your keyword.
+- **Longest calendar or webhook run** (same group, default 120 minutes): a longer event, or one whose description asks for more, is shortened to it. History keeps the requested minutes in the note (`capped:300`) and Recent activity shows "shortened from 300 min". Plans keep their own step times.
 - **Description**: minutes to run, written as `15 min` / `15 minutes` / `15 דקות`, or the description is just the number (`15`). Other numbers (like "Zone 2") are ignored. Falls back to event duration (end − start), then to the valve's default duration.
 - **Start time** triggers the run. Events within the lookahead window are caught on the next poll. Rain delay, rain skip, moisture skip and seasonal adjustment are evaluated when the event fires.
 - **All-day events are ignored** (they would otherwise run a valve for 24 hours).
@@ -176,8 +188,8 @@ Limits (since 0.14.1): zone labels and plan / watering time names up to 80 chara
 | `schedule_wizard.stop_valve`      | Close an entity now. Cancels any active timer.                                                |
 | `schedule_wizard.add_valve`       | Register or update a valve (entity_id + label + default duration; optional soak and per-valve moisture fields). |
 | `schedule_wizard.remove_valve`    | Unregister a valve and delete its schedules.                                                  |
-| `schedule_wizard.add_schedule`    | Add a recurring schedule (time + `days` **or** `every_n_days` (2 to 30) with optional `start_date` (default today) + duration; targets a registered valve or a cycle; optional `conditions`). Returns new id. |
-| `schedule_wizard.update_schedule` | Patch an existing schedule by id. `days` switches it to weekdays, `every_n_days` / `start_date` to every N days. |
+| `schedule_wizard.add_schedule`    | Add a recurring schedule (time, or `time_mode` sunrise / sunset + `sun_offset_minutes` + `days` **or** `every_n_days` (2 to 30) with optional `start_date` (default today) + duration; targets a registered valve or a cycle; optional `conditions`). Returns new id. |
+| `schedule_wizard.update_schedule` | Patch an existing schedule by id. `days` switches it to weekdays, `every_n_days` / `start_date` to every N days, `time` alone to a clock time, `time_mode` / `sun_offset_minutes` to sunrise or sunset. |
 | `schedule_wizard.remove_schedule` | Delete a schedule by id.                                                                      |
 | `schedule_wizard.add_cycle`       | Create a cycle: ordered list of `{entity_id, duration_minutes}` steps.                        |
 | `schedule_wizard.update_cycle`    | Patch an existing cycle.                                                                      |
@@ -520,6 +532,8 @@ Push events to any `notify.*` service (HA Companion app, Telegram, Pushover, ema
 
 **On phone:** install the Home Assistant Companion app, it auto-creates `notify.mobile_app_<device>` services. Those appear in the target list automatically.
 
+**Wording and language:** notifications use your Home Assistant language (the 17 panel languages, English otherwise) and read like the panel: "Front lawn started, 10 min", "Front lawn watered 10 min", "Front lawn stopped", "Watering paused for 24 h (rain)", "Rain pause ended for all zones". The title is the zone or plan name, so a phone shows which zone it is about; rain pause and leak alerts are titled Schedule Wizard. Reminders with **Skip today** / **Water now** are translated the same way.
+
 **Multi-device:** pick multiple targets — notifications fan out to all picked services in parallel.
 
 **Failure behavior:** notify errors log a warning; they never block the valve or cycle itself.
@@ -577,6 +591,7 @@ No HA auth token required for webhooks: the webhook ID itself is the secret. If 
 
 - Only zones set up in Schedule Wizard are accepted: any other entity, or a zone whose entity no longer exists, gets `404 unknown zone` and nothing is switched or recorded. A disabled zone gets `409`.
 - `action` is `run` (default) or `stop`; anything else, or a body that is not a JSON object, gets `400`.
+- A run is at most **Longest calendar or webhook run** (Settings → More options → Calendar fine-tuning, default 120 minutes). A longer `duration_minutes` is shortened: the reply has `"duration_minutes": 120, "shortened_from": 300` and the history note `capped:300`.
 
 ## Lovelace card
 
