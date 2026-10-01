@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.15.0: security and reliability fixes
+## 0.15.0: sunrise / sunset start, security, valves closed after outages, accessibility
 
 - **Webhook only runs your zones** (#34, #37): the webhook used to switch any switch, light, cover, valve or input_boolean in Home Assistant, including ones that are not zones, and recorded runs for entities that do not exist. It now accepts only zones set up in Schedule Wizard (`404 unknown zone` otherwise, nothing switched or recorded) and refuses to run a disabled zone (`409`). Automations that call the webhook for a zone keep working; calls for other entities stop working.
 - **Webhook URL for administrators only, and a New URL button** (#35): non-admin users no longer receive the webhook ID or the notification targets from the panel or the `list_config` service. Settings → More options → Webhook has **New URL**, which replaces the secret; the old URL stops working at once.
