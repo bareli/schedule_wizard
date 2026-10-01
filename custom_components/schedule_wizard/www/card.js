@@ -375,14 +375,28 @@ class ScheduleWizardCard extends HTMLElement {
     return c && this._t.has("source." + c) ? this._t("source." + c) : c;
   }
 
-  _nextRunLine(nr) {
-    let when = nr.time_label || "";
-    const ts = parseInt(nr.fires_at, 10);
-    if (ts) {
-      const fo = { hass: this._hass };
-      when = `${I18N.fmtDate(ts, this._lang, Object.assign({ weekday: "short" }, fo))} ${I18N.fmtTime(ts, this._lang, fo)}`;
+  _when(ts) {
+    const fo = { hass: this._hass };
+    return `${I18N.fmtDate(ts, this._lang, Object.assign({ weekday: "short" }, fo))} ${I18N.fmtTime(ts, this._lang, fo)}`;
+  }
+
+  // The next run that will really water the zone, and the skipped day or rain pause before it (#71, UX-010):
+  // the same words as the panel's zone cards.
+  _nextRunLine(v) {
+    const nr = v.next_run && parseInt(v.next_run.fires_at, 10) ? v.next_run : null;
+    const skip = v.next_skip && parseInt(v.next_skip.fires_at, 10) ? v.next_skip : null;
+    if (!nr && !skip) return null;
+    const when = nr ? this._when(parseInt(nr.fires_at, 10)) : "";
+    const vars = nr ? { when, in: fmtIn(this._t, nr.in_seconds || 0) } : {};
+    if (skip && skip.reason === "rain_delay" && parseInt(skip.until, 10)) {
+      const until = this._when(parseInt(skip.until, 10));
+      return nr ? this._t("card.next_paused", { ...vars, until }) : this._t("home.zone_paused_only", { until });
     }
-    return this._t("run.next", { when, in: fmtIn(this._t, nr.in_seconds || 0) });
+    if (skip) {
+      const day = this._when(parseInt(skip.fires_at, 10));
+      return nr ? this._t("card.next_skipped", { ...vars, day }) : this._t("home.zone_skipped_only", { day });
+    }
+    return this._t("run.next", vars);
   }
 
   connectedCallback() {
@@ -564,9 +578,8 @@ class ScheduleWizardCard extends HTMLElement {
     ];
     const delayUntil = parseInt((v && v.rain_delay_until) || 0, 10) || 0;
     if (delayUntil > now) subLines[0] += " · " + this._t("card.rain_delay");
-    if (!active && v.next_run) {
-      subLines.push(this._nextRunLine(v.next_run));
-    }
+    const nextLine = active ? null : this._nextRunLine(v);
+    if (nextLine) subLines.push(nextLine);
     const metaInner = [el("div", { class: "name" }, [iso(v.label), active ? " ●" : ""])];
     subLines.forEach(s => metaInner.push(el("div", { class: "sub" }, s)));
     const waterNow = this._t("zone.water_now");

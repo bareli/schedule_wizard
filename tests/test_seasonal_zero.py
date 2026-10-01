@@ -11,7 +11,7 @@ from pytest_homeassistant_custom_component.common import async_capture_events
 from .conftest import FakeCalendar, advance, data, is_on, settle, setup_wizard
 from .test_scheduler import Z1, Z2, _schedule_now, add_cycle, add_valve, fire_minute, statuses
 
-pytestmark = pytest.mark.usefixtures("zones")
+pytestmark = pytest.mark.usefixtures("fixed_clock", "zones")
 
 SEASONAL_SKIPPED = "schedule_wizard_seasonal_skipped"
 SEASONAL = {

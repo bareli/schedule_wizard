@@ -49,6 +49,24 @@ class FakeCalendar:
         )
 
 
+# 10:00:30 in the test time zone (US/Pacific, summer time): 30 s before a minute starts, far from midnight.
+FIXED_INSTANT = "2026-06-10 17:00:30+00:00"
+
+
+@pytest.fixture
+def fixed_clock():
+    """Start the clock at a fixed instant and let it run (flake fix).
+
+    Tests that schedule "the next minute" (_schedule_now) failed about 1 run in 6 when the real clock crossed
+    a minute between computing that minute and firing it: two schedules got different minutes, or the real
+    minute tick ran before the schedule existed. From a fixed :30 instant no minute starts during a test.
+    """
+    import freezegun
+
+    with freezegun.freeze_time(FIXED_INSTANT, tick=True):
+        yield
+
+
 @pytest.fixture
 async def zones(hass: HomeAssistant):
     assert await async_setup_component(

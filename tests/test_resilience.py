@@ -13,7 +13,7 @@ from custom_components.schedule_wizard.const import DOMAIN
 from .conftest import advance, data, is_on, settle, setup_wizard
 from .test_scheduler import Z1, Z2, _schedule_now, add_cycle, add_valve, fire_minute, statuses
 
-pytestmark = pytest.mark.usefixtures("zones")
+pytestmark = pytest.mark.usefixtures("fixed_clock", "zones")
 
 
 def fake_weather(hass: HomeAssistant, hourly_mm: list[float], unit: str = "mm"):
