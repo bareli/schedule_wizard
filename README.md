@@ -580,7 +580,7 @@ No HA auth token required for webhooks: the webhook ID itself is the secret. If 
 
 ## Lovelace card
 
-The integration auto-registers a dashboard card resource. Add to any view:
+The integration auto-registers a dashboard card resource. Add it from the dashboard card picker ("Schedule Wizard") and set it up in the visual editor, or in YAML:
 
 ```yaml
 type: custom:schedule-wizard-card
@@ -594,9 +594,9 @@ valves:
 
 Options:
 - `title` — card header. Default `"Schedule Wizard"`.
-- `show_active` — show active runs section. Default `true`.
-- `show_quick_run` — show quick run/stop rows. Default `true`.
-- `valves` — optional list of entity_ids to filter. If omitted, all valves are shown.
+- `show_active` — show running zones at the top. Default `true`. A zone in this section is not listed again below it.
+- `show_quick_run` — show the zone list with minutes and **Water now** (**Stop watering** while it runs). Default `true`.
+- `valves` — optional list of zone entity_ids to show. If omitted or empty, all zones are shown.
 
 ## Languages
 

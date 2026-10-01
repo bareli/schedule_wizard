@@ -154,6 +154,16 @@ details > summary { cursor: pointer; font-weight: 500; }
 bdi { unicode-bidi: isolate; }
 .num { text-align: end; }
 .num .water { display: block; color: var(--sw-primary); font-size: 12px; }
+.report-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; font-variant-numeric: tabular-nums; }
+.report-table th, .report-table td {
+  padding: 6px 4px; border-bottom: 1px solid var(--sw-border); text-align: start; vertical-align: top;
+  overflow-wrap: anywhere; hyphens: auto;
+}
+.report-table thead th { font-size: 12px; font-weight: 600; color: var(--sw-muted); }
+.report-table tbody th { font-weight: 400; }
+.report-table .num { text-align: end; }
+.chart-values { margin-top: 8px; }
+.chart-values .report-table { margin-top: 6px; }
 .badge {
   display: inline-block; margin-inline-start: 6px; padding: 1px 6px;
   border-radius: 4px; font-size: 11px; font-weight: 500;
@@ -307,6 +317,18 @@ pre { background: var(--sw-bg); padding: 10px; border-radius: 6px; font-size: 12
 
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 const DAY_BITS = [1, 2, 4, 8, 16, 32, 64];
+
+// Reports tables (BUG-009, BUG-010): header cells scoped to their column; fixed layout so long words wrap
+// inside the column instead of widening the page.
+function reportTable(firstWidth, headers) {
+  const tbody = el("tbody");
+  const table = el("table", { class: "report-table" }, [
+    el("colgroup", {}, headers.map((h, i) => el("col", i ? {} : { style: `width:${firstWidth}` }))),
+    el("thead", {}, el("tr", {}, headers.map((h, i) => el("th", i ? { scope: "col", class: "num" } : { scope: "col" }, h)))),
+    tbody,
+  ]);
+  return { table, tbody };
+}
 
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
@@ -2649,8 +2671,16 @@ class ScheduleWizardPanel extends HTMLElement {
       dayValues.push(dailyMin[key] || 0);
     }
     const maxVal = Math.max(1, ...dayValues);
+    const totalMin = dayValues.reduce((a, b) => a + b, 0);
+    const peak = dayValues.indexOf(Math.max(...dayValues));
+    // BUG-009: the bars are a picture; the name carries the total and the peak day, the table every value.
+    const chartSummary = totalMin
+      ? this._t("reports.chart_summary", { total: totalMin, date: dayLabels[peak], n: dayValues[peak] })
+      : this._t("reports.chart_none");
     const chartCard = el("div", { class: "card" }, [el("h2", {}, this._t("reports.chart_title"))]);
     const chart = el("div", {
+      role: "img",
+      "aria-label": chartSummary,
       style: "display:flex;align-items:flex-end;gap:2px;height:120px;border-bottom:1px solid var(--sw-border);padding-bottom:4px;",
     });
     dayValues.forEach((v, i) => {
@@ -2661,68 +2691,63 @@ class ScheduleWizardPanel extends HTMLElement {
       }));
     });
     chartCard.appendChild(chart);
-    chartCard.appendChild(el("div", { style: "display:flex;justify-content:space-between;font-size:11px;color:var(--sw-muted);margin-top:4px;" }, [
+    chartCard.appendChild(el("div", { "aria-hidden": "true", style: "display:flex;justify-content:space-between;font-size:11px;color:var(--sw-muted);margin-top:4px;" }, [
       el("span", {}, dayLabels[0]),
       el("span", {}, dayLabels[Math.floor(dayValues.length / 2)]),
       el("span", {}, dayLabels[dayValues.length - 1]),
     ]));
+    if (totalMin) {
+      const values = reportTable("50%", [this._t("reports.col_day"), this._t("sched.duration")]);
+      dayValues.forEach((v, i) => {
+        if (v) values.tbody.appendChild(el("tr", {}, [el("th", { scope: "row" }, dayLabels[i]), el("td", { class: "num" }, String(v))]));
+      });
+      const det = el("details", { class: "chart-values" }, [el("summary", {}, this._t("reports.chart_values")), values.table]);
+      if (this._chartValuesOpen) det.open = true;
+      det.addEventListener("toggle", () => { this._chartValuesOpen = det.open; });
+      chartCard.appendChild(det);
+    }
     root.appendChild(chartCard);
 
     const valveTable = el("div", { class: "card" }, [el("h2", {}, this._t("reports.per_valve"))]);
     if (!valves.length) {
       valveTable.appendChild(el("div", { class: "empty" }, this._t("reports.no_valves")));
     } else {
-      valveTable.appendChild(el("div", {
-        style: "display:grid;grid-template-columns:1.4fr repeat(3, 1fr);gap:6px;font-size:12px;font-weight:600;color:var(--sw-muted);padding:6px 4px;border-bottom:1px solid var(--sw-border);",
-      }, [
-        el("span", {}, this._t("sched.valve")),
-        el("span", { class: "num" }, this._t("reports.col_7d")),
-        el("span", { class: "num" }, this._t("reports.col_30d")),
-        el("span", { class: "num" }, this._t("reports.total")),
-      ]));
+      const t = reportTable("31%", [this._t("sched.valve"), this._t("reports.col_7d"), this._t("reports.col_30d"), this._t("reports.total")]);
       valves.forEach(v => {
         const s = valveStats[v.entity_id] || { runs_7d: 0, min_7d: 0, runs_30d: 0, min_30d: 0, runs_total: 0, min_total: 0 };
         const w = water[v.entity_id] || { d7: 0, d30: 0 };
-        valveTable.appendChild(el("div", {
-          style: "display:grid;grid-template-columns:1.4fr repeat(3, 1fr);gap:6px;font-size:13px;padding:6px 4px;border-bottom:1px solid var(--sw-border);",
-        }, [
-          el("span", {}, iso(v.label)),
+        t.tbody.appendChild(el("tr", {}, [
+          el("th", { scope: "row" }, iso(v.label)),
           ...[
             [s.runs_7d, s.min_7d, w.d7],
             [s.runs_30d, s.min_30d, w.d30],
             [s.runs_total, s.min_total, Number(v.water_total_l) || 0],
-          ].map(([runs, min, l]) => el("span", { class: "num" }, [
+          ].map(([runs, min, l]) => el("td", { class: "num" }, [
             this._t("reports.runs_min", { runs, min }),
             hasWater ? el("span", { class: "water" }, this._fmtLiters(l)) : null,
           ])),
         ]));
       });
+      valveTable.appendChild(t.table);
     }
     root.appendChild(valveTable);
 
     if (cycles.length) {
       const cycleTable = el("div", { class: "card" }, [el("h2", {}, this._t("reports.per_cycle"))]);
-      cycleTable.appendChild(el("div", {
-        style: "display:grid;grid-template-columns:1.5fr repeat(3, 0.7fr) 0.7fr;gap:6px;font-size:12px;font-weight:600;color:var(--sw-muted);padding:6px 4px;border-bottom:1px solid var(--sw-border);",
-      }, [
-        el("span", {}, this._t("sched.cycle")),
-        el("span", { class: "num" }, this._t("reports.done")),
-        el("span", { class: "num" }, this._t("reports.cancelled")),
-        el("span", { class: "num" }, this._t("reports.skipped")),
-        el("span", { class: "num" }, this._t("reports.total")),
-      ]));
+      const t = reportTable("35%", [
+        this._t("sched.cycle"), this._t("reports.done"), this._t("reports.cancelled"), this._t("reports.skipped"), this._t("reports.total"),
+      ]);
       cycles.forEach(c => {
         const s = cycleStats[c.id] || { completed: 0, cancelled: 0, skipped: 0, runs_30d: 0 };
-        cycleTable.appendChild(el("div", {
-          style: "display:grid;grid-template-columns:1.5fr repeat(3, 0.7fr) 0.7fr;gap:6px;font-size:13px;padding:6px 4px;border-bottom:1px solid var(--sw-border);",
-        }, [
-          el("span", {}, iso(c.name)),
-          el("span", { class: "num", style: "color:var(--sw-success);" }, String(s.completed)),
-          el("span", { class: "num", style: "color:var(--sw-warn);" }, String(s.cancelled)),
-          el("span", { class: "num", style: "color:var(--sw-muted);" }, String(s.skipped)),
-          el("span", { class: "num", style: "font-weight:600;" }, String(s.runs_30d)),
+        t.tbody.appendChild(el("tr", {}, [
+          el("th", { scope: "row" }, iso(c.name)),
+          el("td", { class: "num", style: "color:var(--sw-success);" }, String(s.completed)),
+          el("td", { class: "num", style: "color:var(--sw-warn);" }, String(s.cancelled)),
+          el("td", { class: "num", style: "color:var(--sw-muted);" }, String(s.skipped)),
+          el("td", { class: "num", style: "font-weight:600;" }, String(s.runs_30d)),
         ]));
       });
+      cycleTable.appendChild(t.table);
       root.appendChild(cycleTable);
     }
 

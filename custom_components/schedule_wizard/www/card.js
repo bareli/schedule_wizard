@@ -17,6 +17,7 @@ const CARD_STYLES = `
   margin: 0 0 8px;
   display: flex; align-items: center; justify-content: space-between;
 }
+.title h2 { font: inherit; margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .title .pill {
   font-size: 11px;
   padding: 2px 8px;
@@ -27,14 +28,15 @@ const CARD_STYLES = `
 .pill.ok { background: rgba(22,163,74,0.15); color: #15803d; }
 .row {
   display: grid;
-  grid-template-columns: 1fr auto auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
   align-items: center;
   padding: 6px 0;
   border-top: 1px solid var(--divider-color, #e5e7eb);
 }
 .row:first-of-type { border-top: none; }
-.name { font-weight: 500; font-size: 14px; }
+.name { font-weight: 500; font-size: 14px; overflow-wrap: anywhere; }
+.mins { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--secondary-text-color); white-space: nowrap; }
 .sub { color: var(--secondary-text-color); font-size: 11px; }
 .progress-wrap {
   grid-column: 1 / -1;
@@ -187,7 +189,107 @@ function fmtRemaining(s) {
   return `${m}:${r}`;
 }
 
+// The running block and the zone list (UX-016): a zone in the running block is not listed again below it.
+// An empty `valves` list means every zone, the same as no list.
+export function cardSections(state, config) {
+  const cfg = config || {};
+  const allowed = Array.isArray(cfg.valves) && cfg.valves.length ? new Set(cfg.valves) : null;
+  const shown = (id) => !allowed || allowed.has(id);
+  const runs = (state.active || []).filter(r => shown(r.entity_id));
+  const soaks = (state.soaking || []).filter(s => s.phase === "soaking" &&
+    !(state.active || []).some(r => r.entity_id === s.entity_id) && shown(s.entity_id));
+  const showActive = cfg.show_active !== false && (runs.length > 0 || soaks.length > 0);
+  const inBlock = new Set(showActive ? [...runs, ...soaks].map(x => x.entity_id) : []);
+  const valves = (state.valves || []).filter(v => shown(v.entity_id) && !inBlock.has(v.entity_id));
+  return { runs, soaks, showActive, valves, anyValves: (state.valves || []).some(v => shown(v.entity_id)) };
+}
+
+// ha-form is lazy-loaded by the HA frontend; opening a built-in card's editor loads it.
+async function ensureHaForm() {
+  if (customElements.get("ha-form")) return;
+  try {
+    const helpers = window.loadCardHelpers && await window.loadCardHelpers();
+    const probe = helpers && await helpers.createCardElement({ type: "entities", entities: [] });
+    if (probe && probe.constructor && probe.constructor.getConfigElement) await probe.constructor.getConfigElement();
+  } catch (e) {
+    // The editor renders as soon as ha-form is defined.
+  }
+}
+
+const EDITOR_LABELS = {
+  title: "card.editor_title",
+  valves: "card.editor_zones",
+  show_active: "card.editor_show_active",
+  show_quick_run: "card.editor_show_quick_run",
+};
+
+class ScheduleWizardCardEditor extends HTMLElement {
+  setConfig(config) {
+    this._config = Object.assign({}, config || {});
+    this._draw();
+  }
+
+  set hass(hass) {
+    const first = !this._hass;
+    this._hass = hass;
+    this._t = I18N.makeT(I18N.resolveLang(hass));
+    if (first) this._loadZones();
+    this._draw();
+  }
+
+  async _loadZones() {
+    try {
+      const st = await this._hass.callWS({ type: "schedule_wizard/get_state" });
+      this._zones = (st.valves || []).map(v => v.entity_id);
+    } catch (e) {
+      this._zones = null;
+    }
+    this._draw();
+  }
+
+  _schema() {
+    const entity = { multiple: true };
+    if (this._zones && this._zones.length) entity.include_entities = this._zones;
+    return [
+      { name: "title", selector: { text: {} } },
+      { name: "valves", selector: { entity } },
+      { name: "show_active", selector: { boolean: {} } },
+      { name: "show_quick_run", selector: { boolean: {} } },
+    ];
+  }
+
+  _draw() {
+    if (!this._config || !this._hass) return;
+    if (!this._form) {
+      this._form = document.createElement("ha-form");
+      this._form.addEventListener("value-changed", (ev) => this._changed(ev));
+      this.appendChild(this._form);
+    }
+    this._form.hass = this._hass;
+    this._form.schema = this._schema();
+    this._form.data = Object.assign({ show_active: true, show_quick_run: true }, this._config);
+    this._form.computeLabel = (field) => (EDITOR_LABELS[field.name] ? this._t(EDITOR_LABELS[field.name]) : field.name);
+  }
+
+  _changed(ev) {
+    ev.stopPropagation();
+    const config = Object.assign({}, this._config, ev.detail.value);
+    if (Array.isArray(config.valves) && !config.valves.length) delete config.valves;
+    this._config = config;
+    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
+  }
+}
+
 class ScheduleWizardCard extends HTMLElement {
+  static async getConfigElement() {
+    await ensureHaForm();
+    return document.createElement("schedule-wizard-card-editor");
+  }
+
+  static getStubConfig() {
+    return { title: "Schedule Wizard", show_active: true, show_quick_run: true };
+  }
+
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
@@ -341,7 +443,7 @@ class ScheduleWizardCard extends HTMLElement {
     this._applyDir(this._root);
     this._root.innerHTML = "";
     this._root.appendChild(el("div", { class: "card" }, [
-      el("div", { class: "title" }, this._config.title || "Schedule Wizard"),
+      el("div", { class: "title" }, el("h2", {}, this._config.title || "Schedule Wizard")),
       el("div", { class: "empty" }, this._t("app.load_failed", { error: e.message || this._t("common.unknown") })),
     ]));
   }
@@ -354,35 +456,27 @@ class ScheduleWizardCard extends HTMLElement {
     this._renderedAt = Date.now();
     this._root.innerHTML = "";
 
-    const allowedEntities = Array.isArray(this._config.valves) ? new Set(this._config.valves) : null;
-    const filteredValves = allowedEntities
-      ? this._state.valves.filter(v => allowedEntities.has(v.entity_id))
-      : this._state.valves;
+    const sec = cardSections(this._state, this._config);
 
     const card = el("div", { class: "card" });
     card.appendChild(el("div", { class: "title" }, [
-      el("span", {}, this._config.title || "Schedule Wizard"),
+      el("h2", {}, this._config.title || "Schedule Wizard"),
       el("span", { class: "pill " + (this._state.active.length ? "ok" : "") },
-        this._state.active.length ? this._t("card.running", { n: this._state.active.length }) : this._t("card.idle")),
+        this._state.active.length ? this._t("card.running", { n: this._state.active.length }) : this._t("zone.off")),
     ]));
 
-    const soakingIdle = (this._state.soaking || []).filter(s => s.phase === "soaking" &&
-      !this._state.active.some(r => r.entity_id === s.entity_id) &&
-      (!allowedEntities || allowedEntities.has(s.entity_id)));
-    if (this._config.show_active !== false && (this._state.active.length || soakingIdle.length)) {
+    if (sec.showActive) {
       const activeDiv = el("div", { class: "active-runs" });
-      this._state.active
-        .filter(r => !allowedEntities || allowedEntities.has(r.entity_id))
-        .forEach(r => activeDiv.appendChild(this._activeRow(r)));
-      soakingIdle.forEach(s => activeDiv.appendChild(this._soakRow(s)));
+      sec.runs.forEach(r => activeDiv.appendChild(this._activeRow(r)));
+      sec.soaks.forEach(s => activeDiv.appendChild(this._soakRow(s)));
       card.appendChild(activeDiv);
     }
 
     if (this._config.show_quick_run !== false) {
-      if (!filteredValves.length) {
+      if (!sec.anyValves) {
         card.appendChild(el("div", { class: "empty" }, this._t("card.no_valves")));
       } else {
-        filteredValves.forEach(v => card.appendChild(this._valveRow(v)));
+        sec.valves.forEach(v => card.appendChild(this._valveRow(v)));
       }
     }
 
@@ -405,11 +499,7 @@ class ScheduleWizardCard extends HTMLElement {
         el("div", { class: "sub" }, `${this._t("run.remaining", { time: fmtRemaining(remaining) })} · ${this._sourceLabel(r.source)}`),
       ]),
       el("div"),
-      el("div"),
-      el("button", {
-        class: "stop",
-        onClick: () => this._callService("stop_valve", { entity_id: r.entity_id }),
-      }, this._t("common.stop")),
+      this._stopButton(r.entity_id, label),
       el("div", { class: "progress-wrap" }, el("div", { class: "progress-bar", style: `width:${pct}%` })),
     ]);
   }
@@ -426,22 +516,29 @@ class ScheduleWizardCard extends HTMLElement {
         })),
       ]),
       el("div"),
-      el("div"),
-      s.owner === "cycle"
-        ? el("div")
-        : el("button", {
-            class: "stop",
-            onClick: () => this._callService("stop_valve", { entity_id: s.entity_id }),
-          }, this._t("common.stop")),
+      s.owner === "cycle" ? el("div") : this._stopButton(s.entity_id, label),
     ]);
+  }
+
+  // Visible text first in the name (WCAG 2.5.3), then the zone, so each row's button is distinct (BUG-008).
+  _stopButton(entityId, label) {
+    const text = this._t("home.stop_watering");
+    return el("button", {
+      class: "stop",
+      "aria-label": this._t("card.action_for", { action: text, zone: label }),
+      onClick: () => this._callService("stop_valve", { entity_id: entityId }),
+    }, text);
   }
 
   _valveRow(v) {
     const active = this._state.active.find(r => r.entity_id === v.entity_id);
     const now = this._state.now;
+    const soaking = (this._state.soaking || []).find(s => s.entity_id === v.entity_id &&
+      s.phase === "soaking" && s.owner !== "cycle");
     const minsInput = el("input", {
       type: "number", min: "1", max: "1440",
       value: String(this._quickDur[v.entity_id] ?? v.default_duration_min),
+      "aria-label": this._t("card.minutes_for", { zone: v.label }),
     });
     minsInput.addEventListener("input", () => { this._quickDur[v.entity_id] = minsInput.value; });
     const subLines = [
@@ -456,21 +553,20 @@ class ScheduleWizardCard extends HTMLElement {
     }
     const metaInner = [el("div", { class: "name" }, [iso(v.label), active ? " ●" : ""])];
     subLines.forEach(s => metaInner.push(el("div", { class: "sub" }, s)));
+    const waterNow = this._t("zone.water_now");
     const children = [
       el("div", {}, metaInner),
-      minsInput,
-      el("button", {
-        class: "run",
-        disabled: active ? true : false,
-        onClick: () => this._callService("run_valve", {
-          entity_id: v.entity_id,
-          duration_minutes: parseInt(minsInput.value, 10) || v.default_duration_min,
-        }),
-      }, this._t("common.run")),
-      el("button", {
-        class: "stop",
-        onClick: () => this._callService("stop_valve", { entity_id: v.entity_id }),
-      }, this._t("common.stop")),
+      el("label", { class: "mins" }, this._tn("unit.min", { n: minsInput })),
+      active || soaking
+        ? this._stopButton(v.entity_id, v.label)
+        : el("button", {
+            class: "run",
+            "aria-label": this._t("card.action_for", { action: waterNow, zone: v.label }),
+            onClick: () => this._callService("run_valve", {
+              entity_id: v.entity_id,
+              duration_minutes: parseInt(minsInput.value, 10) || v.default_duration_min,
+            }),
+          }, waterNow),
     ];
     if (active) {
       const total = Math.max(1, active.ends_at - active.started_at);
@@ -504,6 +600,10 @@ class ScheduleWizardCard extends HTMLElement {
   }
 }
 
+if (!customElements.get("schedule-wizard-card-editor")) {
+  customElements.define("schedule-wizard-card-editor", ScheduleWizardCardEditor);
+}
+
 if (!customElements.get("schedule-wizard-card")) {
   customElements.define("schedule-wizard-card", ScheduleWizardCard);
   window.customCards = window.customCards || [];
@@ -511,6 +611,6 @@ if (!customElements.get("schedule-wizard-card")) {
     type: "schedule-wizard-card",
     name: "Schedule Wizard",
     description: "Dashboard card for Schedule Wizard: active runs + quick run.",
-    preview: false,
+    preview: true,
   });
 }
