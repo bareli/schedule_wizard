@@ -1077,6 +1077,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if data.get("voice"):
             data["voice"].async_stop()
         await data["scheduler"].async_stop()
+        await data["store"].async_flush()
         wh_id = data.get("webhook_id")
         if wh_id:
             try:

@@ -189,3 +189,46 @@ async def test_calendar_returns_every_occurrence_in_range(hass: HomeAssistant):
     days = sorted({e["start"][:10] for e in events})
     assert len(days) == 62
     assert days[-1] == (start + timedelta(days=61)).date().isoformat()
+
+
+# ---------------------------------------------------------------- PERF-003 #76: coalesced store writes
+
+
+def _writes() -> int:
+    mock = storage.Store._async_write_data
+    return sum(1 for c in mock.call_args_list if c.args[0].key == STORE_KEY)
+
+
+async def test_valve_run_writes_store_at_most_twice(hass: HomeAssistant, hass_storage):
+    entry = await setup_wizard(hass)
+    await add_valve(hass, Z1, "Front")
+    await advance(hass, 5)
+    before = _writes()
+
+    await hass.services.async_call(DOMAIN, "run_valve", {"entity_id": Z1, "duration_minutes": 1}, blocking=True)
+    await settle(hass)
+    # The open valve is on disk at once (restart recovery), with its history row.
+    saved = hass_storage[STORE_KEY]["data"]
+    assert [r["entity_id"] for r in saved["active_runs"]] == [Z1]
+    assert saved["history"][0]["status"] == "started"
+
+    await advance(hass, 61)
+    await advance(hass, 5)
+    assert not is_on(hass, Z1)
+    assert _writes() - before <= 2
+    saved = hass_storage[STORE_KEY]["data"]
+    assert saved["active_runs"] == []
+    assert [h["status"] for h in saved["history"][:2]] == ["completed", "started"]
+    assert statuses(hass, entry, Z1)[:2] == ["completed", "started"]
+
+
+async def test_delayed_rows_written_on_unload(hass: HomeAssistant, hass_storage):
+    """A history row still waiting for the delayed write is on disk once the entry unloads (reload, shutdown)."""
+    entry = await setup_wizard(hass)
+    await add_valve(hass, Z1, "Front")
+    store = data(hass, entry)["store"]
+    await store.async_record_run(Z1, "manual", 0, "skipped_manual", "pending row")
+    assert all(h.get("note") != "pending row" for h in hass_storage[STORE_KEY]["data"]["history"])
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await settle(hass)
+    assert hass_storage[STORE_KEY]["data"]["history"][0]["note"] == "pending row"
