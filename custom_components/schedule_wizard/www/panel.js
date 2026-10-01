@@ -1392,7 +1392,7 @@ class ScheduleWizardPanel extends HTMLElement {
       ]).join("");
     }
     const week = stats.runs_7d
-      ? this._t("valves.week", { runs: stats.runs_7d, min: stats.total_min_7d })
+      ? this._t("valves.week", { n: stats.runs_7d, runs: stats.runs_7d, min: stats.total_min_7d })
       : this._t("valves.week_none");
     const badges = [];
     if (v.rain_exempt) badges.push(el("span", { class: "badge", title: this._t("valves.badge_indoor_title") }, this._t("valves.badge_indoor")));
