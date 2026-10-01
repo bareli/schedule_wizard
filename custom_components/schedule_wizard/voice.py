@@ -114,6 +114,8 @@ WORD_NUMBERS = {
 _TRAILING_MINUTES = re.compile(
     r"^(.*?)\s+(?:for\s+|für\s+|למשך\s+)?(\d+|[^\s]+)\s*(?:minutes?|minuten?|דקות|דק׳|דק)$", re.IGNORECASE
 )
+# Hebrew one minute has no number before the noun: "דקה" or "דקה אחת"; hassil hands it over inside {zone}.
+_TRAILING_ONE_MINUTE = re.compile(r"^(.*?)\s+(?:למשך\s+)?(?:דקה(?:\s+אחת)?|אחת\s+דקה)$")
 _ARTICLE = re.compile(r"^(the|den|die|das|dem|ה(?=\S{2,}))\s*", re.IGNORECASE)
 
 
@@ -218,7 +220,11 @@ class VoiceCommands:
                 action = "run_zone_minutes"
             if action == "run_zone":
                 # "water the lawn for 10 minutes" can also land here with the minutes inside {zone}.
-                m = _TRAILING_MINUTES.match(_norm(name))
+                m = _TRAILING_ONE_MINUTE.match(_norm(name))
+                if m:
+                    name, action = m.group(1), "run_zone_minutes"
+                    slots = {**slots, "minutes": "1"}
+                m = None if action == "run_zone_minutes" else _TRAILING_MINUTES.match(_norm(name))
                 if m and parse_number(m.group(2)):
                     name, action = m.group(1), "run_zone_minutes"
                     slots = {**slots, "minutes": m.group(2)}

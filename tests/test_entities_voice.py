@@ -233,3 +233,24 @@ async def test_run_schedule_now_drops_todays_run(hass: HomeAssistant):
     await settle(hass)
     assert is_on(hass, Z1)
     assert data(hass, entry)["store"].is_skipped(sid, fire_at.date().isoformat())
+
+
+async def test_voice_hebrew_one_minute(hass: HomeAssistant):
+    """Hebrew "one minute" has no number before the noun; it used to run the zone default (10 min)."""
+    entry = await setup_wizard(hass, {"voice_enabled": False})
+    await add_valve(hass, Z1, "גינה")
+    from custom_components.schedule_wizard.voice import VoiceCommands
+    voice = VoiceCommands(hass, entry, data(hass, entry))
+    scheduler = data(hass, entry)["scheduler"]
+    cases = [
+        ("גינה למשך דקה", 1), ("הגינה למשך דקה אחת", 1), ("גינה דקה", 1), ("גינה למשך שתי דקות", 2),
+        ("גינה למשך 5 דקות", 5), ("גינה למשך חמש דקות", 5),
+    ]
+    for zone, minutes in cases:
+        reply = await voice.async_handle("he", "run_zone", {"zone": zone})
+        await settle(hass)
+        assert scheduler.active[Z1]["duration_min"] == minutes, zone
+        assert str(minutes) in reply or minutes == 1, reply
+        await voice.async_handle("he", "stop_all", {})
+        await settle(hass)
+    assert await voice.async_handle("he", "run_zone", {"zone": "גינה למשך דקה"}) == "משקה את גינה למשך דקה אחת."
