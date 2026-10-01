@@ -389,7 +389,7 @@ class WizardStore:
 
     async def async_record_run(
         self, valve_entity_id: str, source: str, duration_min: int, status: str, note: str = "",
-        liters: Optional[float] = None,
+        liters: Optional[float] = None, planned_min: Optional[int] = None,
     ) -> None:
         entry = {
             "valve_entity_id": valve_entity_id,
@@ -409,6 +409,8 @@ class WizardStore:
                 entry["plan_name"] = owner.get("name", "")
         if liters is not None:
             entry["liters"] = round(float(liters), 1)
+        if planned_min is not None:
+            entry["planned_min"] = int(planned_min)
         self._data["history"].insert(0, entry)
         if len(self._data["history"]) > MAX_HISTORY:
             self._data["history"] = self._data["history"][:MAX_HISTORY]

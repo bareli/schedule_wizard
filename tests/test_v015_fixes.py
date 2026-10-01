@@ -32,6 +32,56 @@ def _method(src: str, name: str) -> str:
     return match.group(1)
 
 
+# ---------------------------------------------------------------- BUG-013 #52: actual minutes of a stopped run
+
+
+async def test_stopped_run_records_actual_minutes(hass: HomeAssistant, hass_ws_client):
+    entry = await setup_wizard(hass)
+    await add_valve(hass, Z1, "Front", default_duration_minutes=10)
+    scheduler = data(hass, entry)["scheduler"]
+    store = data(hass, entry)["store"]
+
+    # Stopped after a few seconds: nothing worth a minute.
+    await hass.services.async_call(DOMAIN, "run_valve", {"entity_id": Z1}, blocking=True)
+    await hass.services.async_call(DOMAIN, "stop_valve", {"entity_id": Z1}, blocking=True)
+    await settle(hass)
+    row = store.history[0]
+    assert row["status"] == "cancelled"
+    assert row["duration_min"] == 0
+    assert row["planned_min"] == 10
+
+    # Stopped after 2 min 10 s.
+    await hass.services.async_call(DOMAIN, "run_valve", {"entity_id": Z1}, blocking=True)
+    scheduler.active[Z1]["started_at"] -= 130
+    await hass.services.async_call(DOMAIN, "stop_valve", {"entity_id": Z1}, blocking=True)
+    await settle(hass)
+    row = store.history[0]
+    assert (row["status"], row["duration_min"], row["planned_min"]) == ("cancelled", 2, 10)
+
+    # Replaced after 4 minutes by a new run of the same zone.
+    await hass.services.async_call(DOMAIN, "run_valve", {"entity_id": Z1}, blocking=True)
+    scheduler.active[Z1]["started_at"] -= 240
+    await hass.services.async_call(DOMAIN, "run_valve", {"entity_id": Z1, "duration_minutes": 3}, blocking=True)
+    await settle(hass)
+    superseded = next(h for h in store.history if h["status"] == "superseded")
+    assert (superseded["duration_min"], superseded["planned_min"]) == (4, 10)
+    await hass.services.async_call(DOMAIN, "stop_all", {}, blocking=True)
+    await settle(hass)
+
+    # A run that finished keeps its planned length.
+    await hass.services.async_call(DOMAIN, "run_valve", {"entity_id": Z1, "duration_minutes": 1}, blocking=True)
+    await advance(hass, 61)
+    row = store.history[0]
+    assert (row["status"], row["duration_min"]) == ("completed", 1)
+    assert "planned_min" not in row
+
+    # The zone line "N runs / M min last 7 days" adds what really watered.
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": f"{DOMAIN}/get_state"})
+    stats = next(v for v in (await client.receive_json())["result"]["valves"] if v["entity_id"] == Z1)["stats"]
+    assert stats["total_min_7d"] == 0 + 2 + 1 + 0  # the last stop_all row is under a minute too
+
+
 # ---------------------------------------------------------------- BUG-014 #53: one voice command, one start
 
 
