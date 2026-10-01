@@ -284,7 +284,22 @@ OPTION_KEYS = tuple(k for k in DEFAULT_OPTIONS if k != CONF_RAIN_DELAY_UNTIL)
 
 
 def _build_options(entry: ConfigEntry) -> dict[str, Any]:
-    return {k: entry.options.get(k, default) for k, default in DEFAULT_OPTIONS.items()}
+    options = {k: entry.options.get(k, default) for k, default in DEFAULT_OPTIONS.items()}
+    master = options.get(CONF_MASTER_VALVE_ENTITY)
+    if master and (not isinstance(master, str) or master.strip().split(".")[0] not in SUPPORTED_DOMAINS):
+        # Saved before #40: never call a service of another domain (script, automation...) on it.
+        LOG.warning("ignoring main valve %s: not a %s entity", master, ", ".join(SUPPORTED_DOMAINS))
+        options[CONF_MASTER_VALVE_ENTITY] = ""
+    return options
+
+
+@callback
+def _async_register_webhook(hass: HomeAssistant, webhook_id: str, handler) -> None:
+    try:
+        webhook.async_register(hass, DOMAIN, "Schedule Wizard", webhook_id, handler)
+    except ValueError:
+        webhook.async_unregister(hass, webhook_id)
+        webhook.async_register(hass, DOMAIN, "Schedule Wizard", webhook_id, handler)
 
 
 def _repeat_fields(data: dict, current: dict | None = None) -> dict[str, Any]:
@@ -515,6 +530,11 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             entry["next_run"] = _next_run_for(v["entity_id"])
             valves_enriched.append(entry)
 
+        is_admin = bool(connection.user and connection.user.is_admin)
+        if not is_admin:
+            # Secrets for admins only (#35): the webhook id and the notify targets (device names).
+            options = {k: v for k, v in options.items() if k != CONF_NOTIFY_TARGETS}
+
         connection.send_result(msg["id"], {
             "valves": valves_enriched,
             "schedules": store.schedules,
@@ -538,7 +558,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "notify_events": list(NOTIFY_EVENTS),
             "temperature_unit": temp_unit,
             "rain_delay_until": options.get(CONF_RAIN_DELAY_UNTIL, 0),
-            "webhook_id": data.get("webhook_id", ""),
+            "webhook_id": data.get("webhook_id", "") if is_admin else "",
             "now": int(time.time()),
         })
 
@@ -565,7 +585,7 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         vol.Optional(CONF_MOISTURE_ENTITY): vol.Any(str, None),
         vol.Optional(CONF_MOISTURE_ATTRIBUTE): vol.Any(str, None),
         vol.Optional(CONF_MOISTURE_THRESHOLD_SKIP_ABOVE): vol.Any(float, int, None),
-        vol.Optional(CONF_MASTER_VALVE_ENTITY): vol.Any(str, None),
+        vol.Optional(CONF_MASTER_VALVE_ENTITY): vol.Any(None, "", _entity_in_supported_domain),
         vol.Optional(CONF_MASTER_VALVE_PRE_OPEN_SEC): vol.All(int, vol.Range(min=0, max=600)),
         vol.Optional(CONF_FAIL_DETECTION_ENABLED): cv.boolean,
         vol.Optional(CONF_FAIL_DETECTION_SECONDS): vol.All(int, vol.Range(min=1, max=120)),
@@ -594,6 +614,11 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         if not entry:
             connection.send_error(msg["id"], "no_entry", "entry not found")
             return
+        master = msg.get(CONF_MASTER_VALVE_ENTITY)
+        if master and master != entry.options.get(CONF_MASTER_VALVE_ENTITY) and hass_inner.states.get(master) is None:
+            # An unchanged master valve that has since gone missing must not block saving (#40).
+            connection.send_error(msg["id"], "invalid_format", f"main valve {master} not found")
+            return
         new_options = dict(entry.options)
         for key in OPTION_KEYS:
             if key in msg:
@@ -601,8 +626,36 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         hass_inner.config_entries.async_update_entry(entry, options=new_options)
         connection.send_result(msg["id"], {"options": new_options})
 
+    @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/rotate_webhook"})
+    @websocket_api.require_admin
+    @websocket_api.async_response
+    async def _ws_rotate_webhook(hass_inner, connection, msg):
+        """Replace the webhook id; the old URL stops working at once (#35)."""
+        domain_data = hass_inner.data.get(DOMAIN, {})
+        if not domain_data:
+            connection.send_error(msg["id"], "not_loaded", "integration not loaded")
+            return
+        entry_id = next(iter(domain_data))
+        entry = hass_inner.config_entries.async_get_entry(entry_id)
+        if not entry:
+            connection.send_error(msg["id"], "no_entry", "entry not found")
+            return
+        data = domain_data[entry_id]
+        old_id = data.get("webhook_id")
+        new_id = secrets.token_hex(16)
+        if old_id:
+            try:
+                webhook.async_unregister(hass_inner, old_id)
+            except Exception:
+                pass
+        _async_register_webhook(hass_inner, new_id, data["webhook_handler"])
+        data["webhook_id"] = new_id
+        hass_inner.config_entries.async_update_entry(entry, data={**entry.data, "webhook_id": new_id})
+        connection.send_result(msg["id"], {"webhook_id": new_id})
+
     websocket_api.async_register_command(hass, _ws_get_state)
     websocket_api.async_register_command(hass, _ws_update_options)
+    websocket_api.async_register_command(hass, _ws_rotate_webhook)
     hass.data[WS_COMMANDS_REGISTERED_KEY] = True
 
 
@@ -626,42 +679,51 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 payload = await request.json()
             except Exception:
                 payload = dict(await request.post())
-            action = (payload.get("action") or "run").strip().lower()
+            if not isinstance(payload, dict):
+                return web.json_response({"error": "invalid payload"}, status=400)
+            action = payload.get("action") or "run"
+            if not isinstance(action, str) or action.strip().lower() not in ("run", "stop"):
+                return web.json_response({"error": "action must be run or stop"}, status=400)
+            action = action.strip().lower()
             entity_id = payload.get("entity_id")
             if not entity_id:
                 return web.json_response({"error": "entity_id required"}, status=400)
             try:
                 entity_id = _entity_in_supported_domain(entity_id)
-            except vol.Invalid as e:
-                return web.json_response({"error": str(e)}, status=400)
+            except vol.Invalid:
+                return web.json_response({"error": "invalid entity_id"}, status=400)
+            # Only zones set up in Schedule Wizard (#34); runs only while their entity exists (#37).
+            valve = store.get_valve(entity_id)
+            if not valve:
+                return web.json_response({"error": "unknown zone"}, status=404)
             if action == "stop":
                 await scheduler.async_stop_valve(entity_id)
                 return web.json_response({"ok": True, "action": "stop", "entity_id": entity_id})
+            if hass_inner.states.get(entity_id) is None:
+                return web.json_response({"error": "unknown zone"}, status=404)
+            if not valve.get("enabled", True):
+                return web.json_response({"error": "zone disabled"}, status=409)
             duration = payload.get("duration_minutes")
             if duration is None:
-                valve = store.get_valve(entity_id)
-                duration = valve["default_duration_min"] if valve else int(options[CONF_DEFAULT_DURATION])
+                duration = valve["default_duration_min"]
             try:
                 duration = max(1, min(MAX_RUN_MINUTES, int(duration)))
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):
                 return web.json_response({"error": "duration_minutes must be an integer"}, status=400)
             await scheduler.async_run_valve(entity_id, duration, source="webhook")
             return web.json_response({"ok": True, "action": "run", "entity_id": entity_id, "duration_minutes": duration})
-        except Exception as e:
-            LOG.exception("webhook handler failed: %s", e)
-            return web.json_response({"error": str(e)}, status=500)
+        except Exception:
+            LOG.exception("webhook handler failed")
+            return web.json_response({"error": "internal error"}, status=500)
 
-    try:
-        webhook.async_register(hass, DOMAIN, "Schedule Wizard", webhook_id, _webhook_handler)
-    except ValueError:
-        webhook.async_unregister(hass, webhook_id)
-        webhook.async_register(hass, DOMAIN, "Schedule Wizard", webhook_id, _webhook_handler)
+    _async_register_webhook(hass, webhook_id, _webhook_handler)
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "store": store,
         "scheduler": scheduler,
         "options": options,
         "webhook_id": webhook_id,
+        "webhook_handler": _webhook_handler,
     }
 
     async def _svc_run(call: ServiceCall) -> None:
