@@ -19,3 +19,18 @@
 - Playwright: log in once and reuse `storageState`; per-context logins race HA's redirect to `/auth/`.
 - Clean up after: restore `configuration.yaml`, restart, and remove orphaned registry entries
   (`config/entity_registry/remove`).
+
+## Added 2026-10-01 (v0.15.0 verification pass)
+
+- **Check for a second instance on the same config first.** Two `ha_launch.py -c haconfig-8171` trees were found running
+  (the second in recovery mode, port taken, but sharing `.storage` and the log). Kill the extra tree before testing.
+- **Long idle WS clients get dropped.** aiohttp answers HA's pings only while `receive()` runs; a script that `sleep`s
+  ~2 min on an open connection gets "Cannot write to closing transport". Idle by reading with a timeout instead.
+- **Restart from a script: start HA with `Start-Process` and all std handles to DEVNULL.** If the launcher inherits the
+  script's stdout pipe, the pipe stays open for the life of HA and `| grep | tee` never returns.
+- **Restart without the IDE task:** `homeassistant.stop` via WS, poll `Get-CimInstance` until no `haconfig-<port>` process,
+  then `Start-Process` (venv python, `PYTHONPATH=<scratch>`) and wait for `/api/` 401 plus a successful `get_state`.
+  An instance started with the Bash tool's background mode dies with the agent; a `Start-Process` one survives.
+- **Template switch rows:** `stop_all` / `remove_valve` on a zone whose valve is unavailable leaves a `pending_closes`
+  entry (by design since #80). Clear it from `.storage` (HA stopped) when removing test switches.
+- **Scale data without YAML:** `input_boolean/create` (`PZ01`..`PZ20`) and `input_boolean/delete` need no restart.
