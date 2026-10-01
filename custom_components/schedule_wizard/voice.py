@@ -17,25 +17,28 @@ from .const import CONF_RAIN_DELAY_UNTIL, DOMAIN, EVENT_RAIN_DELAY_SET
 LOG = logging.getLogger(__name__)
 
 # (language, action) -> sentence templates. {zone} / {plan} / {minutes} / {days} are wildcards.
+# One trigger per action: Home Assistant runs every trigger a sentence matches, and the {zone}
+# wildcard of "water {zone}" also swallows "... for 5 minutes", so the minutes sentences share the
+# run_zone trigger (BUG-014: the zone used to start twice).
 SENTENCES: dict[tuple[str, str], list[str]] = {
-    ("en", "run_zone_minutes"): ["water [the] {zone} for {minutes} minute[s]"],
-    ("en", "run_zone"): ["water [the] {zone}"],
+    ("en", "run_zone"): ["water [the] {zone} for {minutes} minute[s]", "water [the] {zone}"],
     ("en", "run_plan"): ["(start|run) [the] watering plan {plan}", "(start|run) [the] {plan} watering plan"],
     ("en", "stop_all"): ["stop [the] watering", "stop [all] [the] sprinklers", "stop watering everything"],
     ("en", "stop_zone"): ["stop watering [the] {zone}"],
     ("en", "skip_today"): ["skip [the] watering today", "skip today's watering", "no watering today"],
     ("en", "pause_days"): ["pause [the] watering for {days} day[s]"],
     ("en", "status"): ["is [the] watering on", "what is watering [now]", "is anything watering"],
-    ("de", "run_zone_minutes"): ["bewässere [den|die|das] {zone} [für] {minutes} minute[n]"],
-    ("de", "run_zone"): ["bewässere [den|die|das] {zone}"],
+    ("de", "run_zone"): ["bewässere [den|die|das] {zone} [für] {minutes} minute[n]", "bewässere [den|die|das] {zone}"],
     ("de", "run_plan"): ["starte [den] bewässerungsplan {plan}"],
     ("de", "stop_all"): ["stopp[e] [die] bewässerung", "bewässerung (stoppen|beenden)"],
     ("de", "stop_zone"): ["stopp[e] [die] bewässerung (von|für) [den|die|das] {zone}"],
     ("de", "skip_today"): ["bewässerung heute überspringen", "heute nicht bewässern"],
     ("de", "pause_days"): ["pausiere [die] bewässerung für {days} tag[e]"],
     ("de", "status"): ["läuft [die] bewässerung", "was wird [gerade] bewässert"],
-    ("he", "run_zone_minutes"): ["(תשקה|השקה|תשקי) [את] {zone} [למשך] {minutes} דקות", "(תשקה|השקה|תשקי) [את] {zone} [למשך] {minutes} דק"],
-    ("he", "run_zone"): ["(תשקה|השקה|תשקי) [את] {zone}"],
+    ("he", "run_zone"): [
+        "(תשקה|השקה|תשקי) [את] {zone} [למשך] {minutes} דקות", "(תשקה|השקה|תשקי) [את] {zone} [למשך] {minutes} דק",
+        "(תשקה|השקה|תשקי) [את] {zone}",
+    ],
     ("he", "run_plan"): ["(הפעל|תפעיל|תפעילי) [את] תוכנית [ה]השקיה {plan}"],
     ("he", "stop_all"): ["(עצור|תעצור|תעצרי) [את] [כל] ההשקיה", "(עצור|תעצור|תעצרי) השקיה"],
     ("he", "stop_zone"): ["(עצור|תעצור|תעצרי) [את] [ה]השקיה [של|ב] {zone}"],
@@ -201,6 +204,8 @@ class VoiceCommands:
         sch = self.scheduler
         if action in ("run_zone", "run_zone_minutes", "stop_zone"):
             name = str(slots.get("zone") or "")
+            if action == "run_zone" and slots.get("minutes") not in (None, ""):
+                action = "run_zone_minutes"
             if action == "run_zone":
                 # "water the lawn for 10 minutes" can also land here with the minutes inside {zone}.
                 m = _TRAILING_MINUTES.match(_norm(name))
