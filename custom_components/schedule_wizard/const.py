@@ -118,6 +118,13 @@ CONDITION_OPERATORS = ("above", "below", "equals", "not_equals")
 
 MAX_RUN_MINUTES = 1440
 
+# Service input bounds (#39): any signed-in user can call the services.
+MAX_NAME_LENGTH = 80
+MAX_TEXT_LENGTH = 255
+MAX_VALVES = 200
+MAX_SCHEDULES = 200
+MAX_CYCLES = 200
+
 # A cycle interrupted by a restart resumes only if HA was back within this many seconds
 # of when its current zone would have finished.
 RESUME_MAX_GAP_SECONDS = 30 * 60

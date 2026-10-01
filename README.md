@@ -154,16 +154,21 @@ The HA **Configure** dialog only edits the basic options; it no longer wipes the
 
 ## Calendar event format
 
-- **Summary** must contain the valve label (case-insensitive substring match). Example for label `Front lawn`:
+- **Summary** must contain the zone label or plan name as **whole words** (case-insensitive). Only the summary is read, never the description, location or attendees. Example for label `Front lawn`:
   - `Front lawn` ✓
   - `Front Lawn morning cycle` ✓
+  - `Front lawns` ✗ (since 0.14.1: part of a longer word no longer counts)
   - `Garden zone 1` ✗
+- A label or name of 1 or 2 characters (for example `A` or `B2`) only matches an event whose whole summary is exactly that label, so ordinary events such as "Lunch with a friend" never start zone `A`.
+- Anyone who can put an event on the selected calendar can start watering. If your calendar accepts invitations automatically (Google, Outlook, CalDAV), pick a dedicated calendar for watering.
 - **Description**: minutes to run, written as `15 min` / `15 minutes` / `15 דקות`, or the description is just the number (`15`). Other numbers (like "Zone 2") are ignored. Falls back to event duration (end − start), then to the valve's default duration.
 - **Start time** triggers the run. Events within the lookahead window are caught on the next poll. Rain delay, rain skip, moisture skip and seasonal adjustment are evaluated when the event fires.
 - **All-day events are ignored** (they would otherwise run a valve for 24 hours).
 - Deleting or moving an event in the calendar cancels its pending run.
 
 ## Services
+
+Limits (since 0.14.1): zone labels and plan / watering time names up to 80 characters, moisture attributes and condition values up to 255; at most 200 zones, 200 watering times and 200 plans. Existing longer labels keep working; only new or changed ones are checked.
 
 | Service                           | Purpose                                                                                       |
 | --------------------------------- | --------------------------------------------------------------------------------------------- |
@@ -265,7 +270,7 @@ Trigger a cycle from:
 
 - **Panel** — Cycles tab → Run on a cycle row.
 - **Schedule** — add a schedule whose target is a cycle instead of a single valve.
-- **Calendar event** — event summary contains the cycle name (case-insensitive substring).
+- **Calendar event** — event summary contains the cycle name as whole words (case-insensitive; see [Calendar event format](#calendar-event-format)).
 - **Service call**:
   ```yaml
   service: schedule_wizard.run_cycle
@@ -805,7 +810,7 @@ Cycles and soak sequences are not resumed after a restart: the valve open at shu
 ## Troubleshooting
 
 - **Integration won't load.** Check `Settings → System → Logs`, filter `schedule_wizard`. Min HA version is 2024.7.
-- **Calendar events don't fire.** Verify calendar entity is selected in Settings tab. Check event summary contains the valve label *exactly* (case-insensitive substring). Enable debug logging:
+- **Calendar events don't fire.** Verify calendar entity is selected in Settings tab. Check event summary contains the valve label as whole words (case-insensitive; a 1 or 2 character label must be the whole summary). Enable debug logging:
   ```yaml
   logger:
     default: warning

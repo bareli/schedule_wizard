@@ -189,7 +189,7 @@ class ScheduleWizardCard extends HTMLElement {
     if (c.startsWith("cycle:")) {
       const id = c.slice(6).split("|")[0];
       const cycle = ((this._state && this._state.cycles) || []).find(x => x.id === id);
-      return this._t("source.cycle", { name: cycle ? cycle.name : id });
+      return this._t("source.cycle", { name: cycle ? cycle.name : this._t("home.deleted_plan") });
     }
     return c && this._t.has("source." + c) ? this._t("source." + c) : c;
   }

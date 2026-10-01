@@ -528,14 +528,24 @@ class ScheduleWizardPanel extends HTMLElement {
     return c && this._t.has("status." + c) ? this._t("status." + c) : c;
   }
 
-  _sourceLabel(code) {
+  _sourceLabel(code, planName) {
     const c = String(code || "");
     if (c.startsWith("cycle:")) {
-      const id = c.slice(6).split("|")[0];
-      const cycle = ((this._state && this._state.cycles) || []).find(x => x.id === id);
-      return this._t("source.cycle", { name: cycle ? cycle.name : id });
+      return this._t("source.cycle", { name: this._planName(c.slice(6).split("|")[0], planName) });
     }
     return c && this._t.has("source." + c) ? this._t("source." + c) : c;
+  }
+
+  // History rows keep a plan's id; zones are entity ids (always with a dot) (#57).
+  _isPlanId(id) {
+    return !!id && !String(id).includes(".");
+  }
+
+  // The plan's current name, else the name stored with the history row, else "Deleted plan" (#57).
+  _planName(id, stored) {
+    const cycle = ((this._state && this._state.cycles) || []).find(x => x.id === id);
+    if (cycle) return cycle.name;
+    return stored || this._t("home.deleted_plan");
   }
 
   _daysFromMask(mask) {
@@ -1303,9 +1313,9 @@ class ScheduleWizardPanel extends HTMLElement {
   }
 
   _activitySentence(h) {
-    const cycle = (this._state.cycles || []).find(c => c.id === h.valve_entity_id);
-    const name = cycle ? iso(cycle.name) : this._valveName(h.valve_entity_id);
-    if (!cycle && h.status === "completed") return this._tn("home.act_watered", { zone: name, n: h.duration_min });
+    const plan = this._isPlanId(h.valve_entity_id);
+    const name = plan ? iso(this._planName(h.valve_entity_id, h.name)) : this._valveName(h.valve_entity_id);
+    if (!plan && h.status === "completed") return this._tn("home.act_watered", { zone: name, n: h.duration_min });
     return this._tn("home.act_status", { name, status: this._statusLabel(h.status) });
   }
 
@@ -1313,7 +1323,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const h = g.entry;
     const left = el("div", { style: "min-width:0;" }, [
       el("div", {}, [...this._activitySentence(h), h.liters > 0 ? " · " + this._fmtLiters(h.liters) : null]),
-      el("div", { class: "sub" }, this._sourceLabel(h.source)),
+      el("div", { class: "sub" }, this._sourceLabel(h.source, h.plan_name)),
     ]);
     if (g.kind === "cycle") {
       (g.children || []).filter(c => c.status !== "started").forEach(c => {
@@ -1332,19 +1342,18 @@ class ScheduleWizardPanel extends HTMLElement {
   }
 
   _groupHistory(history) {
-    const cyclesById = Object.fromEntries((this._state.cycles || []).map(c => [c.id, c]));
     const used = new Set();
     const out = [];
     for (let i = 0; i < history.length; i++) {
       if (used.has(i)) continue;
       const h = history[i];
-      if (cyclesById[h.valve_entity_id]) {
+      if (this._isPlanId(h.valve_entity_id)) {
         const cycleId = h.valve_entity_id;
         const children = [];
         for (let j = i + 1; j < history.length; j++) {
           if (used.has(j)) continue;
           const c = history[j];
-          if (cyclesById[c.valve_entity_id] && c.valve_entity_id === cycleId) break;
+          if (c.valve_entity_id === cycleId) break;
           if (c.source && c.source.startsWith(`cycle:${cycleId}`)) {
             children.push(c);
             used.add(j);
@@ -1514,7 +1523,7 @@ class ScheduleWizardPanel extends HTMLElement {
     let duration = existing ? existing.default_duration_min : (this._state.options.default_duration || 10);
     let enabled = existing ? !!existing.enabled : true;
 
-    const labelInput = el("input", { type: "text", value: label, placeholder: this._t("valves.label_ph") });
+    const labelInput = el("input", { type: "text", maxlength: "80", value: label, placeholder: this._t("valves.label_ph") });
     labelInput.addEventListener("input", () => { label = labelInput.value; });
 
     const durInput = el("input", { type: "number", min: "1", max: "1440", value: String(duration) });
@@ -1560,7 +1569,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const soakRunInput = el("input", { type: "number", min: "0", max: "1440", value: String(existing ? (existing.soak_run_min || 0) : 0) });
     const soakPauseInput = el("input", { type: "number", min: "0", max: "1440", value: String(existing ? (existing.soak_pause_min || 0) : 0) });
     const vMoistEntity = el("input", { type: "text", dir: "ltr", placeholder: "sensor.zone_moisture", value: String((existing && existing.moisture_entity) || "") });
-    const vMoistAttr = el("input", { type: "text", placeholder: this._t("common.moisture_attr_ph"), value: String((existing && existing.moisture_attribute) || "") });
+    const vMoistAttr = el("input", { type: "text", maxlength: "255", placeholder: this._t("common.moisture_attr_ph"), value: String((existing && existing.moisture_attribute) || "") });
     const vMoistThrRaw = (existing && existing.moisture_threshold !== null && existing.moisture_threshold !== undefined) ? String(existing.moisture_threshold) : "";
     const vMoistThreshold = el("input", { type: "number", min: "0", max: "100", step: "0.5", value: vMoistThrRaw });
 
@@ -1770,7 +1779,7 @@ class ScheduleWizardPanel extends HTMLElement {
       steps.push({ entity_id: v.entity_id, duration_min: v.default_duration_min });
     }
 
-    const nameInput = el("input", { type: "text", value: name, placeholder: this._t("cycles.name_ph") });
+    const nameInput = el("input", { type: "text", maxlength: "80", value: name, placeholder: this._t("cycles.name_ph") });
     nameInput.addEventListener("input", () => { name = nameInput.value; });
 
     const enabledInput = el("input", { type: "checkbox" });
@@ -1927,7 +1936,7 @@ class ScheduleWizardPanel extends HTMLElement {
     };
     renderTargetField();
 
-    const nameInput = el("input", { type: "text", value: name, placeholder: this._t("common.optional") });
+    const nameInput = el("input", { type: "text", maxlength: "80", value: name, placeholder: this._t("common.optional") });
     nameInput.addEventListener("input", () => { name = nameInput.value; });
 
     const enabledInput = el("input", { type: "checkbox" });
@@ -2075,7 +2084,7 @@ class ScheduleWizardPanel extends HTMLElement {
       conditions.forEach((c, idx) => {
         const entInput = el("input", { type: "text", dir: "ltr", placeholder: "sensor.example", value: c.entity_id });
         entInput.addEventListener("input", () => { c.entity_id = entInput.value; });
-        const attrInput = el("input", { type: "text", placeholder: this._t("sched.attr_ph"), value: c.attribute });
+        const attrInput = el("input", { type: "text", maxlength: "255", placeholder: this._t("sched.attr_ph"), value: c.attribute });
         attrInput.addEventListener("input", () => { c.attribute = attrInput.value; });
         const opSel = el("select", {});
         OPERATORS.forEach(([val, lbl]) => {
@@ -2084,7 +2093,7 @@ class ScheduleWizardPanel extends HTMLElement {
           opSel.appendChild(opt);
         });
         opSel.addEventListener("change", () => { c.operator = opSel.value; });
-        const valInput = el("input", { type: "text", placeholder: this._t("sched.value_ph"), value: c.value });
+        const valInput = el("input", { type: "text", maxlength: "255", placeholder: this._t("sched.value_ph"), value: c.value });
         valInput.addEventListener("input", () => { c.value = valInput.value; });
         condWrap.appendChild(el("div", { class: "cond-row" }, [
           entInput, attrInput, opSel, valInput,
@@ -2225,7 +2234,7 @@ class ScheduleWizardPanel extends HTMLElement {
     };
 
     const planNameField = () => {
-      const input = el("input", { type: "text", value: planName(), placeholder: t("cycles.name_ph") });
+      const input = el("input", { type: "text", maxlength: "80", value: planName(), placeholder: t("cycles.name_ph") });
       input.addEventListener("input", () => { wz.plan = input.value; wz.planTouched = true; refreshNext(); });
       return el("label", { class: "field", style: "margin:0;" }, [el("span", {}, t("wiz.plan_name")), input]);
     };
@@ -2275,7 +2284,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const bodyName = () => {
       body.appendChild(el("p", { class: "muted" }, t("wiz.name_hint")));
       wz.picked.filter(isNew).forEach(id => {
-        const input = el("input", { type: "text", value: nameOf(id), placeholder: t("valves.label_ph") });
+        const input = el("input", { type: "text", maxlength: "80", value: nameOf(id), placeholder: t("valves.label_ph") });
         input.addEventListener("input", () => { wz.names[id] = input.value; refreshNext(); });
         body.appendChild(el("label", { class: "field", style: "margin:0;" }, [
           el("span", {}, [iso(friendly(id)), " (", ltr(id), ")"]),
@@ -2646,12 +2655,11 @@ class ScheduleWizardPanel extends HTMLElement {
   _downloadHistoryCsv() {
     const history = this._state.history || [];
     const valvesById = Object.fromEntries((this._state.valves || []).map(v => [v.entity_id, v.label]));
-    const cyclesById = Object.fromEntries((this._state.cycles || []).map(c => [c.id, c.name]));
     const header = ["timestamp", "iso_time", "target_kind", "target_id", "target_label", "duration_min", "source", "status", "note", "liters"];
     const rows = history.map(h => {
-      const isCycle = !!cyclesById[h.valve_entity_id];
+      const isCycle = this._isPlanId(h.valve_entity_id);
       const id = h.valve_entity_id || "";
-      const label = isCycle ? cyclesById[id] : (valvesById[id] || id);
+      const label = isCycle ? this._planName(id, h.name) : (valvesById[id] || id);
       const isoTime = new Date(h.ts * 1000).toISOString();
       return [
         h.ts, isoTime,
@@ -2665,8 +2673,10 @@ class ScheduleWizardPanel extends HTMLElement {
       ];
     });
     const escape = (v) => {
-      const s = String(v == null ? "" : v);
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      let s = String(v == null ? "" : v);
+      // #39: a text cell starting with = + - @ (or tab / CR) would run as a spreadsheet formula.
+      if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const csv = [header.map(escape).join(","), ...rows.map(r => r.map(escape).join(","))].join("\n");
     const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
