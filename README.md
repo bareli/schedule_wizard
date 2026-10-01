@@ -116,7 +116,7 @@ Your watering plans: zones in order, the days and times they run, Run now / Paus
 
 ### Every N days
 
-In a watering time's editor, set **Repeat** to **Every N days** instead of **Days of the week**, then pick how many days apart (2 to 30) and the start date (today by default). The schedule runs on the start date and every N days after it, at the same time, with the same zone or plan, skips and conditions as a weekday schedule. Days are counted on the calendar in your Home Assistant time zone, so runs stay at the same clock time when daylight saving time starts or ends. The next-run times, the week view, `calendar.schedule_wizard_watering_schedule` and `sensor.schedule_wizard_next_schedule` all follow it. Schedules created before 0.14.0 keep their days of the week.
+In a watering time's editor, set **Repeat** to **Every 2 to 30 days** instead of **Days of the week**, then pick the **days between waterings** (2 to 30) and **First watering on** (today by default). A line under the fields shows the first run (for example "First run: Sat, Oct 3 06:00, then every 2 days") and says so when today's time has already passed. The schedule runs on that date and every N days after it, at the same time, with the same zone or plan, skips and conditions as a weekday schedule. Days are counted on the calendar in your Home Assistant time zone, so runs stay at the same clock time when daylight saving time starts or ends. The next-run times, the week view, `calendar.schedule_wizard_watering_schedule` and `sensor.schedule_wizard_next_schedule` all follow it, including a first watering date months ahead. Schedules created before 0.14.0 keep their days of the week.
 
 ![Watering plans](docs/screenshots/panel-programs.png)
 
@@ -299,7 +299,7 @@ Linear interpolation between low↔high. Below low = min %. Above high = max %. 
 
 Example: sensor = 18 °C, low=10, high=30, min=50, max=120. Factor = 50 + (18−10)/(30−10) × (120−50) = 78%. A 10-minute schedule runs for 8 minutes.
 
-**0 % means no watering.** With Min % = 0, a factor shown as 0 % skips the scheduled or calendar run (zones and plans) instead of watering. It is logged as `skipped_seasonal_zero` ("skipped (temperature 0 %)"), fires `schedule_wizard_seasonal_skipped` and the `skipped_seasonal` notification. Any factor above 0 % still waters at least 1 minute (for example 3 % of 10 minutes runs 1 minute).
+**0 % means no watering.** With Min % = 0, a factor shown as 0 % skips the scheduled or calendar run (zones and plans) instead of watering. It is logged as `skipped_seasonal_zero` ("skipped: temperature adjustment 0 % (too cool)"), fires `schedule_wizard_seasonal_skipped` and the `skipped_seasonal` notification, with the same words in your Home Assistant language. Any factor above 0 % still waters at least 1 minute (for example 3 % of 10 minutes runs 1 minute); 0.5 % counts as 1 %. While the factor is 0 %, Home shows "Scheduled watering paused: too cool" and the week view marks today's and tomorrow's runs "will be skipped (cool)".
 
 ## Soil moisture skip
 
@@ -455,7 +455,7 @@ The integration fires events on the HA event bus. Use them as triggers for any a
 | `schedule_wizard_rain_skipped`           | A schedule or calendar run was skipped due to rain   | `target`, `kind` (`valve`/`cycle`), `label`/`name`, `source`, `schedule_id` |
 | `schedule_wizard_moisture_skipped`       | A schedule, calendar or cycle-step run skipped (wet soil) | `target`, `kind`, `label`/`name`, `source`, `schedule_id`   |
 | `schedule_wizard_condition_skipped`      | A schedule's conditions were not met                 | `target`, `kind`, `label`/`name`, `source`, `schedule_id`        |
-| `schedule_wizard_seasonal_skipped`       | A schedule or calendar run skipped: temperature adjustment 0 % | `target`, `kind`, `label`/`name`, `source`, `schedule_id`, `reason` |
+| `schedule_wizard_seasonal_skipped`       | A schedule or calendar run skipped: temperature adjustment 0 % (too cool) | `target`, `kind`, `label`/`name`, `source`, `schedule_id`, `reason`, `message` |
 | `schedule_wizard_valve_soaking`          | A cycle-and-soak run paused between chunks           | `entity_id`, `label`, `chunk`, `chunks`, `resume_at`, `source`   |
 | `schedule_wizard_leak_detected`          | Flow sensor alert                                    | `kind` (`leak`/`high_flow`), `flow_entity`, `value`, `running`, `stopped_all` |
 | `schedule_wizard_low_flow`               | A zone got much less water than usual                | `entity_id`, `label`, `lpm`, `expected_lpm`                      |
