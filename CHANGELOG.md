@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.1: security fixes
+
+- **Webhook only runs your zones** (#34, #37): the webhook used to switch any switch, light, cover, valve or input_boolean in Home Assistant, including ones that are not zones, and recorded runs for entities that do not exist. It now accepts only zones set up in Schedule Wizard (`404 unknown zone` otherwise, nothing switched or recorded) and refuses to run a disabled zone (`409`). Automations that call the webhook for a zone keep working; calls for other entities stop working.
+- **Webhook URL for administrators only, and a New URL button** (#35): non-admin users no longer receive the webhook ID or the notification targets from the panel. Settings → More options → Webhook has **New URL**, which replaces the secret; the old URL stops working at once.
+- **Webhook errors** (#36): a body that is not a JSON object, a non-text or unknown `action`, or a bad `entity_id` now gets `400` with a short message; unexpected errors return `internal error` instead of Python exception text.
+- **Main valve must be a valve** (#40): Settings accepts only an existing switch, valve, light, cover or input_boolean as main valve / pump, checked in the panel and on the server. A main valve of another domain saved earlier (for example a script) is ignored and logged instead of being turned on and off around every run.
+
 ## 0.14.0: water every N days, 0 % temperature adjustment skips the run
 
 - **Every N days** (#27): a watering time can repeat every 2 to 30 days from a start date, as an alternative to days of the week. Same time, zone or plan, skips and conditions as before. Pick it in the editor under **Repeat**; lists show "Every 2 days from ... at ...". Runs follow your HA time zone's calendar days, so they keep their clock time across daylight saving changes. Next-run times, the week view, the watering calendar and the next schedule sensor include these runs. Services `add_schedule` / `update_schedule` take `every_n_days` and `start_date` (default today). Existing schedules are unchanged.

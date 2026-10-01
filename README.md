@@ -348,7 +348,7 @@ data:
 
 ## Master valve / pump
 
-Optional in Settings → Advanced → **Master valve / pump**. Pick a switch entity and a pre-open delay (seconds).
+Optional in Settings → Advanced → **Master valve / pump**. Pick an existing switch, valve, light, cover or input_boolean entity and a pre-open delay (seconds). Other domains (scripts, automations...) are rejected.
 
 - Auto-opens before any zone runs (sequence: master ON → wait `pre_open_sec` → zone ON).
 - Auto-closes once all active zones AND active cycles are done.
@@ -550,7 +550,7 @@ rain_threshold: 1
 
 ## Webhook trigger
 
-Each integration install gets a unique webhook ID. Fire runs from anything that can POST:
+Each integration install gets a unique webhook ID. Fire runs of a zone set up in Schedule Wizard from anything that can POST:
 
 ```bash
 curl -X POST https://<your-ha-url>/api/webhook/<WEBHOOK_ID> \
@@ -566,9 +566,12 @@ curl -X POST https://<your-ha-url>/api/webhook/<WEBHOOK_ID> \
   -d '{"entity_id": "switch.front_lawn_valve", "action": "stop"}'
 ```
 
-Find your webhook ID: Developer Tools → Services → `schedule_wizard.list_config` → the panel Settings tab also surfaces it.
+Find the URL in the panel: Settings → More options → Webhook (administrators only).
 
-No HA auth token required for webhooks — the webhook ID itself is the secret. Rotate by removing and re-adding the integration if leaked.
+No HA auth token required for webhooks: the webhook ID itself is the secret. If it leaks, press **New URL** there; the old URL stops working at once.
+
+- Only zones set up in Schedule Wizard are accepted: any other entity, or a zone whose entity no longer exists, gets `404 unknown zone` and nothing is switched or recorded. A disabled zone gets `409`.
+- `action` is `run` (default) or `stop`; anything else, or a body that is not a JSON object, gets `400`.
 
 ## Lovelace card
 

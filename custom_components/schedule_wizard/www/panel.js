@@ -2837,6 +2837,19 @@ class ScheduleWizardPanel extends HTMLElement {
     // Master
     const masterEntity = el("input", { type: "text", dir: "ltr", placeholder: "switch.water_pump", value: String(opts.master_valve_entity || "") });
     const masterPreOpen = el("input", { type: "number", min: "0", max: "600", value: String(opts.master_valve_pre_open_sec ?? 0) });
+    // Inline error; the server checks the same rule (#40).
+    const masterErr = el("div", { class: "field-error", id: "sw-master-err", role: "alert", hidden: true });
+    const masterCheck = () => {
+      const v = masterEntity.value.trim();
+      const ok = !v || v === String(opts.master_valve_entity || "") ||
+        (this._state.controllable || []).some(c => c.entity_id === v);
+      masterErr.replaceChildren(...(ok ? [] : this._tn("settings.master_invalid", { entity: ltr(v) })));
+      masterErr.hidden = ok;
+      if (ok) { masterEntity.removeAttribute("aria-invalid"); masterEntity.removeAttribute("aria-describedby"); }
+      else { masterEntity.setAttribute("aria-invalid", "true"); masterEntity.setAttribute("aria-describedby", masterErr.id); }
+      return ok;
+    };
+    masterEntity.addEventListener("change", masterCheck);
 
     // Fail detection
     const failEnabled = el("input", { type: "checkbox" });
@@ -2869,7 +2882,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const webhookId = this._state.webhook_id || "";
     const webhookChildren = [hint(this._t("settings.webhook_hint"))];
     if (webhookId) {
-      const webhookUrl = `${location.origin}/api/webhook/${webhookId}`;
+      let webhookUrl = `${location.origin}/api/webhook/${webhookId}`;
       const urlInput = el("input", {
         type: "text", readonly: true, dir: "ltr", value: webhookUrl,
         "aria-label": this._t("settings.webhook"),
@@ -2888,7 +2901,24 @@ class ScheduleWizardPanel extends HTMLElement {
           }
           this._toast(this._t("common.copied"), "ok");
         },
-      }, this._t("settings.copy_url")));
+      }, this._t("settings.copy_url")), el("button", {
+        class: "btn small",
+        style: "margin-top:6px;margin-inline-start:6px;",
+        onClick: async () => {
+          if (!confirm(this._t("settings.webhook_rotate_confirm"))) return;
+          try {
+            const res = await this._hass.callWS({ type: "schedule_wizard/rotate_webhook" });
+            this._state.webhook_id = res.webhook_id;
+            webhookUrl = `${location.origin}/api/webhook/${res.webhook_id}`;
+            urlInput.value = webhookUrl;
+            this._toast(this._t("settings.webhook_rotated"), "ok");
+          } catch (e) {
+            this._toast(e.message || String(e), "error");
+          }
+        },
+      }, this._t("settings.webhook_rotate")));
+    } else {
+      webhookChildren.push(hint(this._t("settings.webhook_admin_only")));
     }
 
     // Voice
@@ -2969,6 +2999,7 @@ class ScheduleWizardPanel extends HTMLElement {
       this._optGroup("master", this._t("set.g_master"), this._t("set.g_master_d"), !!opts.master_valve_entity, [
         hint(this._t("settings.master_hint")),
         field(this._t("settings.master_entity"), masterEntity),
+        masterErr,
         field(this._t("settings.master_pre_open"), masterPreOpen),
       ]),
       this._optGroup("flow", this._t("set.g_flow"), this._t("set.g_flow_d"), !!opts.flow_entity, [
@@ -3021,6 +3052,14 @@ class ScheduleWizardPanel extends HTMLElement {
     const feedback = el("div", { class: "muted", style: "font-size:12px;", "aria-live": "polite" });
     const saveBtn = el("button", { class: "btn primary" }, this._t("settings.save"));
     saveBtn.addEventListener("click", async () => {
+      if (!masterCheck()) {
+        more.open = true;
+        const group = masterErr.closest("details");
+        if (group) group.open = true;
+        masterEntity.focus();
+        this._toast(masterErr.textContent, "error");
+        return;
+      }
       saveBtn.disabled = true;
       const oldText = saveBtn.textContent;
       saveBtn.textContent = this._t("settings.saving");
