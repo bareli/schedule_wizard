@@ -16,6 +16,8 @@ import pytest
 
 WWW = Path(__file__).resolve().parent.parent / "custom_components" / "schedule_wizard" / "www"
 PANEL = (WWW / "panel.js").read_text(encoding="utf-8")
+CARD = (WWW / "card.js").read_text(encoding="utf-8")
+SOURCES = {"panel.js": PANEL, "card.js": CARD}
 
 
 def _method(src: str, name: str) -> str:
@@ -77,3 +79,20 @@ def test_toast_lives_inside_the_panel():
     host_css = re.search(r"\.toast-host \{(.*?)\}", PANEL, re.S)
     assert host_css and "position: fixed" in host_css.group(1)
     assert 'role: error ? "alert"' in body
+
+
+@pytest.mark.parametrize(("filename", "root"), [("panel.js", "app"), ("card.js", "this._root")])
+def test_render_restores_focus(filename, root):
+    """#41: a full re-render puts focus back on the control the user was on."""
+    body = _method(SOURCES[filename], "_render")
+    capture = body.index(f"captureFocus({root})")
+    assert capture < body.index(f"{root}.innerHTML = \"\"")
+    assert body.rstrip().endswith(f"restoreFocus({root}, focusKey);")
+
+
+@pytest.mark.parametrize("filename", ["panel.js", "card.js"])
+def test_refresh_skips_render_on_clock_tick(filename):
+    """#41: a poll that changed nothing but the clock does not rebuild the DOM under a focused control."""
+    body = _method(SOURCES[filename], "_refresh")
+    skip = body.index("this._stateSig === this._renderedSig")
+    assert body.index("this._updateInPlace();", skip) < body.index("this._render();", skip)

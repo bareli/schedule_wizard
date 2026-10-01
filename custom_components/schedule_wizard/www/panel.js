@@ -382,6 +382,74 @@ function deepActiveElement() {
   return node;
 }
 
+// Focus across re-renders (#41): a control is identified by what it is (tag, role, label, text) and the
+// zone row it sits in, plus its index among equals; its replacement gets focus back after the rebuild.
+const FOCUSABLE = "button, input, select, textarea, summary, a[href], [tabindex]";
+
+function rowKey(n) {
+  const row = n.closest("[data-entity], [data-soak]");
+  return row ? (row.getAttribute("data-entity") || row.getAttribute("data-soak")) : "";
+}
+
+function focusDesc(n) {
+  const field = n.tagName === "INPUT" || n.tagName === "SELECT" || n.tagName === "TEXTAREA";
+  return [
+    n.tagName, n.getAttribute("role") || "", n.getAttribute("aria-label") || "", n.getAttribute("type") || "",
+    field ? "" : (n.textContent || "").trim().slice(0, 80),
+    rowKey(n),
+  ].join("|");
+}
+
+function focusables(root) {
+  return Array.from(root.querySelectorAll(FOCUSABLE)).filter(n => !n.disabled);
+}
+
+function focusId(all, n) {
+  const desc = focusDesc(n);
+  return { desc, nth: all.filter(x => focusDesc(x) === desc).indexOf(n) };
+}
+
+// The focused control plus fallbacks for when it is gone or disabled after the rebuild (Water now becomes
+// Stop): its neighbours in the same zone row, the same slot in that row, its neighbours on the page.
+function captureFocus(root) {
+  const n = deepActiveElement();
+  if (!root || !n || n === root || !root.contains(n) || !n.matches(FOCUSABLE)) return null;
+  const all = focusables(root);
+  const pos = all.indexOf(n);
+  const row = rowKey(n);
+  const inRow = row ? all.filter(x => rowKey(x) === row) : [];
+  const rowPos = inRow.indexOf(n);
+  const near = (list, i) => [list[i + 1], list[i - 1]].filter(Boolean).map(x => focusId(all, x));
+  return { pos, row, rowPos, self: focusId(all, n), rowNear: row ? near(inRow, rowPos) : [], near: near(all, pos) };
+}
+
+function restoreFocus(root, key) {
+  if (!root || !key) return;
+  const all = focusables(root);
+  const find = (id) => {
+    const same = all.filter(x => focusDesc(x) === id.desc);
+    return same[id.nth] || same[0];
+  };
+  const inRow = key.row ? all.filter(x => rowKey(x) === key.row) : [];
+  const target = find(key.self) || key.rowNear.map(find).find(Boolean) ||
+    (inRow.length ? inRow[Math.min(key.rowPos, inRow.length - 1)] : null) ||
+    key.near.map(find).find(Boolean) || (all.length ? all[Math.min(key.pos, all.length - 1)] : null);
+  if (target) target.focus({ preventScroll: true });
+}
+
+function focusInside(root) {
+  const n = deepActiveElement();
+  return !!(root && n && n !== root && root.contains(n));
+}
+
+// State without the fields that change on every poll, to tell a real change from a clock tick.
+function stateSig(st) {
+  return JSON.stringify(st, (k, v) => (k === "now" || k === "in_seconds" ? undefined : v));
+}
+
+// A full rebuild still happens this often while focus is inside, so relative times stay current.
+const FOCUSED_RERENDER_MS = 60000;
+
 function daysFromMaskNames(mask) {
   return DAYS.filter((_, i) => mask & DAY_BITS[i]);
 }
@@ -656,6 +724,7 @@ class ScheduleWizardPanel extends HTMLElement {
   async _refresh() {
     try {
       this._state = await this._hass.callWS({ type: "schedule_wizard/get_state" });
+      this._stateSig = stateSig(this._state);
       if (this._hadError) {
         this._hadError = false;
         this._render();
@@ -666,6 +735,12 @@ class ScheduleWizardPanel extends HTMLElement {
       const focusedHere = focused && this.contains(focused) &&
         (focused.tagName === "INPUT" || focused.tagName === "TEXTAREA" || focused.tagName === "SELECT");
       if (this._editing || focusedHere || this.querySelector("input:focus, textarea:focus, select:focus")) {
+        this._updateInPlace();
+        return;
+      }
+      // Nothing but the clock moved and the user is on a control here: update numbers, keep the DOM (#41).
+      if (this._stateSig === this._renderedSig && Date.now() - this._renderedAt < FOCUSED_RERENDER_MS &&
+        focusInside(this.querySelector("#app"))) {
         this._updateInPlace();
         return;
       }
@@ -759,6 +834,9 @@ class ScheduleWizardPanel extends HTMLElement {
     if (!app || !this._state) return;
     this._applyDir(this);
     this._applyDir(app);
+    const focusKey = captureFocus(app);
+    this._renderedSig = this._stateSig;
+    this._renderedAt = Date.now();
     app.innerHTML = "";
 
     app.appendChild(el("div", { class: "topbar" }, [
@@ -789,6 +867,7 @@ class ScheduleWizardPanel extends HTMLElement {
       case "programs": this._renderPrograms(content); break;
       case "settings": this._renderSettings(content); break;
     }
+    restoreFocus(app, focusKey);
   }
 
   _flowBanner(root) {
