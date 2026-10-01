@@ -55,6 +55,8 @@ from .storage import WizardStore
 LOG = logging.getLogger(__name__)
 
 ON_STATES = {"on", "open", "opening", "active"}
+# Calendar names shorter than this only match an event whose whole summary is the name (#38).
+CALENDAR_MIN_WORD_MATCH = 3
 UNAVAILABLE_STATES = {"unavailable", "unknown", ""}
 
 SKIP_EVENTS = {
@@ -752,12 +754,22 @@ class Scheduler:
         return _fire
 
     @staticmethod
+    def _summary_has(name: str, summary: str) -> bool:
+        """#38: the name as whole words of the summary; a name under 3 characters must be the whole summary."""
+        name = (name or "").lower().strip()
+        summary = (summary or "").lower().strip()
+        if not name:
+            return False
+        if len(name) < CALENDAR_MIN_WORD_MATCH:
+            return name == summary
+        return re.search(r"(?<!\w)" + re.escape(name) + r"(?!\w)", summary) is not None
+
+    @staticmethod
     def _match_cycle(summary: str, cycles: list[dict]) -> Optional[dict]:
-        s = summary.lower()
         best, best_len = None, 0
         for c in cycles:
-            name = (c.get("name") or "").lower().strip()
-            if name and name in s and len(name) > best_len:
+            name = (c.get("name") or "").strip()
+            if Scheduler._summary_has(name, summary) and len(name) > best_len:
                 best, best_len = c, len(name)
         return best
 
@@ -798,16 +810,15 @@ class Scheduler:
 
     @staticmethod
     def _match_valve(summary: str, valves: list[dict]) -> Optional[dict]:
-        s = summary.lower()
         best, best_len = None, 0
         for v in valves:
-            label = (v.get("label") or "").lower().strip()
-            if label and label in s and len(label) > best_len:
+            label = (v.get("label") or "").strip()
+            if Scheduler._summary_has(label, summary) and len(label) > best_len:
                 best, best_len = v, len(label)
         if best:
             return best
         for v in valves:
-            if v["entity_id"].lower() in s:
+            if Scheduler._summary_has(v["entity_id"], summary):
                 return v
         return None
 
