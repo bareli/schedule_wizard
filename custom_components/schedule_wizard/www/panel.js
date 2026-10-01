@@ -337,6 +337,8 @@ details.more > summary { font-size: 16px; }
 .modal .toast-host { position: sticky; top: 0; bottom: auto; inset-inline: auto; padding-inline: 0; margin-bottom: 10px; z-index: 2; }
 .modal.wizard > .toast-host { margin: 0; padding: 10px 20px 0; }
 .modal .toast { max-width: 100%; }
+/* A field focused after Save is scrolled clear of that message, with its caption in view. */
+.modal input, .modal select, .modal textarea, .modal .entity-row { scroll-margin-top: 84px; }
 .toast {
   max-width: min(560px, 100%);
   padding: 10px 16px; background: var(--sw-text); color: var(--sw-bg);

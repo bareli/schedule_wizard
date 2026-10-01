@@ -119,6 +119,7 @@ def test_one_toast_at_a_time_and_under_the_dialog_title():
     rule = _rule(PANEL, ".modal .toast-host")
     assert "position: sticky" in rule and "top: 0" in rule
     assert "top: calc(12px" not in rule
+    assert "scroll-margin-top: 84px" in _rule(PANEL, ".modal input, .modal select, .modal textarea, .modal .entity-row")
 
 
 # ---------------------------------------------------------------- BUG-023: card picker text
