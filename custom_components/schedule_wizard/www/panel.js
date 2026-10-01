@@ -124,9 +124,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .field input[type="checkbox"] { width: auto; }
 .field-error { color: var(--sw-danger-text); font-size: 12px; margin-top: 4px; }
 .field input[aria-invalid="true"] { border-color: var(--sw-danger); }
+/* Pinned to the physical top left with no negative margin (BUG-021): with margin -1px and no inset its static
+   position in RTL sat 1 px past the right edge and scrolled the page sideways. */
 .sr-only {
-  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  position: absolute; top: 0; left: 0; width: 1px; height: 1px; padding: 0; margin: 0;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
 }
 .modal [hidden] { display: none !important; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -210,7 +212,8 @@ bdi { unicode-bidi: isolate; }
 .wk-run:hover { border-color: var(--sw-primary); }
 .wk-run .t { font-weight: 600; font-variant-numeric: tabular-nums; }
 .wk-run .n { overflow-wrap: anywhere; }
-.wk-run.past { opacity: 0.55; }
+/* Past runs: muted text, not opacity (BUG-020): they are still buttons, and opacity took the text under 4.5:1. */
+.wk-run.past { color: var(--sw-muted); }
 .wk-run.skipped .t, .wk-run.skipped .n { text-decoration: line-through; color: var(--sw-muted); }
 .wk-run.rain { border-color: var(--sw-warn); background: rgba(180,83,9,0.07); }
 .wk-tag { font-size: 11px; font-weight: 500; color: var(--sw-muted); }
@@ -329,8 +332,11 @@ details.more > summary { font-size: 16px; }
   display: flex; flex-direction: column; align-items: center; gap: 8px;
   padding-inline: 16px; z-index: 200; pointer-events: none;
 }
-/* In a dialog the message sits at the top, clear of the dialog's Save / Cancel buttons. */
-.modal .toast-host { bottom: auto; top: calc(12px + env(safe-area-inset-top, 0px)); }
+/* In a dialog the message sits in the flow right under the title (BUG-022): clear of the title and of Save /
+   Cancel, and it stays in view (sticky) when the form is scrolled. */
+.modal .toast-host { position: sticky; top: 0; bottom: auto; inset-inline: auto; padding-inline: 0; margin-bottom: 10px; z-index: 2; }
+.modal.wizard > .toast-host { margin: 0; padding: 10px 20px 0; }
+.modal .toast { max-width: 100%; }
 .toast {
   max-width: min(560px, 100%);
   padding: 10px 16px; background: var(--sw-text); color: var(--sw-bg);
@@ -354,8 +360,11 @@ pre { background: var(--sw-bg); padding: 10px; border-radius: 6px; font-size: 12
 }
 /* Touch screens: 44 px targets (ENH-002); the switch keeps its look and gets a larger invisible hit area. */
 @media (pointer: coarse) {
-  .btn, .link-btn, .tab, .day-chip, .wk-run, .entity-row, .check-wrap label { min-height: 44px; }
+  .btn, .link-btn, .tab, .day-chip, .wk-run, .entity-row, .check-wrap label, .wk-head .btn { min-height: 44px; }
   .btn.small, .wk-head .btn { min-width: 44px; }
+  .menu-btn { min-width: 44px; min-height: 44px; }
+  .app input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), .app select, .app textarea,
+  .modal input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), .modal select, .modal textarea { min-height: 44px; }
   .stepper button { width: 44px; height: 44px; }
   .switch::before { content: ""; position: absolute; inset: -10px -2px; }
 }
@@ -989,16 +998,21 @@ class ScheduleWizardPanel extends HTMLElement {
   // Toasts live inside the panel, where the .toast styles apply (#51); errors are alerts and stay longer.
   // An error raised while a dialog is open goes inside it (the dialog stays open on errors), so assistive
   // tech that honours aria-modal still hears it; anything else stays on the panel and outlives a closing dialog.
+  // One message at a time, the newest replaces the last; in a dialog it sits right under the title (BUG-022).
   _toast(msg, kind = "") {
     const host = this._toastRoot;
     if (!host) return;
     const error = kind === "error";
-    const parent = (error && this._modalRoot && this._modalRoot.querySelector('[aria-modal="true"]')) || this;
-    if (host.parentNode !== parent) parent.appendChild(host);
+    const dialog = error && this._modalRoot && this._modalRoot.querySelector('[aria-modal="true"]');
+    if (dialog) {
+      const head = Array.from(dialog.children).find(c => c !== host && (c.tagName === "H3" || c.classList.contains("wiz-head")));
+      if (head) { if (head.nextSibling !== host) head.after(host); } else if (host.parentNode !== dialog) dialog.prepend(host);
+    } else if (host.parentNode !== this) {
+      this.appendChild(host);
+    }
     const t = el("div", { class: "toast " + kind, role: error ? "alert" : null }, msg);
     this._applyDir(t);
-    while (host.children.length >= 3) host.firstChild.remove();
-    host.appendChild(t);
+    host.replaceChildren(t);
     setTimeout(() => t.remove(), error ? 6000 : 2800);
   }
 
@@ -3423,6 +3437,16 @@ class ScheduleWizardPanel extends HTMLElement {
             const dayKey = I18N.dayKey(h.ts, this._hass);
             dailyMin[dayKey] = (dailyMin[dayKey] || 0) + dur;
           }
+        } else if (status === "superseded" && h.planned_min != null) {
+          // Replaced by a new run on the zone: not a run of its own, but its minutes were watered (BUG-028).
+          // Rows written before 0.15.0 have no planned_min and hold the planned length, not what watered.
+          if (inWindow(h.ts, 7)) s.min_7d += dur;
+          if (inWindow(h.ts, 30)) {
+            s.min_30d += dur;
+            const dayKey = I18N.dayKey(h.ts, this._hass);
+            dailyMin[dayKey] = (dailyMin[dayKey] || 0) + dur;
+          }
+          s.min_total += dur;
         }
       } else {
         const id = h.valve_entity_id;
@@ -3690,11 +3714,12 @@ class ScheduleWizardPanel extends HTMLElement {
   // ---------- Settings ----------
 
   _optGroup(key, title, desc, on, children) {
-    const d = el("details", { class: "opt-group" });
+    const titleId = uid("sw-group");
+    const d = el("details", { class: "opt-group", "aria-labelledby": titleId });
     if (this._openGroups.has(key)) d.open = true;
     d.addEventListener("toggle", () => { if (d.open) this._openGroups.add(key); else this._openGroups.delete(key); });
     d.appendChild(el("summary", {}, [
-      el("strong", { style: "font-weight:500;" }, title),
+      el("strong", { id: titleId, style: "font-weight:500;" }, title),
       on === null ? el("span", {}) : el("span", { class: "pill " + (on ? "ok" : "idle") }, this._t(on ? "common.on" : "common.off")),
       el("p", {}, desc),
     ]));
@@ -3990,10 +4015,12 @@ class ScheduleWizardPanel extends HTMLElement {
       onClick: () => { interleaveOn = !interleaveOn; interleaveSwitch.setAttribute("aria-checked", interleaveOn ? "true" : "false"); },
     });
 
-    const more = el("details", { class: "more" });
+    // A <details> group is named by its caption (BUG-025).
+    const moreCap = uid("sw-more");
+    const more = el("details", { class: "more", "aria-labelledby": moreCap });
     if (this._moreOpen) more.open = true;
     more.addEventListener("toggle", () => { this._moreOpen = more.open; });
-    more.appendChild(el("summary", {}, this._t("set.more")));
+    more.appendChild(el("summary", { id: moreCap }, this._t("set.more")));
     more.appendChild(el("p", { class: "muted small", style: "margin:8px 0 4px;" }, this._t("set.more_hint")));
     more.append(
       this._optGroup("seasonal", this._t("set.g_seasonal"), this._t("set.g_seasonal_d"), !!opts.seasonal_enabled, [

@@ -102,7 +102,7 @@ from .const import (
     SUPPORTED_DOMAINS,
 )
 from . import issues, planner
-from .notify_text import APP_TITLE, fmt_number
+from .notify_text import APP_TITLE
 from .scheduler import Scheduler
 from .storage import WizardStore
 from .voice import VoiceCommands
@@ -594,6 +594,10 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
                 }
             if h["ts"] >= week_ago and h.get("status") in ("completed", "cancelled"):
                 s["runs_7d"] += 1
+                s["total_min_7d"] += int(h.get("duration_min", 0))
+            elif h["ts"] >= week_ago and h.get("status") == "superseded" and "planned_min" in h:
+                # Replaced by a new run: not a run of its own, but the minutes were watered (BUG-028). Rows
+                # written before 0.15.0 have no planned_min and hold the planned length, not what watered.
                 s["total_min_7d"] += int(h.get("duration_min", 0))
 
         from datetime import timedelta as _td
@@ -1095,7 +1099,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         new_options[CONF_RAIN_DELAY_UNTIL] = until_ts
         hass.config_entries.async_update_entry(entry, options=new_options)
         hass.bus.async_fire(EVENT_RAIN_DELAY_SET, {"until": until_ts, "hours": hours})
-        await scheduler._notify("rain_delay", APP_TITLE, scheduler._text("rain_pause_all", hours=fmt_number(hours)))
+        await scheduler._notify("rain_delay", APP_TITLE, scheduler._text("rain_pause_all", hours=scheduler._num(hours)))
 
     async def _async_valve_rain_delay(entity_ids: list[str], until_ts: int, hours: float) -> None:
         missing = [e for e in entity_ids if not store.get_valve(e)]
@@ -1105,7 +1109,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.bus.async_fire(EVENT_RAIN_DELAY_SET, {"until": until_ts, "hours": hours, "entity_ids": entity_ids})
         labels = ", ".join(scheduler._entity_label(e) for e in entity_ids)
         text = (
-            scheduler._text("rain_pause_zones", zones=labels, hours=fmt_number(hours))
+            scheduler._text("rain_pause_zones", zones=labels, hours=scheduler._num(hours))
             if until_ts else scheduler._text("rain_pause_end_zones", zones=labels)
         )
         await scheduler._notify("rain_delay", APP_TITLE, text)

@@ -50,12 +50,14 @@ SENTENCES: dict[tuple[str, str], list[str]] = {
 REPLIES = {
     "en": {
         "started": "Watering {name} for {minutes} minutes.",
+        "started_one": "Watering {name} for 1 minute.",
         "plan_started": "Starting {name}.",
         "stopped_all": "Watering stopped.",
         "stopped": "Stopped {name}.",
         "skipped": "Skipped {count} run(s) today.",
         "nothing_today": "Nothing else is scheduled today.",
         "paused": "Watering paused for {days} days.",
+        "paused_one": "Watering paused for 1 day.",
         "no_zone": "I don't know a zone called {name}.",
         "no_plan": "I don't know a watering plan called {name}.",
         "bad_number": "I didn't catch the number.",
@@ -65,12 +67,14 @@ REPLIES = {
     },
     "de": {
         "started": "Bewässere {name} für {minutes} Minuten.",
+        "started_one": "Bewässere {name} für 1 Minute.",
         "plan_started": "Starte {name}.",
         "stopped_all": "Bewässerung gestoppt.",
         "stopped": "{name} gestoppt.",
         "skipped": "{count} Lauf/Läufe heute übersprungen.",
         "nothing_today": "Heute ist nichts mehr geplant.",
         "paused": "Bewässerung für {days} Tage pausiert.",
+        "paused_one": "Bewässerung für 1 Tag pausiert.",
         "no_zone": "Ich kenne keine Zone namens {name}.",
         "no_plan": "Ich kenne keinen Bewässerungsplan namens {name}.",
         "bad_number": "Ich habe die Zahl nicht verstanden.",
@@ -80,12 +84,14 @@ REPLIES = {
     },
     "he": {
         "started": "משקה את {name} למשך {minutes} דקות.",
+        "started_one": "משקה את {name} למשך דקה אחת.",
         "plan_started": "מפעיל את {name}.",
         "stopped_all": "ההשקיה נעצרה.",
         "stopped": "{name} נעצר.",
         "skipped": "דילגתי על {count} השקיות היום.",
         "nothing_today": "אין עוד השקיות מתוכננות להיום.",
         "paused": "ההשקיה מושהית ל־{days} ימים.",
+        "paused_one": "ההשקיה מושהית ליום אחד.",
         "no_zone": "אני לא מכיר אזור בשם {name}.",
         "no_plan": "אני לא מכיר תוכנית השקיה בשם {name}.",
         "bad_number": "לא הבנתי את המספר.",
@@ -192,7 +198,11 @@ class VoiceCommands:
         return _run
 
     def _reply(self, lang: str, key: str, **kw) -> str:
-        return REPLIES.get(lang, REPLIES["en"])[key].format(**kw)
+        table = REPLIES.get(lang, REPLIES["en"])
+        # Singular for one minute / one day (BUG-027): "für 1 Minute", not "für 1 Minuten".
+        if (kw.get("minutes") == 1 or kw.get("days") == 1) and f"{key}_one" in table:
+            key = f"{key}_one"
+        return table[key].format(**kw)
 
     def _zones(self) -> list[tuple[str, str]]:
         return [(v["entity_id"], v.get("label") or v["entity_id"]) for v in self.store.valves]

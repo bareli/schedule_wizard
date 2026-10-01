@@ -432,10 +432,12 @@ class Scheduler:
             return
         self._unwatch_close(entity_id)
         self._pending_close.pop(entity_id, None)
-        await self._async_persist_pending()
         LOG.info("pending close of %s done (state was %s)", entity_id, state.state)
+        # The end row first, then the pending close leaves storage in the same write (BUG-026): a stop in
+        # between can neither lose the row nor, on the next start, record it a second time.
         if pending.get("row"):
             await self._async_record_end(entity_id, pending["row"])
+        await self.store.async_drop_pending_close(entity_id)
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
 
     def _take_pending_close(self, entity_id: str) -> None:
@@ -587,9 +589,16 @@ class Scheduler:
         else:
             await self.async_run_valve(target["id"], target["minutes"], source=source, note=f"schedule:{schedule_id}")
 
+    def _lang(self) -> str:
+        return panel_lang(getattr(self.hass.config, "language", "en"))
+
     def _text(self, key: str, **params: Any) -> str:
         """A notification text in the HA language (#68)."""
-        return notify_text(panel_lang(getattr(self.hass.config, "language", "en")), key, **params)
+        return notify_text(self._lang(), key, **params)
+
+    def _num(self, value: Any) -> str:
+        """A number for a notification, with the language's decimal separator (BUG-027)."""
+        return fmt_number(value, self._lang())
 
     @callback
     def _send_due_reminders(self, local: datetime) -> None:
@@ -2057,7 +2066,7 @@ class Scheduler:
         """Flow reading for a notification: number and the sensor's unit (#68)."""
         state = self.hass.states.get(entity_id) if entity_id else None
         unit = str((state.attributes.get("unit_of_measurement") if state else "") or "").strip()
-        return f"{fmt_number(value)} {unit}".strip()
+        return f"{self._num(value)} {unit}".strip()
 
     def _flow_lpm(self) -> Optional[float]:
         """Flow in litres per minute, converted from the sensor's unit (L/min assumed if unknown)."""
@@ -2114,7 +2123,7 @@ class Scheduler:
                 })
                 self.hass.async_create_task(self._notify(
                     "low_flow", label,
-                    self._text("low_flow", zone=label, lpm=fmt_number(run_lpm), avg=fmt_number(avg)),
+                    self._text("low_flow", zone=label, lpm=self._num(run_lpm), avg=self._num(avg)),
                 ))
                 run_lpm = None  # don't learn from an abnormal run
         await self.store.async_add_water(entity_id, liters, run_lpm)

@@ -235,6 +235,14 @@ class WizardStore:
         self._data["pending_closes"] = list(closes)
         await self.async_save()
 
+    async def async_drop_pending_close(self, entity_id: str) -> None:
+        """A pending close is done: remove only its own entry (also while Home Assistant is stopping)."""
+        self._data["pending_closes"] = [
+            p for p in (self._data.get("pending_closes") or [])
+            if not (isinstance(p, dict) and p.get("entity_id") == entity_id)
+        ]
+        await self.async_save()
+
     def get_valve(self, entity_id: str) -> Optional[dict]:
         for v in self._data["valves"]:
             if v["entity_id"] == entity_id:
