@@ -516,6 +516,13 @@ function dayFromNum(n) {
   return new Date(n * 86400000).toISOString().slice(0, 10);
 }
 
+// Whole minutes 1 to 1440 as typed, or null (BUG-016: 0 and empty used to become 10).
+function minutesValue(raw) {
+  const text = String(raw).trim();
+  const n = Number(text);
+  return text !== "" && Number.isInteger(n) && n >= 1 && n <= 1440 ? n : null;
+}
+
 const INTERVAL_MIN = 2;
 const INTERVAL_MAX = 30;
 
@@ -754,8 +761,15 @@ class ScheduleWizardPanel extends HTMLElement {
   }
 
   async _refresh() {
+    if (document.hidden && this._state) return; // no polling in a background tab (PERF-001)
     try {
-      this._state = await this._hass.callWS({ type: "schedule_wizard/get_state" });
+      // With the last rev the server answers only the live part when nothing else changed (PERF-001).
+      const prev = this._state;
+      const res = await this._hass.callWS(prev && prev.rev
+        ? { type: "schedule_wizard/get_state", rev: prev.rev }
+        : { type: "schedule_wizard/get_state" });
+      const { unchanged, ...fresh } = res;
+      this._state = unchanged && prev ? { ...prev, ...fresh } : fresh;
       this._stateSig = stateSig(this._state);
       if (this._hadError) {
         this._hadError = false;
@@ -1645,7 +1659,14 @@ class ScheduleWizardPanel extends HTMLElement {
     labelInput.addEventListener("input", () => { label = labelInput.value; });
 
     const durInput = el("input", { type: "number", min: "1", max: "1440", value: String(duration) });
-    durInput.addEventListener("input", () => { duration = parseInt(durInput.value, 10) || 10; });
+    const durErr = el("div", { class: "field-error", id: "sw-valve-duration-err", role: "alert", hidden: true });
+    const setDurErr = (msg) => {
+      durErr.textContent = msg || "";
+      durErr.hidden = !msg;
+      if (msg) { durInput.setAttribute("aria-invalid", "true"); durInput.setAttribute("aria-describedby", durErr.id); }
+      else { durInput.removeAttribute("aria-invalid"); durInput.removeAttribute("aria-describedby"); }
+    };
+    durInput.addEventListener("input", () => { if (minutesValue(durInput.value) !== null) setDurErr(""); });
 
     const enabledInput = el("input", { type: "checkbox" });
     enabledInput.checked = enabled;
@@ -1725,7 +1746,7 @@ class ScheduleWizardPanel extends HTMLElement {
       el("label", { class: "field" }, [el("span", {}, this._t("valves.label")), labelInput]),
       el("label", { class: "field" }, [el("span", {}, this._t("valves.search")), search, picker]),
       el("div", { class: "field-row" }, [
-        el("label", { class: "field" }, [el("span", {}, this._t("valves.default_duration")), durInput]),
+        el("label", { class: "field" }, [el("span", {}, this._t("valves.default_duration")), durInput, durErr]),
         el("label", { class: "field" }, [el("span", {}, this._t("common.enabled")), enabledInput]),
       ]),
       el("label", { class: "field" }, [el("span", {}, this._t("valves.indoor")), rainExemptInput]),
@@ -1736,6 +1757,13 @@ class ScheduleWizardPanel extends HTMLElement {
     this._showModal(this._t(existing ? "valves.edit_title" : "valves.add_title"), fields, async () => {
       if (!chosen) { this._toast(this._t("valves.pick_entity"), "error"); return false; }
       if (!label.trim()) { this._toast(this._t("valves.label_required"), "error"); return false; }
+      const duration = minutesValue(durInput.value);
+      if (duration === null || durInput.validity.badInput) {
+        setDurErr(this._t("valves.err_duration"));
+        durInput.focus();
+        return false;
+      }
+      setDurErr("");
       const clampMin = (input) => Math.min(1440, Math.max(0, parseInt(input.value, 10) || 0));
       const thrRaw = vMoistThreshold.value.trim();
       const thr = thrRaw === "" ? null : parseFloat(thrRaw);
@@ -2039,7 +2067,11 @@ class ScheduleWizardPanel extends HTMLElement {
     const timeInput = el("input", { type: "time", value: time });
     timeInput.addEventListener("input", () => { time = timeInput.value; });
     const durInput = el("input", { type: "number", min: "1", max: "1440", value: String(duration) });
-    durInput.addEventListener("input", () => { duration = parseInt(durInput.value, 10) || 10; });
+    const durErr = el("div", { class: "field-error", id: "sw-sched-duration-err", role: "alert", hidden: true });
+    durInput.addEventListener("input", () => {
+      duration = minutesValue(durInput.value);
+      if (duration !== null) setErr(durErr, durInput, "");
+    });
     const renderTargetField = () => {
       targetFieldHost.innerHTML = "";
       durRow.innerHTML = "";
@@ -2049,7 +2081,7 @@ class ScheduleWizardPanel extends HTMLElement {
       } else {
         targetFieldHost.appendChild(el("label", { class: "field" }, [el("span", {}, this._t("sched.valve")), valveSel]));
         durRow.appendChild(el("label", { class: "field" }, [el("span", {}, this._t("sched.time")), timeInput]));
-        durRow.appendChild(el("label", { class: "field" }, [el("span", {}, this._t("sched.duration")), durInput]));
+        durRow.appendChild(el("label", { class: "field" }, [el("span", {}, this._t("sched.duration")), durInput, durErr]));
       }
     };
     renderTargetField();
@@ -2261,6 +2293,11 @@ class ScheduleWizardPanel extends HTMLElement {
     this._showModal(this._t(existing ? "sched.edit_title" : "sched.add_title"), fields, async () => {
       const rep = repeatFields();
       if (!rep) return false;
+      if (targetKind === "valve" && (minutesValue(durInput.value) === null || durInput.validity.badInput)) {
+        setErr(durErr, durInput, this._t("valves.err_duration"));
+        durInput.focus();
+        return false;
+      }
       const conds = collectConditions();
       if (existing) {
         return await submit("update_schedule", {

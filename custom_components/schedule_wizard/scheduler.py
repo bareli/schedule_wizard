@@ -1185,8 +1185,8 @@ class Scheduler:
             self._cancel_run_timer(existing)
             if not existing.get("starting"):
                 self.hass.async_create_task(self.store.async_record_run(
-                    entity_id, existing.get("source", "manual"), existing.get("duration_min", 0),
-                    "superseded", existing.get("note", ""),
+                    entity_id, existing.get("source", "manual"), self._open_minutes(existing),
+                    "superseded", existing.get("note", ""), planned_min=existing.get("duration_min", 0),
                 ))
 
         # Reserve the entity before the first await so concurrent triggers see it busy.
@@ -1272,6 +1272,15 @@ class Scheduler:
         return run
 
     @staticmethod
+    def _open_minutes(run: dict) -> int:
+        """Whole minutes a run cut short really watered, at most its planned length (BUG-013)."""
+        planned = int(run.get("duration_min", 0) or 0)
+        if run.get("starting"):
+            return 0
+        elapsed = max(0, int(time.time()) - int(run.get("started_at") or 0))
+        return min(planned, int(elapsed / 60 + 0.5))
+
+    @staticmethod
     def _cancel_run_timer(run: dict) -> None:
         unsub = run.pop("unsub_close", None)
         if unsub:
@@ -1299,13 +1308,17 @@ class Scheduler:
         self._cancel_run_timer(active)
         self._unwatch_restored(entity_id)
         closed = await self._call_service_off(entity_id)
+        # A stopped run records the minutes it really watered; the planned length is kept beside it.
+        cut_short = status == "cancelled"
         row = {
             "status": status,
             "source": active.get("source", "manual"),
-            "duration_min": active.get("duration_min", 0),
+            "duration_min": self._open_minutes(active) if cut_short else active.get("duration_min", 0),
             "note": note or active.get("note", ""),
             "liters": await self._async_account_water(entity_id, active),
         }
+        if cut_short:
+            row["planned_min"] = active.get("duration_min", 0)
         if closed:
             await self._async_record_end(entity_id, row)
         else:
@@ -1326,6 +1339,7 @@ class Scheduler:
             status,
             row.get("note", ""),
             liters=row.get("liters"),
+            planned_min=row.get("planned_min"),
         )
         label = self._entity_label(entity_id)
         self.hass.bus.async_fire(EVENT_VALVE_ENDED, {
@@ -1333,7 +1347,7 @@ class Scheduler:
             "label": label,
             "status": status,
             "source": row.get("source", "manual"),
-            "duration_min": row.get("duration_min", 0),
+            "duration_min": row.get("planned_min", row.get("duration_min", 0)),
             "note": row.get("note", ""),
         })
         self.hass.async_create_task(self._notify(

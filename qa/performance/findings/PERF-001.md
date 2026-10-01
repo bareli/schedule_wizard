@@ -107,3 +107,50 @@ soaking, flow, now, a change counter); heavy and static parts are fetched when n
 languages in sync (tests/test_i18n.py); must work on HA 2024.7 through 2026.9; do not refactor unrelated
 code. Acceptance: the poll message is under 20 KB at the scale target; Home, Zones, Programs, Reports
 render the same content as before; no poll while the tab is hidden; all existing tests pass.
+
+## Handback (qa-developer, 2026-10-01): PERF-001 #74
+
+**Design** (commit `9900139`, `__init__.py` + `www/panel.js` `_refresh` only):
+- `schedule_wizard/get_state` always adds `rev`: a 16-hex fingerprint of everything except the live keys and the per-second next-run countdowns (`valves[].next_run.in_seconds`). The live keys are `active`, `active_cycles`, `soaking`, `flow`, `forecast`, `seasonal`, `water_total_l`, `rain_delay_until` and `now`.
+- A call with `"rev": "<last rev>"` that still matches gets only the live keys plus `rev` and `"unchanged": true`.
+- Any other change sends the full state again: a zone, plan or watering time saved, a history row, an entity state in `controllable`, options, skips, or the week view.
+- A call without `rev` gets the full state exactly as before, plus `rev`. That covers the Lovelace card, which I did not touch (owned by the card fixer), and older cached panels.
+- Panel `_refresh`:
+  - sends its last `rev`;
+  - merges a live-only answer into the state it holds (same `stateSig`, so the focus and render logic is unchanged);
+  - returns early while `document.hidden`, so a background tab does not poll. The next 5 s tick after the tab becomes visible refreshes.
+
+**Measured**
+- Test harness at the scale target (20 zones, 10 plans x 5 steps, 30 schedules (20 daily, 10 every-2-days), 500 history rows, one zone running): full answer 160,934 bytes; poll with an unchanged rev 484 bytes.
+- On 8183 (small data): 5,723 bytes full, 348 bytes live.
+
+Not changed:
+- The server still builds and fingerprints the full state on every poll. CPU stays where the finder measured it (about 2-3 ms); only the transfer is cut.
+- A light or switch that changes state anywhere in HA changes `controllable`, so the next poll after it is a full one.
+- The card still polls the full state.
+
+**Verification recipe**
+```
+Account:  qa_admin, WS on 127.0.0.1:8183 (or 8170 after merge and restart)
+Steps:    {"type":"schedule_wizard/get_state"} -> note result.rev; again with "rev": <that value>.
+Expect:   2nd result has exactly active, active_cycles, flow, forecast, now, rain_delay_until, rev, seasonal, soaking,
+          unchanged (true), water_total_l. No history/week/valves. Size a few hundred bytes. After any zone or schedule save
+          the old rev gets the full state again with a new rev.
+Browser:  panel open, DevTools > Network > WS: one full get_state frame, then ~0.3-0.5 KB frames every 5 s. Switch to another
+          browser tab for 30 s: no get_state frames. Home, Zones, Programs and Reports render the same as before.
+Before:   every frame was the full state (162 KB at the scale target); there was no rev, and a hidden tab polled.
+```
+
+**Regression tests:** `tests/test_v015_fixes.py::test_get_state_poll_sends_live_part_only` (500 rows, 8 schedules, a running zone: light poll under 20,000 bytes, heavy keys absent, a change resends everything) and `test_panel_poll_uses_rev_and_pauses_when_hidden` (static check of `_refresh`).
+
+**Environment (fixed build)**
+
+- Branch `fix/v0.15.0-backend` (worktree `<scratchpad>/wt-v15-backend`), based on `main` @ `01d6d10`. Not merged, not pushed. One commit per issue: `78f1b8c` #53, `5ec87d7` #75, `683702c` #55, `652542b` #52, `01282ca` #76, `b134c94` #77, `9900139` #74.
+- Standing instances 8170-8172 still serve the baseline. Python changes need the orchestrator to merge and restart HA; panel changes need a hard reload (Ctrl+F5). The manifest version is unchanged, so the `?v=` cache-buster does not change.
+- Fixer's instance: `http://127.0.0.1:8183`, HA 2026.9.4 (`venv314`). Config `<scratchpad>/haconfig-8183` is a copy of `haconfig-8170` (`.storage` taken 2026-10-01 15:09; port 8183 also set in `.storage/http`; schedule_wizard history, active runs and plan state cleared). `custom_components/schedule_wizard` is a junction to the worktree. Seeded through services: Front lawn (`input_boolean.zone_front`, 10 min), four Water now runs stopped after about 3 s each, and Herbs (`input_boolean.zone_herbs`, 45 min). I stopped the instance before handing back.
+- Start (own background task): `cd <scratchpad> && PYTHONPATH=<scratchpad> <scratchpad>/venv314/Scripts/python.exe ha_launch.py -c <scratchpad>/haconfig-8183 --ignore-os-check --skip-pip`.
+- Login: `qa_admin`; the password is in `qa/fixtures/dev-accounts-8170.json`. A copy with base 8183 is at `<scratchpad>/dev-accounts-8183.json`; refresh the token with `qa/tools/ha_login.py`.
+- One-string fixed-build check: WS `{"type":"schedule_wizard/get_state"}` returns a `rev` key on the fixed build and has no `rev` on the baseline. For the panel: `curl -s http://127.0.0.1:8183/schedule_wizard_panel/panel.js | grep -c sw-valve-duration-err` gives 1 on the fixed build and 0 on the baseline.
+- Playwright: `cd ~/.claude/qa-playwright && node <scratchpad>/v15_after.mjs`. It logs in, opens Reports and saves the after images.
+- Removal: `cmd /c rmdir <scratchpad>\haconfig-8183\custom_components\schedule_wizard` (removes only the junction), then `rm -rf <scratchpad>/haconfig-8183`.
+- Tests: `tests/test_v015_fixes.py` has 18 cases. All 18 were copied into a detached worktree at `01d6d10` and run alone in venv314: 13 failed and 5 passed. The 5 that passed are positive controls: the server refuses `add_valve` minutes 0/-5/1441, and three voice phrasings already started once ("water the front lawn for 2 minutes", "water front lawn", Hebrew). After the fix, all 18 pass. Each intermediate commit passes its own tests. Full suite: venv (HA 2026.2.3) 269 passed, 9 skipped (hassil missing there, so the voice tests skip); venv314 (HA 2026.9.4) 278 passed. `node --check` passes for panel.js and i18n.js.
