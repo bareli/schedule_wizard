@@ -22,7 +22,7 @@ Schedule Wizard handles all of the above in one integration with its own sidebar
 ## Features
 
 **Core scheduling**
-- Recurring schedules per valve: HH:MM + any subset of weekdays + duration.
+- Recurring schedules per valve: HH:MM + any subset of weekdays + duration, or **every N days** (2 to 30) from a start date.
 - **Cycles (zone sequencing)**: ordered list of (valve, duration) steps run in series, as a single program. Schedule and calendar can target a cycle just like a single valve.
 - Calendar-driven runs: event summary matches a valve **or cycle** label/name, description holds minutes (for valves).
 - Manual run / stop / **pause / resume** from the sidebar panel or services.
@@ -106,13 +106,17 @@ One status card at the top: watering now (with time left and Stop), paused for r
 
 ### Zones
 
-Every zone with its schedule written out ("Mon, Thu at 06:00 · 10 min"). Edit a zone (name, minutes, indoor, split long runs, its own moisture sensor), add or change its times.
+Every zone with its schedule written out ("Mon, Thu at 06:00 · 10 min" or "Every 2 days from Oct 5, 2026 at 05:30 · 15 min"). Edit a zone (name, minutes, indoor, split long runs, its own moisture sensor), add or change its times.
 
 ![Zones](docs/screenshots/panel-zones.png)
 
 ### Programs
 
 Your watering plans: zones in order, the days and times they run, Run now / Pause / Stop, and Edit for the full step editor.
+
+### Every N days
+
+In a watering time's editor, set **Repeat** to **Every N days** instead of **Days of the week**, then pick how many days apart (2 to 30) and the start date (today by default). The schedule runs on the start date and every N days after it, at the same time, with the same zone or plan, skips and conditions as a weekday schedule. Days are counted on the calendar in your Home Assistant time zone, so runs stay at the same clock time when daylight saving time starts or ends. The next-run times, the week view, `calendar.schedule_wizard_watering_schedule` and `sensor.schedule_wizard_next_schedule` all follow it. Schedules created before 0.14.0 keep their days of the week.
 
 ![Watering plans](docs/screenshots/panel-programs.png)
 
@@ -167,8 +171,8 @@ The HA **Configure** dialog only edits the basic options; it no longer wipes the
 | `schedule_wizard.stop_valve`      | Close an entity now. Cancels any active timer.                                                |
 | `schedule_wizard.add_valve`       | Register or update a valve (entity_id + label + default duration; optional soak and per-valve moisture fields). |
 | `schedule_wizard.remove_valve`    | Unregister a valve and delete its schedules.                                                  |
-| `schedule_wizard.add_schedule`    | Add a recurring schedule (time + days + duration; targets a registered valve or a cycle; optional `conditions`). Returns new id. |
-| `schedule_wizard.update_schedule` | Patch an existing schedule by id.                                                             |
+| `schedule_wizard.add_schedule`    | Add a recurring schedule (time + `days` **or** `every_n_days` (2 to 30) with optional `start_date` (default today) + duration; targets a registered valve or a cycle; optional `conditions`). Returns new id. |
+| `schedule_wizard.update_schedule` | Patch an existing schedule by id. `days` switches it to weekdays, `every_n_days` / `start_date` to every N days. |
 | `schedule_wizard.remove_schedule` | Delete a schedule by id.                                                                      |
 | `schedule_wizard.add_cycle`       | Create a cycle: ordered list of `{entity_id, duration_minutes}` steps.                        |
 | `schedule_wizard.update_cycle`    | Patch an existing cycle.                                                                      |
@@ -222,6 +226,18 @@ Add a valve and a schedule:
     time: "06:30"
     duration_minutes: 12
     days: [mon, wed, fri]
+```
+
+Water every other day, starting on a given date:
+
+```yaml
+- service: schedule_wizard.add_schedule
+  data:
+    valve_entity_id: switch.front_lawn_valve
+    time: "06:00"
+    duration_minutes: 10
+    every_n_days: 2
+    start_date: "2026-10-05"
 ```
 
 Capture the new schedule id with a response variable:
@@ -282,6 +298,8 @@ Settings → **Seasonal adjustment (temperature-based)**:
 Linear interpolation between low↔high. Below low = min %. Above high = max %. 1.0 ( = 100%) means no change.
 
 Example: sensor = 18 °C, low=10, high=30, min=50, max=120. Factor = 50 + (18−10)/(30−10) × (120−50) = 78%. A 10-minute schedule runs for 8 minutes.
+
+**0 % means no watering.** With Min % = 0, a factor shown as 0 % skips the scheduled or calendar run (zones and plans) instead of watering. It is logged as `skipped_seasonal_zero` ("skipped (temperature 0 %)"), fires `schedule_wizard_seasonal_skipped` and the `skipped_seasonal` notification. Any factor above 0 % still waters at least 1 minute (for example 3 % of 10 minutes runs 1 minute).
 
 ## Soil moisture skip
 
@@ -437,6 +455,7 @@ The integration fires events on the HA event bus. Use them as triggers for any a
 | `schedule_wizard_rain_skipped`           | A schedule or calendar run was skipped due to rain   | `target`, `kind` (`valve`/`cycle`), `label`/`name`, `source`, `schedule_id` |
 | `schedule_wizard_moisture_skipped`       | A schedule, calendar or cycle-step run skipped (wet soil) | `target`, `kind`, `label`/`name`, `source`, `schedule_id`   |
 | `schedule_wizard_condition_skipped`      | A schedule's conditions were not met                 | `target`, `kind`, `label`/`name`, `source`, `schedule_id`        |
+| `schedule_wizard_seasonal_skipped`       | A schedule or calendar run skipped: temperature adjustment 0 % | `target`, `kind`, `label`/`name`, `source`, `schedule_id`, `reason` |
 | `schedule_wizard_valve_soaking`          | A cycle-and-soak run paused between chunks           | `entity_id`, `label`, `chunk`, `chunks`, `resume_at`, `source`   |
 | `schedule_wizard_leak_detected`          | Flow sensor alert                                    | `kind` (`leak`/`high_flow`), `flow_entity`, `value`, `running`, `stopped_all` |
 | `schedule_wizard_low_flow`               | A zone got much less water than usual                | `entity_id`, `label`, `lpm`, `expected_lpm`                      |
@@ -488,6 +507,7 @@ Push events to any `notify.*` service (HA Companion app, Telegram, Pushover, ema
    - `cycle_end` — a cycle finishes or is cancelled
    - `skipped_rain` — a scheduled run or cycle was skipped due to rain
    - `skipped_moisture` / `skipped_condition`: skipped due to wet soil / unmet schedule conditions
+   - `skipped_seasonal`: skipped because the temperature adjustment is 0 %
    - `valve_failed`: fail-to-open detection triggered
    - `rain_delay`: rain delay set or cleared
    - `leak_detected`: flow sensor leak or high-flow alert

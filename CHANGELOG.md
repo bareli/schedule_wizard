@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.0: water every N days, 0 % temperature adjustment skips the run
+
+- **Every N days** (#27): a watering time can repeat every 2 to 30 days from a start date, as an alternative to days of the week. Same time, zone or plan, skips and conditions as before. Pick it in the editor under **Repeat**; lists show "Every 2 days from ... at ...". Runs follow your HA time zone's calendar days, so they keep their clock time across daylight saving changes. Next-run times, the week view, the watering calendar and the next schedule sensor include these runs. Services `add_schedule` / `update_schedule` take `every_n_days` and `start_date` (default today). Existing schedules are unchanged.
+- **0 % means no watering** (#26): with the temperature adjustment at 0 %, scheduled and calendar runs of zones and plans are skipped instead of watering 1 minute. History shows "skipped (temperature 0 %)" (`skipped_seasonal_zero`), with event `schedule_wizard_seasonal_skipped` and notification `skipped_seasonal`. Any factor above 0 % keeps the 1-minute minimum. The Settings preview says when watering would be skipped.
+- The watering time editor now shows its errors next to the field (no days picked, N outside 2 to 30, missing start date); the server checks the same rules, and `add_schedule` now rejects an empty `days` list.
+- Fixed: the panel could stay blank when Home Assistant handed it its data before it finished loading (seen on HA 2026.9).
+
 ## 0.13.0: rain forecast, water usage, smarter cycle & soak, resume after restart, 17 languages
 
 - **Rain forecast skip**: skip outdoor zones when your weather forecast expects N mm or more in the next 6 to 48 hours (Settings → More options). New history status `skipped_forecast`.
