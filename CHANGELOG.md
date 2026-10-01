@@ -28,6 +28,9 @@
 - **Each zone's own start** (#94): in a plan that waters one zone at a time, zone cards and the card show when that zone starts (for example 6:00, 6:10, 6:25 AM), following cycle & soak, instead of the plan's start for every zone.
 - **No runs from before a plan existed** (#93): a plan created in the evening no longer shows this morning's run as a past run in This week or the watering calendar.
 - The every-N-days "First run" line uses the same time format as the rest of the page ("6:00 AM", #92); the card counts down in whole units like the panel ("in 3d" for 3 days 12 hours, #95); the zone card's button reads "Delete zone" (#96).
+- **Hebrew "one minute" by voice**: "השקה את הגינה למשך דקה" and "...דקה אחת" now water for 1 minute instead of the zone's default.
+- **Card in German on a narrow phone**: long words such as "Regenverzögerung" wrap inside the zone's text column; at 320 px the minutes field and button move to their own line under the name.
+- **Times in plan lists** and in the wizard's Check step use the same clock format as the rest of the page ("6:00 AM" or "6:00") instead of the stored "06:00".
 
 ## 0.14.0: water every N days, 0 % temperature adjustment skips the run
 

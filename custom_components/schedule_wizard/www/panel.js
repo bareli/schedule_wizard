@@ -847,9 +847,9 @@ class ScheduleWizardPanel extends HTMLElement {
         : this._tn("sched.days_sun", { days: this._daysFromMask(s.days_mask), when: sunWhen });
     }
     if (s.repeat === "interval") {
-      return this._tn("sched.every_n_at", { n: s.interval_days, date: this._fmtDay(s.start_date), time: ltr(s.time_hhmm) });
+      return this._tn("sched.every_n_at", { n: s.interval_days, date: this._fmtDay(s.start_date), time: ltr(this._fmtClock(s.time_hhmm)) });
     }
-    return this._tn("sched.days_at", { days: this._daysFromMask(s.days_mask), time: ltr(s.time_hhmm) });
+    return this._tn("sched.days_at", { days: this._daysFromMask(s.days_mask), time: ltr(this._fmtClock(s.time_hhmm)) });
   }
 
   _valveName(id) {
