@@ -30,3 +30,11 @@
   new ones). Back the file up first; the option is cleared again with `update_options rain_entity ""`.
 - **8172 history has `cancelled` rows without `planned_min`** (written before #52 by an older build, holding the planned
   length): they inflate "Last watering" / day totals (130 min on 2026-10-01). Do not read that number as a regression of new code.
+
+## Added 2026-10-01 (verify #98-#102 on 8172)
+
+- **Playwright over the panel:** the panel's own text is in a shadow root; read `.tabs` `getRootNode().children` `innerText`. The Home tab holds Recent activity and Reports (toggle button "Reports"); Plans, Zones, Settings are tabs 2, 1, 3. `qa/tools` WS helper needs the venv python (aiohttp), not `py -3`.
+- **`node x.mjs` with `python -` before it in one command hangs** reading stdin; always `</dev/null`.
+- **Wizard walk:** Plans -> "+ New watering plan": the last dialog button on step 4 is "Save plan" (a single zone creates a zone time, not a plan). Stop at Check and press Cancel.
+- **Voice end state:** WS `conversation/process {text, language}` then `get_state.active[].duration_min`; stop with `call_service schedule_wizard.stop_all`.
+- **Legacy `cancelled` rows without `planned_min`** already exist in the 8172 store (10 rows, 128 min), enough to check #101 without editing `.storage`.
