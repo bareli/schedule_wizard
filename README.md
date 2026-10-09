@@ -106,7 +106,7 @@ One status card at the top: watering now (with time left and Stop), paused for r
 
 ### Weather tips
 
-With a weather entity in Home Assistant (for example the built-in Met.no forecast), Home shows tips for today and tomorrow when the daily forecast calls for it: **rain** (from 5 mm and 60 % chance), a **hot day** (from 32 °C) or **frost** (1-2 °C or below). Each tip names the runs it is about and has one button: skip the day's outdoor runs, water +30 % that day, or skip the runs before 10:00. **Not now** hides that tip; **Don't suggest** stops that kind. Thresholds, the weather entity and the extra water are under Settings → More options → **Weather tips**. To get the tips the evening before as a notification with buttons, tick **Weather tips (evening)** under **Send notification when** (with a Home Assistant app as notification target). While the automatic **Skip when rain is forecast** is on, there is no rain tip.
+With a weather entity in Home Assistant (for example the built-in Met.no forecast), Home shows tips for today and tomorrow when the daily forecast calls for it: **rain** (from 5 mm and 60 % chance), a **hot day** (from 32 °C) or **frost** (1-2 °C or below). Each tip names the runs it is about and has one button: skip the day's outdoor runs, water +30 % that day, or skip the runs before 10:00. There is one tip per day: rain comes first and covers frost; no heat tip on a rainy day or while "Water more when it's hot" is on. **Not now** hides that tip; **Don't suggest** stops that kind. Thresholds, the weather entity and the extra water are under Settings → More options → **Weather tips**. To get the tips the evening before as a notification with buttons, tick **Weather tips (evening)** under **Send notification when** (with a Home Assistant app as notification target). While the automatic **Skip when rain is forecast** is on, there is no rain tip.
 
 ### Water more / less, and changing one run
 
@@ -114,7 +114,7 @@ With a weather entity in Home Assistant (for example the built-in Met.no forecas
 
 ### This week and overlaps
 
-**This week** shows each run with the minutes it will really water (after the temperature adjustment and any boost), litres per day when flow rates are set, the day's forecast and runs that will likely be skipped for rain. Runs that water at the same time are red, because zones that water together share the water pressure. **Timeline** shows one day as lanes per zone. The watering time editor warns about overlaps and offers the first free time. To make overlapping runs wait for each other, set Settings → More options → Plans at the same time → **Zones at once**.
+**This week** shows each run with the minutes it will really water (after the temperature adjustment and any boost), litres per day when flow rates are set, the day's forecast and runs that will likely be skipped for rain. Runs that water at the same time are red, because zones that water together share the water pressure. **Timeline** shows one day as lanes per zone. The watering time editor warns about overlaps and offers the first free time. To make overlapping runs wait for each other, set Settings → More options → Watering at the same time → **Zones at once**. A run's dialog also offers **Move to …, this day only** or **every time**.
 
 ### Zones
 
