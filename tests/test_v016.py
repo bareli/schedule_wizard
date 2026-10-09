@@ -386,3 +386,15 @@ async def test_daily_forecast_retried_soon_after_an_empty_answer(hass: HomeAssis
     weather.days[1] = {"temperature": 36, "templow": 15, "precipitation": 0}
     await advance(hass, 125)
     assert tomorrow() in sched.weather_days["days"]
+
+
+async def test_stored_tip_and_override_dates_are_bounded(hass: HomeAssistant):
+    """Any signed-in user can call these services: far-off dates must not grow the stored data."""
+    await setup_wizard(hass)
+    await add_valve(hass, Z1, "Front")
+    sched = await add_schedule(hass, valve_entity_id=Z1, time="23:50", days=DAYS, duration_minutes=5)
+    far = (dt_util.now().date() + timedelta(days=200)).isoformat()
+    with pytest.raises(HomeAssistantError, match="within"):
+        await hass.services.async_call(DOMAIN, "set_override", {"schedule_id": sched["id"], "date": far, "percent": 50}, blocking=True)
+    with pytest.raises(HomeAssistantError, match="no such tip"):
+        await hass.services.async_call(DOMAIN, "dismiss_tip", {"tip_id": f"rain:{far}"}, blocking=True)

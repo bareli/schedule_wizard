@@ -1224,6 +1224,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         today = dt_util.now().date()
         if day < today:
             raise HomeAssistantError("date has passed")
+        if day > today + _timedelta(days=planner.NEXT_RUN_DAYS):
+            # Any signed-in user can call this: a bounded window keeps the stored changes bounded too.
+            raise HomeAssistantError(f"date must be within {planner.NEXT_RUN_DAYS} days")
         if not planner.runs_on(sched, day):
             raise HomeAssistantError("the schedule has no run on that date")
         new_time = call.data.get("time") or ""
@@ -1261,6 +1264,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return {"changed": n}
 
     async def _svc_dismiss_tip(call: ServiceCall) -> None:
+        # Tips exist for today and tomorrow only; other days are refused so the stored list stays small.
+        day = call.data["tip_id"].split(":", 1)[1]
+        today = dt_util.now().date()
+        if day not in (today.isoformat(), (today + _timedelta(days=1)).isoformat()):
+            raise HomeAssistantError("no such tip")
         await store.async_dismiss_tip(call.data["tip_id"])
 
     async def _svc_mute_tip(call: ServiceCall) -> None:
