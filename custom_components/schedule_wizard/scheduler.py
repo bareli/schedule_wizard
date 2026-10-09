@@ -9,7 +9,7 @@ import time
 from datetime import date, datetime, timedelta
 from typing import Any, Callable, Optional
 
-from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.const import EVENT_HOMEASSISTANT_STARTED, EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import (
@@ -46,15 +46,21 @@ from .const import (
     FORECAST_REFRESH_MINUTES,
     MAX_RUN_MINUTES,
     NOTIFICATION_ACTION_PREFIX,
+    QUEUE_MAX_WAIT_SECONDS,
+    QUEUE_POLL_SECONDS,
     RESUME_MAX_GAP_SECONDS,
     SIGNAL_STATE_CHANGED,
     SUPPORTED_DOMAINS,
+    TIP_FROST_BEFORE_HOUR,
+    TIP_KINDS,
 )
 from . import planner
 from .notify_text import APP_TITLE, fmt_number, notify_text
 from .storage import WizardStore
 
 LOG = logging.getLogger(__name__)
+# A daily forecast that was empty or failed is fetched again this soon (weather entities load late at startup).
+DAILY_RETRY_SECONDS = 120
 
 ON_STATES = {"on", "open", "opening", "active"}
 # Calendar names shorter than this only match an event whose whole summary is the name (#38).
@@ -158,6 +164,13 @@ class Scheduler:
         self._stopping = False
         self._unsub_ha_stop = None
         self._flow_last: Optional[tuple[float, float]] = None
+        # v0.16.0: scheduled runs waiting for a free slot (max zones at once), oldest first.
+        self._queue: list[dict] = []
+        # v0.16.0: daily forecast for weather tips and the week view.
+        self._unsub_daily = None
+        self._daily: dict[str, Any] = {"entity_id": "", "updated": 0, "days": {}, "error": None}
+        self._daily_retry = None
+        self._unsub_started = None
 
     @property
     def active(self) -> dict[str, dict]:
@@ -166,6 +179,10 @@ class Scheduler:
     @property
     def active_cycles(self) -> dict[str, dict]:
         return self._active_cycles
+
+    @property
+    def queue(self) -> list[dict]:
+        return [dict(q) for q in self._queue]
 
     @property
     def soaking(self) -> list[dict]:
@@ -191,8 +208,13 @@ class Scheduler:
         await self._async_restore_pending_closes()
         await self._async_restore_active_runs()
         await self._async_restore_cycles()
+        await self._async_restore_queue()
         self._arm_flow()
         self._arm_forecast()
+        self._arm_daily()
+        if not self.hass.is_running:
+            # Weather entities (template, met.no) often have no forecast until Home Assistant has started.
+            self._unsub_started = self.hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, self._on_ha_started)
         self._unsub_action = self.hass.bus.async_listen(
             "mobile_app_notification_action", self._on_notification_action
         )
@@ -221,6 +243,7 @@ class Scheduler:
             self._known_calendar_events = set()
         self._arm_flow()
         self._arm_forecast()
+        self._arm_daily()
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
 
     def _cancel_calendar_pending(self) -> None:
@@ -479,7 +502,9 @@ class Scheduler:
     async def async_stop(self) -> None:
         # Shutdown or reload: keep persisted runs and cycles so they resume on the next start.
         self._stopping = True
-        for attr in ("_unsub_minute", "_unsub_calendar", "_unsub_flow", "_unsub_action", "_unsub_forecast", "_unsub_ha_stop"):
+        self._cancel_daily_retry()
+        for attr in ("_unsub_minute", "_unsub_calendar", "_unsub_flow", "_unsub_action", "_unsub_forecast",
+                     "_unsub_ha_stop", "_unsub_daily", "_unsub_started"):
             unsub = getattr(self, attr)
             if unsub:
                 unsub()
@@ -516,14 +541,16 @@ class Scheduler:
         if hhmm == "00:00":
             self.hass.async_create_task(self.store.async_prune_skips(today))
         self._send_due_reminders(local)
+        if hhmm == self._digest_time():
+            self.hass.async_create_task(self._async_send_digest((local.date() + timedelta(days=1)).isoformat()))
         for sched in self.store.schedules:
             if not sched.get("enabled"):
                 continue
             # Local calendar date, not elapsed seconds: every-N-days stays on time across DST changes.
             if not planner.runs_on(sched, local.date()):
                 continue
-            # Clock time, or today's sunrise / sunset plus the offset (#59).
-            if planner.fire_hhmm(sched, local.date(), self.hass) != hhmm:
+            # Clock time, or today's sunrise / sunset plus the offset (#59); a one-off new time wins (v0.16.0).
+            if planner.run_hhmm(self.store, sched, local.date(), self.hass) != hhmm:
                 continue
             ref = f"schedule:{sched['id']}"
             if self.store.is_skipped(sched["id"], today):
@@ -637,6 +664,9 @@ class Scheduler:
         action = str(event.data.get("action") or "")
         if not action.startswith(NOTIFICATION_ACTION_PREFIX):
             return
+        if action[len(NOTIFICATION_ACTION_PREFIX):].startswith("TIP_"):
+            await self._on_tip_action(action[len(NOTIFICATION_ACTION_PREFIX) + 4:])
+            return
         parts = action[len(NOTIFICATION_ACTION_PREFIX):].split("_")
         if len(parts) != 3:
             return
@@ -656,6 +686,23 @@ class Scheduler:
         except Exception as e:
             LOG.warning("notification action %s failed: %s", action, e)
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+
+    async def _on_tip_action(self, rest: str) -> None:
+        """TIP_<KIND>_<YYYYMMDD> from the evening digest: any client can send it, so check every part (#39)."""
+        parts = rest.split("_")
+        if len(parts) != 2 or parts[0].lower() not in TIP_KINDS or not re.fullmatch(r"\d{8}", parts[1]):
+            LOG.warning("ignored tip action %s", rest[:40])
+            return
+        day = f"{parts[1][:4]}-{parts[1][4:6]}-{parts[1][6:]}"
+        if not _is_iso_day(day):
+            LOG.warning("ignored tip action %s: bad day", rest[:40])
+            return
+        try:
+            done = await self.async_apply_tip(f"{parts[0].lower()}:{day}", source="notification")
+        except ValueError as e:
+            LOG.info("tip action %s not applied: %s", rest[:40], e)
+            return
+        LOG.info("tip %s applied from a notification (%d runs)", rest[:40], done)
 
     def _is_valve_busy(self, entity_id: str) -> bool:
         return entity_id in self._active or entity_id in self._soak
@@ -679,7 +726,7 @@ class Scheduler:
 
     async def _async_trigger_valve(
         self, entity_id: str, base_min: int, source: str, ref: str, sched: Optional[dict] = None,
-        max_min: Optional[int] = None,
+        max_min: Optional[int] = None, since: Optional[int] = None,
     ) -> None:
         """Gate and start a scheduled/calendar valve run. All checks happen at fire time."""
         try:
@@ -688,6 +735,11 @@ class Scheduler:
                 return
             if self._is_valve_busy(entity_id):
                 LOG.debug("skip %s: valve %s already running", ref, entity_id)
+                return
+            if not await self._async_wait_turn(ref, self._entity_label(entity_id), "valve", entity_id, base_min, since):
+                return
+            if self._is_valve_busy(entity_id):
+                LOG.debug("skip %s: valve %s started while waiting", ref, entity_id)
                 return
             weather = self._valve_weather_reason(valve)
             if weather == "rain_delay_global":
@@ -702,8 +754,9 @@ class Scheduler:
                 self._record_skip("seasonal_zero", "valve", entity_id, self._entity_label(entity_id),
                                   source, ref, base_min, sched)
                 return
-            minutes = self._scale_minutes(base_min, factor)
-            note = ref + (f"|seasonal:{seasonal_percent(factor)}%" if factor != 1.0 else "")
+            extra, extra_note = self._extra_factor(sched)
+            minutes = planner.scale_pct(self._scale_minutes(base_min, factor), round(extra * 100))
+            note = ref + (f"|seasonal:{seasonal_percent(factor)}%" if factor != 1.0 else "") + extra_note
             if max_min and minutes > max_min:
                 # #79: shortened to the "Longest external run" setting; the note keeps what was asked.
                 note += f"|capped:{minutes}"
@@ -718,7 +771,7 @@ class Scheduler:
             LOG.warning("%s run of %s failed: %s", source, entity_id, e)
 
     async def _async_trigger_cycle(
-        self, cycle_id: str, source: str, ref: str, sched: Optional[dict] = None,
+        self, cycle_id: str, source: str, ref: str, sched: Optional[dict] = None, since: Optional[int] = None,
     ) -> None:
         try:
             cycle = self.store.get_cycle(cycle_id)
@@ -734,6 +787,11 @@ class Scheduler:
                 return
             if cycle_id in self._active_cycles:
                 LOG.debug("skip %s: cycle %s already running", ref, cycle_id)
+                return
+            if not await self._async_wait_turn(ref, cycle.get("name", cycle_id), "cycle", cycle_id, 0, since):
+                return
+            if cycle_id in self._active_cycles:
+                LOG.debug("skip %s: cycle %s started while waiting", ref, cycle_id)
                 return
             if self._active_cycles and not self.options.get("allow_concurrent_cycles", False):
                 running = next(iter(self._active_cycles.values()))
@@ -760,12 +818,137 @@ class Scheduler:
                 self._record_skip("seasonal_zero", "cycle", cycle_id, cycle.get("name", cycle_id),
                                   source, ref, 0, sched)
                 return
-            note = ref + (f"|seasonal:{seasonal_percent(factor)}%" if factor != 1.0 else "")
-            await self.async_run_cycle(cycle_id, source=source, note=note, duration_factor=factor)
+            extra, extra_note = self._extra_factor(sched)
+            note = ref + (f"|seasonal:{seasonal_percent(factor)}%" if factor != 1.0 else "") + extra_note
+            await self.async_run_cycle(cycle_id, source=source, note=note, duration_factor=max(0.01, factor * extra))
         except asyncio.CancelledError:
             raise
         except Exception as e:
             LOG.warning("%s run of cycle %s failed: %s", source, cycle_id, e)
+
+    # ------------------------------------------------------------------ boost / one-off / queue (v0.16.0)
+
+    def boost_factor(self, ts: Optional[float] = None) -> float:
+        """1 + boost percent while a temporary boost covers `ts` (default now), else 1."""
+        b = self.store.boost
+        ts = time.time() if ts is None else ts
+        try:
+            if b and int(b.get("from") or 0) <= ts < int(b.get("until") or 0):
+                return max(0.05, 1 + int(b.get("pct") or 0) / 100)
+        except (TypeError, ValueError):
+            pass
+        return 1.0
+
+    def _extra_factor(self, sched: Optional[dict]) -> tuple[float, str]:
+        """Factor on top of the temperature adjustment: the boost, and a one-off change of today's run."""
+        factor = 1.0
+        note = ""
+        boost = self.boost_factor()
+        if boost != 1.0:
+            factor *= boost
+            note += f"|boost:{round(boost * 100)}%"
+        if sched and sched.get("id"):
+            o = self.store.get_override(sched["id"], dt_util.now().date().isoformat())
+            pct = planner.override_pct(o)
+            if o:
+                factor *= pct / 100
+                note += f"|once:{pct}%" + (f"@{o['time']}" if o.get("time") else "")
+        return factor, note
+
+    def _max_at_once(self) -> int:
+        try:
+            return max(0, int(self.options.get("max_zones_at_once") or 0))
+        except (TypeError, ValueError):
+            return 0
+
+    def _slots_in_use(self) -> int:
+        """Zones and plans watering now; a plan is one slot from its start to its end, also while soaking."""
+        jobs: set[str] = set()
+        for cid, c in self._active_cycles.items():
+            if not c.get("paused"):
+                jobs.add("cycle:" + cid)
+        for eid, run in self._active.items():
+            src = str(run.get("source") or "")
+            jobs.add("cycle:" + src[6:].split("|")[0] if src.startswith("cycle:") else eid)
+        for eid, soak in self._soak.items():
+            if soak.get("owner") == "standalone":
+                jobs.add(eid)
+        return len(jobs)
+
+    async def _async_wait_turn(self, ref: str, name: str, kind: str, target: str, base_min: int,
+                               since: Optional[int] = None) -> bool:
+        """Wait until fewer than max zones at once are watering; False when it gave up or is stopping.
+
+        Waiting runs start oldest first. The check and the start that follows run without an await in
+        between, so two waiting runs never take the same free slot.
+        """
+        limit = self._max_at_once()
+        if limit <= 0 or (not self._queue and self._slots_in_use() < limit):
+            return True
+        entry = {"ref": ref, "name": name, "kind": kind, "target": target, "since": since or int(time.time()),
+                 "base_min": int(base_min)}
+        self._queue.append(entry)
+        await self.store.async_set_queue(self._queue)
+        LOG.info("%s waits for a free slot (%d at once)", ref, limit)
+        async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+        deadline = time.monotonic() + max(0, entry["since"] + QUEUE_MAX_WAIT_SECONDS - time.time())
+        try:
+            while True:
+                if self._stopping:
+                    return False
+                limit = self._max_at_once()
+                if limit <= 0 or (self._queue and self._queue[0] is entry and self._slots_in_use() < limit):
+                    return True
+                if time.monotonic() > deadline:
+                    LOG.warning("skip %s: no free slot within %d min", ref, QUEUE_MAX_WAIT_SECONDS // 60)
+                    self.hass.async_create_task(self.store.async_record_run(
+                        target, "schedule" if ref.startswith("schedule:") else "calendar",
+                        base_min if kind == "valve" else 0, "skipped_overlap", f"{ref}|queue_timeout",
+                    ))
+                    return False
+                await asyncio.sleep(QUEUE_POLL_SECONDS)
+        finally:
+            if entry in self._queue:
+                self._queue.remove(entry)
+                # Stopping (restart): the stored list keeps the entry, so it waits again after the restart.
+                if not self._stopping:
+                    self.hass.async_create_task(self.store.async_set_queue(self._queue))
+                async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+
+    async def _async_restore_queue(self) -> None:
+        """Runs that were waiting for a free slot when Home Assistant stopped wait again (BUG-043).
+
+        One that has waited longer than the give-up time is recorded as skipped_overlap, like a give-up.
+        Gating (rain, skips, conditions) runs again when it starts, as for any scheduled run.
+        """
+        saved = self.store.queue
+        if not saved:
+            return
+        await self.store.async_set_queue([])
+        now = int(time.time())
+        for q in saved:
+            ref = str(q.get("ref") or "")
+            target = str(q.get("target") or "")
+            kind = q.get("kind")
+            since = int(q.get("since") or now)
+            base_min = int(q.get("base_min") or 0)
+            if now - since >= QUEUE_MAX_WAIT_SECONDS:
+                await self.store.async_record_run(
+                    target, "schedule" if ref.startswith("schedule:") else "calendar",
+                    base_min if kind == "valve" else 0, "skipped_overlap", f"{ref}|queue_timeout",
+                )
+                continue
+            sched = self.store.get_schedule(ref[9:]) if ref.startswith("schedule:") else None
+            source = "schedule" if sched else "calendar"
+            if ref.startswith("schedule:") and sched is None:
+                continue  # the schedule was deleted meanwhile
+            if kind == "cycle":
+                coro = self._async_trigger_cycle(target, source, ref, sched, since=since)
+            else:
+                coro = self._async_trigger_valve(target, base_min, source, ref, sched,
+                                                 max_min=None if sched else self.external_cap(), since=since)
+            LOG.info("%s waits for a free slot again after the restart", ref)
+            self.hass.async_create_background_task(coro, f"{DOMAIN}_{ref}_restored")
 
     @staticmethod
     def _is_rain_exempt(valve: Optional[dict]) -> bool:
@@ -2002,6 +2185,320 @@ class Scheduler:
             self._forecast = {**self._forecast, "error": error or "no forecast data"}
             LOG.warning("rain forecast from %s unavailable: %s", entity_id, self._forecast["error"])
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+
+    # ------------------------------------------------------------------ daily forecast and weather tips (v0.16.0)
+
+    def tips_entity(self) -> str:
+        """Weather entity for tips: the tips setting, else the rain forecast one, else the first weather entity."""
+        for key in ("tips_weather_entity", "forecast_entity"):
+            ent = (self.options.get(key) or "").strip()
+            if ent.startswith("weather."):
+                return ent
+        ids = sorted(st.entity_id for st in self.hass.states.async_all("weather"))
+        return ids[0] if ids else ""
+
+    def _arm_daily(self) -> None:
+        if self._unsub_daily:
+            self._unsub_daily()
+            self._unsub_daily = None
+        self._cancel_daily_retry()
+        self._unsub_daily = async_track_time_interval(
+            self.hass, self._async_refresh_daily, timedelta(minutes=FORECAST_REFRESH_MINUTES)
+        )
+        self.hass.async_create_task(self._async_refresh_daily())
+
+    @callback
+    def _on_ha_started(self, _event: Event) -> None:
+        self._unsub_started = None
+        self.hass.async_create_task(self._async_refresh_daily())
+
+    def _cancel_daily_retry(self) -> None:
+        if self._daily_retry:
+            self._daily_retry()
+            self._daily_retry = None
+
+    def _retry_daily_soon(self) -> None:
+        """Weather integrations often load after this one: try again in 2 minutes, not at the next half hour."""
+        if self._daily_retry or self._stopping:
+            return
+
+        @callback
+        def _again(_now) -> None:
+            self._daily_retry = None
+            self.hass.async_create_task(self._async_refresh_daily())
+
+        self._daily_retry = async_call_later(self.hass, DAILY_RETRY_SECONDS, _again)
+
+    @staticmethod
+    def _num_or_none(value: Any) -> Optional[float]:
+        try:
+            return None if value is None or value == "" else float(value)
+        except (TypeError, ValueError):
+            return None
+
+    async def _async_refresh_daily(self, _now=None) -> None:
+        """Fetch the daily forecast: per local date the high, low, rain amount and chance, in °C and mm."""
+        entity_id = self.tips_entity()
+        if not entity_id:
+            self._daily = {"entity_id": "", "updated": 0, "days": {}, "error": None}
+            self._retry_daily_soon()
+            return
+        try:
+            resp = await self.hass.services.async_call(
+                "weather", "get_forecasts", {"entity_id": entity_id, "type": "daily"},
+                blocking=True, return_response=True,
+            )
+            items = ((resp or {}).get(entity_id) or {}).get("forecast") or []
+        except Exception as e:
+            self._daily = {**self._daily, "entity_id": entity_id, "error": str(e)}
+            LOG.debug("daily forecast from %s unavailable: %s", entity_id, e)
+            self._retry_daily_soon()
+            return
+        state = self.hass.states.get(entity_id)
+        attrs = state.attributes if state else {}
+        t_unit = str(attrs.get("temperature_unit") or "°C")
+        p_unit = str(attrs.get("precipitation_unit") or "mm")
+        days: dict[str, dict] = {}
+        for item in items:
+            start = dt_util.parse_datetime(str(item.get("datetime") or ""))
+            if start is None:
+                continue
+            day = dt_util.as_local(start).date().isoformat()
+            if day in days:
+                continue
+            hi = self._num_or_none(item.get("temperature"))
+            lo = self._num_or_none(item.get("templow"))
+            mm = self._num_or_none(item.get("precipitation"))
+            prob = self._num_or_none(item.get("precipitation_probability"))
+            if "F" in t_unit:
+                hi = None if hi is None else (hi - 32) * 5 / 9
+                lo = None if lo is None else (lo - 32) * 5 / 9
+            if mm is not None:
+                mm = mm * 25.4 if p_unit == "in" else (mm * 10 if p_unit == "cm" else mm)
+            days[day] = {
+                "max_c": None if hi is None else round(hi, 1),
+                "min_c": None if lo is None else round(lo, 1),
+                "mm": None if mm is None else round(mm, 1),
+                "prob": None if prob is None else int(round(prob)),
+                "condition": str(item.get("condition") or ""),
+            }
+        self._daily = {"entity_id": entity_id, "updated": time.time(), "days": days, "error": None if days else "no forecast data"}
+        if not days:
+            self._retry_daily_soon()
+        async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+        await self._async_update_digest()
+
+    @property
+    def weather_days(self) -> dict:
+        """The daily forecast as the panel shows it (empty when older than the forecast max age)."""
+        d = self._daily
+        fresh = d.get("updated") and time.time() - float(d["updated"]) <= FORECAST_MAX_AGE_SECONDS * 4
+        return {"entity_id": d.get("entity_id") or "", "days": d.get("days") if fresh else {}, "error": d.get("error")}
+
+    def _opt_float(self, key: str, default: float) -> float:
+        try:
+            v = self.options.get(key)
+            return default if v is None or v == "" else float(v)
+        except (TypeError, ValueError):
+            return default
+
+    def boost_pct_option(self) -> int:
+        try:
+            pct = int(self.options.get("tips_boost_pct") or 30)
+        except (TypeError, ValueError):
+            pct = 30
+        return pct if pct in (10, 20, 30, 50) else 30
+
+    def tips(self, now: Optional[datetime] = None) -> list[dict]:
+        """Suggestions for today (runs still to come) and tomorrow from the daily forecast.
+
+        rain: the day's rain reaches the setting (and its chance, when given); not while the automatic
+        rain-forecast skip is on, which handles it. heat: the high reaches the setting and no boost covers the
+        day. frost: the low reaches the setting and a run starts before 10:00. Muted kinds, dismissed tips and
+        days without a run that will water give no tip.
+        """
+        if not self.options.get("tips_enabled", True):
+            return []
+        days = self.weather_days.get("days") or {}
+        if not days:
+            return []
+        now_l = dt_util.as_local(now or dt_util.now())
+        state = self.store.tips_state
+        muted, dismissed = set(state["muted"]), set(state["dismissed"])
+        start = dt_util.start_of_local_day(now_l.date())
+        runs = planner.occurrences(self.store, self.options, start, start + timedelta(days=2), limit=None)
+        auto_rain = bool((self.options.get("forecast_entity") or "").strip()) and self._opt_float("forecast_skip_mm", 0) > 0
+        hot = self._opt_float("tips_hot_c", 32)
+        seasonal_on = bool(self.options.get("seasonal_enabled"))
+        season = self._seasonal_factor()
+
+        def expect(run: dict) -> float:
+            """What the run will water as a factor: temperature adjustment (today and tomorrow) and boost."""
+            factor = self.boost_factor(run["start"])
+            if not self._seasonal_skips(season):
+                factor *= season
+            return factor
+
+        frost = self._opt_float("tips_frost_c", 2)
+        rain_mm = self._opt_float("tips_rain_mm", 5)
+        rain_prob = self._opt_float("tips_rain_prob", 60)
+        out: list[dict] = []
+        for offset in (0, 1):
+            day = (now_l.date() + timedelta(days=offset)).isoformat()
+            w = days.get(day)
+            if not w:
+                continue
+            day_runs = [
+                r for r in runs
+                if r["day"] == day and r["start"] > now_l.timestamp() and r.get("skip") not in ("skipped_manual", "rain_delay")
+            ]
+            if not day_runs:
+                continue
+            outdoor = [r for r in day_runs if not all(z.get("indoor") for z in r.get("zones") or [])]
+
+            def add(kind: str, runs_for: list[dict], **extra: Any) -> None:
+                tip_id = f"{kind}:{day}"
+                if kind in muted or tip_id in dismissed or not runs_for:
+                    return
+                liters = sum(self._run_liters(r) * expect(r) for r in runs_for)
+                minutes = sum(planner.scale_pct(r["minutes"], round(expect(r) * 100)) for r in runs_for)
+                out.append({
+                    "id": tip_id, "kind": kind, "day": day, "today": offset == 0,
+                    "runs": [{"schedule_id": r["schedule_id"], "name": r["name"], "start": r["start"], "minutes": r["minutes"]} for r in runs_for],
+                    "minutes": minutes,
+                    "liters": round(liters, 1) if liters else None,
+                    "weather": w,
+                    **extra,
+                })
+
+            mm, prob = w.get("mm"), w.get("prob")
+            day_start = dt_util.start_of_local_day(date.fromisoformat(day)).timestamp()
+            boost = self.store.boost
+            day_boost = int(boost.get("pct") or 0) if self.boost_factor(day_start + 12 * 3600) != 1.0 else 0
+            rainy = (not auto_rain and mm is not None and mm >= rain_mm and rain_mm > 0
+                     and (prob is None or prob >= rain_prob) and "rain" not in muted and f"rain:{day}" not in dismissed
+                     and bool(outdoor))
+            frosty = w.get("min_c") is not None and w["min_c"] <= frost
+            early = [r for r in outdoor if dt_util.as_local(dt_util.utc_from_timestamp(r["start"])).hour < TIP_FROST_BEFORE_HOUR]
+            if rainy:
+                # Rain skips every outdoor run of the day, so it also covers frost (merged) and makes heat moot.
+                add("rain", outdoor, frost_c=w["min_c"] if frosty and early else None, boost_pct=day_boost or None)
+                continue
+            if w.get("max_c") is not None and w["max_c"] >= hot and not seasonal_on and not day_boost:
+                add("heat", day_runs, pct=self.boost_pct_option())
+            if frosty:
+                add("frost", early)
+        return out
+
+    def _run_liters(self, run: dict) -> float:
+        total = 0.0
+        for z in run.get("zones") or []:
+            valve = self.store.get_valve(z.get("entity_id") or "") or {}
+            lpm = valve.get("flow_rate_lpm") or valve.get("avg_lpm") or 0
+            try:
+                total += float(lpm) * int(z.get("minutes") or 0)
+            except (TypeError, ValueError):
+                continue
+        return total
+
+    async def async_apply_tip(self, tip_id: str, source: str = "manual") -> int:
+        """Do what a tip suggests: rain skips the day's runs, frost the early ones, heat boosts the day.
+
+        Returns how many runs it changed (heat: the runs of the day). Raises ValueError when the tip is
+        not current (a past day, an unknown kind, or nothing left to change).
+        """
+        kind, _, day = tip_id.partition(":")
+        if kind not in TIP_KINDS or not _is_iso_day(day):
+            raise ValueError("unknown tip")
+        today = dt_util.now().date()
+        day_d = date.fromisoformat(day)
+        if day_d < today:
+            raise ValueError("that day has passed")
+        tip = next((t for t in self.tips() if t["id"] == tip_id), None)
+        if tip is None:
+            # No current tip (forged action, old notification, already applied): change nothing, so an active
+            # boost is never replaced by one nobody was offered (SEC-011).
+            raise ValueError("nothing to change")
+        if kind == "heat":
+            start = dt_util.start_of_local_day(day_d)
+            await self.store.async_set_boost(tip["pct"], int(start.timestamp()), int((start + timedelta(days=1)).timestamp()))
+            n = len(tip["runs"])
+        else:
+            for r in tip["runs"]:
+                await self.store.async_add_skip(r["schedule_id"], day)
+            n = len(tip["runs"])
+            boost = self.store.boost
+            start = int(dt_util.start_of_local_day(day_d).timestamp())
+            if kind == "rain" and boost and int(boost.get("from") or 0) >= start and int(boost.get("until") or 0) <= start + 90000:
+                await self.store.async_clear_boost()
+        LOG.info("tip %s applied (%s)", tip_id, source)
+        async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+        return n
+
+    def _digest_time(self) -> str:
+        raw = str(self.options.get("tips_digest_time") or "19:00")
+        return raw if re.fullmatch(r"\d{2}:\d{2}", raw) else "19:00"
+
+    def _tip_line(self, tip: dict) -> str:
+        w = tip.get("weather") or {}
+        names = ", ".join(dict.fromkeys(r["name"] for r in tip["runs"]))
+        if tip["kind"] == "rain":
+            return self._text("tip_rain", mm=self._num(w.get("mm")), names=names)
+        if tip["kind"] == "heat":
+            return self._text("tip_heat", temp=self._num(round(w.get("max_c") or 0)), pct=tip.get("pct", 30))
+        return self._text("tip_frost", temp=self._num(round(w.get("min_c") or 0)), names=names)
+
+    async def _async_send_digest(self, day: str, resend: bool = False) -> None:
+        """The evening digest: tomorrow's tips in one notification, with up to 2 action buttons."""
+        if "tips" not in self._notify_events_enabled() or not self._notify_targets():
+            return
+        sent = self.store.tips_state["digest"].get(day)
+        if sent is not None and not resend:
+            return
+        tips = [t for t in self.tips() if t["day"] == day]
+        tag = f"schedule_wizard_tips_{day}"
+        if not tips:
+            if resend and sent:
+                await self._async_clear_tag(tag)
+                await self.store.async_set_digest(day, [])
+            return
+        message = "\n".join(self._tip_line(t) for t in tips)
+        title = self._text("tips_title")
+        stamp = day.replace("-", "")
+        actions = [
+            {"action": f"{NOTIFICATION_ACTION_PREFIX}TIP_{t['kind'].upper()}_{stamp}", "title": self._text(f"tip_do_{t['kind']}", pct=t.get("pct", 30))}
+            for t in tips[:2]
+        ]
+        for target in self._notify_targets():
+            data: dict[str, Any] = {"title": title, "message": message}
+            if target.startswith("mobile_app_"):
+                data["data"] = {"tag": tag, "actions": actions, "clickAction": "/schedule-wizard", "url": "/schedule-wizard"}
+            try:
+                await self.hass.services.async_call("notify", target, data, blocking=False)
+            except Exception as e:
+                LOG.warning("tips to %s failed: %s", target, e)
+        await self.store.async_set_digest(day, [t["id"] for t in tips])
+
+    async def _async_clear_tag(self, tag: str) -> None:
+        for target in self._notify_targets():
+            if not target.startswith("mobile_app_"):
+                continue
+            try:
+                await self.hass.services.async_call(
+                    "notify", target, {"message": "clear_notification", "data": {"tag": tag}}, blocking=False,
+                )
+            except Exception as e:
+                LOG.warning("clearing %s on %s failed: %s", tag, target, e)
+
+    async def _async_update_digest(self) -> None:
+        """A sent digest follows the forecast: replaced when its tips changed, cleared when none is left."""
+        today = dt_util.now().date().isoformat()
+        for day, sent in self.store.tips_state["digest"].items():
+            if day < today or not sent:
+                continue
+            current = [t["id"] for t in self.tips() if t["day"] == day]
+            if set(current) != set(sent):
+                await self._async_send_digest(day, resend=True)
 
     # ------------------------------------------------------------------ services / master
 

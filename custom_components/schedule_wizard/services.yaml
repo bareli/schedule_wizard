@@ -531,13 +531,19 @@ stop_all:
 
 skip_next:
   name: Skip next run
-  description: Skip the next run of one schedule. Returns the skipped run.
+  description: Skip the next run of one schedule, or its run on a date. Returns the skipped run.
   fields:
     schedule_id:
       name: Schedule ID
       required: true
       selector:
         text:
+    date:
+      name: Date
+      description: Optional. Skip the run on this date (today up to 31 days ahead) instead of the next one.
+      required: false
+      selector:
+        date:
 
 skip_day:
   name: Skip a day
@@ -573,3 +579,116 @@ run_schedule:
       required: true
       selector:
         text:
+
+set_override:
+  name: Change one run
+  description: Change a single run of a schedule on one date (new start time the same day, and/or a percent of its minutes). The schedule itself stays as it is.
+  fields:
+    schedule_id:
+      name: Schedule ID
+      required: true
+      selector:
+        text:
+    date:
+      name: Date
+      required: true
+      selector:
+        date:
+    time:
+      name: New start time
+      description: Same day. Leave empty to keep the planned time.
+      required: false
+      selector:
+        time:
+    percent:
+      name: Percent of the planned minutes
+      required: false
+      default: 100
+      selector:
+        number:
+          min: 25
+          max: 300
+          step: 5
+          unit_of_measurement: "%"
+
+clear_override:
+  name: Undo change of one run
+  description: Remove the one-off change of a schedule's run on a date.
+  fields:
+    schedule_id:
+      name: Schedule ID
+      required: true
+      selector:
+        text:
+    date:
+      name: Date
+      required: true
+      selector:
+        date:
+
+set_boost:
+  name: Water more or less for a few days
+  description: Add or take a percent of the minutes of every scheduled run for some days (for example +30 % in a heat wave). Ends by itself.
+  fields:
+    percent:
+      name: Percent
+      required: true
+      selector:
+        select:
+          options: ["-50", "-30", "-20", "10", "20", "30", "50"]
+    days:
+      name: Days
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 14
+    start_date:
+      name: Start date
+      description: Without a date the boost starts now.
+      required: false
+      selector:
+        date:
+
+clear_boost:
+  name: End the boost
+  description: Stop watering more or less than planned.
+
+apply_tip:
+  name: Apply a weather tip
+  description: Do what a weather tip suggests (rain or frost skip the runs, heat waters more that day).
+  fields:
+    tip_id:
+      name: Tip ID
+      description: kind:date, for example rain:2026-10-10.
+      required: true
+      selector:
+        text:
+
+dismiss_tip:
+  name: Dismiss a weather tip
+  description: Hide one weather tip.
+  fields:
+    tip_id:
+      name: Tip ID
+      required: true
+      selector:
+        text:
+
+mute_tip:
+  name: Mute weather tips of a kind
+  description: Stop (or start again) suggesting rain, heat or frost tips.
+  fields:
+    kind:
+      name: Kind
+      required: true
+      selector:
+        select:
+          options: ["rain", "heat", "frost"]
+    muted:
+      name: Muted
+      required: false
+      default: true
+      selector:
+        boolean:

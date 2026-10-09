@@ -104,6 +104,18 @@ One status card at the top: watering now (with time left and Stop), paused for r
 
 ![Home](docs/screenshots/panel-home.png)
 
+### Weather tips
+
+With a weather entity in Home Assistant (for example the built-in Met.no forecast), Home shows tips for today and tomorrow when the daily forecast calls for it: **rain** (from 5 mm and 60 % chance), a **hot day** (from 32 °C) or **frost** (1-2 °C or below). Each tip names the runs it is about and has one button: skip the day's outdoor runs, water +30 % that day, or skip the runs before 10:00. There is one tip per day: rain comes first and covers frost; no heat tip on a rainy day or while "Water more when it's hot" is on. **Not now** hides that tip; **Don't suggest** stops that kind. Thresholds, the weather entity and the extra water are under Settings → More options → **Weather tips**. To get the tips the evening before as a notification with buttons, tick **Weather tips (evening)** under **Send notification when** (with a Home Assistant app as notification target). While the automatic **Skip when rain is forecast** is on, there is no rain tip.
+
+### Water more / less, and changing one run
+
+**Water more / less** on the Home status card waters every scheduled run more or less (+20 to +50 %, −20 or −30 %) for 1 to 7 days, then ends by itself. To change only one run, tap it in **This week** → **This time only**: move it to another time the same day, or water 50 to 200 % of its minutes. The schedule stays as it is.
+
+### This week and overlaps
+
+**This week** shows each run with the minutes it will really water (after the temperature adjustment and any boost), litres per day when flow rates are set, the day's forecast and runs that will likely be skipped for rain. Runs that water at the same time are red, because zones that water together share the water pressure. **Timeline** shows one day as lanes per zone. The watering time editor warns about overlaps and offers the first free time. To make overlapping runs wait for each other, set Settings → More options → Watering at the same time → **Zones at once**. A run's dialog also offers **Move to …, this day only** or **every time**.
+
 ### Zones
 
 Every zone with its schedule written out ("Mon, Thu at 06:00 · 10 min" or "Every 2 days from Oct 5, 2026 at 05:30 · 15 min"). Edit a zone (name, minutes, indoor, split long runs, its own moisture sensor), add or change its times.
@@ -206,6 +218,13 @@ Limits (since 0.14.1): zone labels and plan / watering time names up to 80 chara
 | `schedule_wizard.unskip`          | Undo a skip (`schedule_id`, `date`).                                                          |
 | `schedule_wizard.run_schedule`    | Start a schedule's zone or plan now and drop today's scheduled run of it.                     |
 | `schedule_wizard.list_config`     | Return valves, schedules, cycles, active runs, active cycles, recent history (response).     |
+| `schedule_wizard.set_override`    | Change one run of a schedule on a `date` (up to 31 days ahead): new same-day `time` and/or `percent` (25 to 300) of its minutes. |
+| `schedule_wizard.clear_override`  | Undo the change of one run (`schedule_id`, `date`).                                           |
+| `schedule_wizard.set_boost`       | Water `percent` (-50, -30, -20, 10, 20, 30 or 50) more or less on every scheduled run for `days` (1 to 14), from now or a `start_date`. |
+| `schedule_wizard.clear_boost`     | End the boost.                                                                                |
+| `schedule_wizard.apply_tip`       | Do what a weather tip suggests (`tip_id`, for example `rain:2026-10-10`).                      |
+| `schedule_wizard.dismiss_tip`     | Hide one weather tip (today or tomorrow).                                                     |
+| `schedule_wizard.mute_tip`        | Stop (or with `muted: false` resume) tips of a `kind`: rain, heat or frost.                   |
 
 All services are visible under **Developer Tools → Actions** with full selectors.
 

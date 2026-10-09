@@ -1,6 +1,7 @@
 """Upcoming schedule occurrences, shared by the calendar entity, the week view and reminders."""
 from __future__ import annotations
 
+import math
 from datetime import date, datetime, time as dtime, timedelta
 from typing import Any, Optional
 
@@ -129,6 +130,54 @@ def fire_hhmm(sched: dict, day: date, hass=None) -> Optional[str]:
     return when.strftime("%H:%M") if when else None
 
 
+def override_of(store: Optional[WizardStore], sched: dict, day: date) -> Optional[dict]:
+    """The one-off change of this schedule's run on this local date (v0.16.0), or None."""
+    if store is None or not sched.get("id"):
+        return None
+    return store.get_override(sched["id"], day.isoformat())
+
+
+def override_pct(override: Optional[dict]) -> int:
+    try:
+        return int((override or {}).get("pct") or 100)
+    except (TypeError, ValueError):
+        return 100
+
+
+def run_at(store: Optional[WizardStore], sched: dict, day: date, hass=None) -> Optional[datetime]:
+    """Start of the schedule's run on this local date, with a one-off new time applied (same day)."""
+    o = override_of(store, sched, day)
+    hm = _hhmm({"time_hhmm": o.get("time")}) if o and o.get("time") else None
+    if hm:
+        try:
+            return datetime.combine(day, dtime(*hm), tzinfo=_tz())
+        except ValueError:
+            pass
+    return fire_at(sched, day, hass)
+
+
+def run_hhmm(store: Optional[WizardStore], sched: dict, day: date, hass=None) -> Optional[str]:
+    """"HH:MM" the cron loop matches on this local date, one-off changes included."""
+    when = run_at(store, sched, day, hass)
+    return when.strftime("%H:%M") if when else None
+
+
+def next_run_at(store: Optional[WizardStore], sched: dict, after: datetime, hass=None,
+                days: int = NEXT_RUN_DAYS) -> Optional[datetime]:
+    """Next run strictly after `after`, with one-off new times (a run moved later today still counts)."""
+    if time_mode(sched) == TIME_MODE_CLOCK and not _hhmm(sched):
+        return None
+    after_l = dt_util.as_local(after)
+    day = _first_day(sched, after_l.date())
+    for _ in range(days + 1):
+        if runs_on(sched, day):
+            fire = run_at(store, sched, day, hass)
+            if fire is not None and fire > after_l:
+                return fire
+        day += timedelta(days=1)
+    return None
+
+
 def _first_day(sched: dict, day: date) -> date:
     """Where a next-run search starts: an every-N-days schedule has no run before its start date."""
     if sched.get("repeat") == "interval":
@@ -192,7 +241,7 @@ def next_zone_run(store: WizardStore, options: dict, sched: dict, valve: dict,
     after = now
     skip: Optional[dict[str, Any]] = None
     for _ in range(SKIP_SCAN_LIMIT):
-        fire = next_fire(sched, after, hass=hass)
+        fire = next_run_at(store, sched, after, hass=hass)
         if fire is None:
             return None, skip
         ts = int(fire.timestamp())
@@ -283,25 +332,119 @@ def occurrences(
         day = start_l.date()
         while day <= end_l.date():
             if runs_on(sched, day):
-                fire = fire_at(sched, day, hass)
+                fire = run_at(store, sched, day, hass)
                 if fire is not None and start_l <= fire < end_l and int(fire.timestamp()) >= created:
                     fire_ts = int(fire.timestamp())
                     day_s = day.isoformat()
+                    o = override_of(store, sched, day)
+                    pct = override_pct(o)
+                    zones = [
+                        {**{k: z[k] for k in ("entity_id", "label", "indoor")}, "minutes": scale_pct(z["minutes"], pct)}
+                        for z in target["zones"]
+                    ]
+                    minutes = sum(z["minutes"] for z in zones)
                     out.append({
                         "start": fire_ts,
-                        "end": fire_ts + max(1, target["minutes"]) * 60,
+                        "end": fire_ts + max(1, minutes) * 60,
                         "day": day_s,
                         "schedule_id": sched["id"],
                         "kind": target["kind"],
                         "target": target["id"],
                         "name": target["name"],
-                        "zones": [{k: z[k] for k in ("entity_id", "label", "minutes", "indoor")} for z in target["zones"]],
-                        "minutes": target["minutes"],
+                        "zones": zones,
+                        "minutes": minutes,
+                        "base_minutes": target["minutes"],
+                        "override": {"time": o.get("time") or "", "pct": pct} if o else None,
                         "skip": predicted_skip(store, options, sched, target, fire_ts, day_s),
                     })
             day += timedelta(days=1)
     out.sort(key=lambda o: (o["start"], o["name"]))
     return out if limit is None else out[:limit]
+
+
+def scale_pct(minutes: int, pct: int) -> int:
+    """Minutes at a percent of the plan, at least 1 (0 stays 0)."""
+    if pct == 100 or minutes <= 0:
+        return int(minutes)
+    # Half rounds up, like the panel's Math.round (6.5 min is 7, not 6), so both show the same minutes.
+    return max(1, int(math.floor(minutes * pct / 100 + 0.5)))
+
+
+# Runs that do not water: they cannot clash with anything.
+_NO_WATER = ("skipped_manual", "rain_delay")
+
+
+def mark_overlaps(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Add "overlaps" to each run: the other runs that water at the same time (v0.16.0).
+
+    Two runs overlap when their [start, end) intervals meet and both will water; a plan counts as one block
+    from its start to its end. Each entry: {"schedule_id", "name", "start", "kind"}.
+    """
+    for r in runs:
+        r["overlaps"] = []
+    live = sorted((r for r in runs if r.get("skip") not in _NO_WATER), key=lambda r: r["start"])
+    for i, a in enumerate(live):
+        for b in live[i + 1:]:
+            if b["start"] >= a["end"]:
+                break
+            if a["schedule_id"] == b["schedule_id"]:
+                continue
+            a["overlaps"].append({"schedule_id": b["schedule_id"], "name": b["name"], "start": b["start"], "kind": b["kind"]})
+            b["overlaps"].append({"schedule_id": a["schedule_id"], "name": a["name"], "start": a["start"], "kind": a["kind"]})
+    return runs
+
+
+def draft_conflicts(store: WizardStore, options: dict, draft: dict, start: datetime, days: int = 14,
+                    exclude_id: str = "") -> dict[str, Any]:
+    """Runs of other schedules that a schedule being edited would water at the same time as, and the
+    first later clock time (5-minute steps, same day) at which it clashes with none of them.
+
+    draft: a schedule dict (repeat, days_mask, interval_days, start_date, time_hhmm, time_mode, sun_offset_min)
+    plus "minutes" (how long one run waters).
+    """
+    hass = store.hass
+    end = start + timedelta(days=days)
+    others = [
+        o for o in occurrences(store, options, start, end, limit=None)
+        if o["schedule_id"] != exclude_id and o.get("skip") not in _NO_WATER
+    ]
+    minutes = max(1, int(draft.get("minutes") or 1))
+    draft_days = []
+    day = dt_util.as_local(start).date()
+    last = dt_util.as_local(end).date()
+    while day < last:
+        if runs_on(draft, day):
+            fire = fire_at(draft, day, hass)
+            if fire is not None:
+                draft_days.append(fire)
+        day += timedelta(days=1)
+
+    def clashes(shift_min: int) -> list[dict]:
+        found: dict[str, dict] = {}
+        for fire in draft_days:
+            a0 = int(fire.timestamp()) + shift_min * 60
+            a1 = a0 + minutes * 60
+            for o in others:
+                if o["start"] < a1 and a0 < o["end"] and o["schedule_id"] not in found:
+                    found[o["schedule_id"]] = {
+                        "schedule_id": o["schedule_id"], "name": o["name"], "kind": o["kind"],
+                        "target": o["target"], "start": o["start"], "end": o["end"],
+                    }
+        return sorted(found.values(), key=lambda c: c["start"])
+
+    conflicts = clashes(0)
+    suggestion = None
+    base = _hhmm(draft)
+    if conflicts and draft_days and time_mode(draft) == TIME_MODE_CLOCK and base:
+        start_min = base[0] * 60 + base[1]
+        for shift in range(5, 24 * 60, 5):
+            total = start_min + shift
+            if total + minutes > 24 * 60:
+                break
+            if not clashes(shift):
+                suggestion = f"{total // 60:02d}:{total % 60:02d}"
+                break
+    return {"conflicts": conflicts, "suggestion": suggestion}
 
 
 def next_occurrence(store: WizardStore, options: dict, schedule_id: Optional[str] = None,

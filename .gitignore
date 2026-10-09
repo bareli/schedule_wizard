@@ -16,3 +16,4 @@ venv/
 .DS_Store
 Thumbs.db
 !qa/CLAUDE.md
+.playwright-mcp/
