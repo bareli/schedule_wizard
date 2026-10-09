@@ -73,3 +73,12 @@ IDs are stable forever.
 - REP-01 Reports: "Skips saved N min and about X L" over 30 days.
 - TZ-01 Browser time zone different from HA's: Home, Zones, Plans, schedule editor, week list, timeline and run dialog all show HA's clock; a note says so.
 - ZONE-01 Zone card on the Zones tab while the zone waters says "Watering now, X left", not "no runs last 7 days".
+
+### Regression (defects from the 2026-10-09 cycle)
+- TIP-06 (SEC-011 / BUG-041) apply_tip heat or a TIP_HEAT notification action for a day without a current heat tip changes nothing; an active boost stays. Unit: tests/test_v016.py::test_heat_tip_without_a_current_tip_changes_nothing.
+- ONCE-02 (BUG-042) A one-off change cannot move today's run once it has started; the panel shows "Today's run has already started or watered." Unit: test_no_second_watering_by_moving_todays_finished_run.
+- QUEUE-02 (BUG-043) A run waiting for a free slot waits again after an HA restart / reload and then waters, oldest first. Unit: test_waiting_run_survives_a_reload.
+- CONF-02 (BUG-039) Editor "Move to" keeps keyboard focus on the time field and announces "Moved to … No other watering at that time."
+- WEEK-03 (BUG-040) Overlapping timeline bars and the legend carry ⚠, not colour only.
+- ONCE-03 (UX-027) One-off length select labelled "Length" with minutes per option; the error clears on edit and focus returns to the time field.
+- I18N-03 (UX-021) Hebrew: temperatures, litres and percents read in natural order (week header, tips, tip settings, boost).
