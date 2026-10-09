@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.16.0: weather tips, water more or less, change one run, overlap warnings
+
+- **Weather tips**: from your weather entity's daily forecast, Home shows tips for today and tomorrow, each with one button: rain expected → **Skip tomorrow** (outdoor zones only), hot day → **+30 % tomorrow**, frost risk → **Skip early runs** (before 10:00). Each tip says what it saves (litres when flow rates are set, else minutes) and where the forecast comes from. **Not now** hides one tip, **Don't suggest** stops a kind (turn it back on in Settings). No rain tip while the automatic rain-forecast skip is on, it already handles rain. Settings → More options → **Weather tips**: on / off, weather entity (automatic by default), hot day, frost, rain and rain-chance thresholds (°C or °F as Home Assistant uses), extra water on hot days, and the evening notification time.
+- **Tips as a notification the evening before**: tick **Weather tips (evening)** under Send notification when. One notification at the set time (default 19:00) with tomorrow's tips and up to two buttons in the Home Assistant app; a button does the same as in the panel. When the forecast changes, the notification is replaced, or removed when no tip is left.
+- **Water more / less for a few days**: on Home, **Water more / less** sets +20, +30, +50 % or −20, −30 % for 1, 2, 3 or 7 days for every scheduled and calendar run; a banner shows it with **End now**. **Water now** is never changed. Services `set_boost` / `clear_boost`.
+- **Change one run only**: tap a run in **This week** → **This time only**: a new start time the same day and/or 50 to 200 % of the minutes. The schedule stays as it is; **Undo change** puts the run back. The dialog also has **Edit schedule**. Services `set_override` / `clear_override` (up to 31 days ahead).
+- **This week shows what will really happen**: minutes after the temperature adjustment and the boost ("35 → 42 min"), litres per day, the day's forecast (high / low, rain), "likely skipped (rain forecast)", "changed for this day", and **+ Add** on a day without watering.
+- **Overlaps are visible**: runs that water at the same time are marked red ("same time as Morning lawn") in the list, and a new **Timeline** view shows each day as lanes per zone. The watering time editor warns while you type ("Waters at the same time as …") and offers **Move to 6:35 AM**, the first time without overlap; saving is still allowed.
+- **Zones at once**: Settings → More options → Plans at the same time → **Zones at once** (No limit, 1, 2, 3). With a limit, a scheduled run that would overlap waits its turn (up to 3 hours) and the status card says who is waiting. Water now never waits.
+- **Reports**: "Skips saved 120 min and about 1.4 m³ of water in the last 30 days".
+- **Fix: one clock everywhere**: when the browser was in another time zone than Home Assistant, Home showed runs in the browser's time while Zones and Plans showed Home Assistant's. All panel times now use Home Assistant's time zone, with a note on This week when they differ.
+- **Fix: zone card while watering**: the Zones tab said "Last: 27 s ago • started • no runs last 7 days" during a run; it now says "Watering now, 7:12 left".
+- 17 languages for every new text, including the notification.
+
 ## 0.15.0: sunrise / sunset start, security, valves closed after outages, accessibility
 
 - **Webhook only runs your zones** (#34, #37): the webhook used to switch any switch, light, cover, valve or input_boolean in Home Assistant, including ones that are not zones, and recorded runs for entities that do not exist. It now accepts only zones set up in Schedule Wizard (`404 unknown zone` otherwise, nothing switched or recorded) and refuses to run a disabled zone (`409`). Automations that call the webhook for a zone keep working; calls for other entities stop working.
