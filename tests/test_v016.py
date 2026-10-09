@@ -245,25 +245,73 @@ async def test_tips_from_the_forecast(hass: HomeAssistant):
     sched = data(hass, entry)["scheduler"]
     await sched._async_refresh_daily()
     tips = {t["kind"]: t for t in sched.tips()}
-    assert set(tips) == {"rain", "heat", "frost"}
-    assert all(t["day"] == tomorrow() and not t["today"] for t in tips.values())
-    # Rain and frost leave the indoor zone alone; heat counts every run of the day.
-    assert [r["name"] for r in tips["rain"]["runs"]] == ["Front"]
-    assert [r["name"] for r in tips["frost"]["runs"]] == ["Front"]
-    assert len(tips["heat"]["runs"]) == 2 and tips["heat"]["pct"] == 30
+    # UX-022: rain covers the day's outdoor runs, so frost is merged into it and heat is left out.
+    assert set(tips) == {"rain"}
+    rain = tips["rain"]
+    assert rain["day"] == tomorrow() and not rain["today"] and rain["frost_c"] == 1
+    assert [r["name"] for r in rain["runs"]] == ["Front"]
 
     await hass.services.async_call(DOMAIN, "apply_tip", {"tip_id": f"rain:{tomorrow()}"}, blocking=True)
     store = data(hass, entry)["store"]
     lawn = next(s for s in store.schedules if s["name"] == "Lawn")
     assert store.is_skipped(lawn["id"], tomorrow())
+    # Rain gone (applied): heat for the indoor run and frost (nothing outdoor left) remain possible.
     assert "rain" not in {t["kind"] for t in sched.tips()}
 
+
+async def test_heat_tip_applies_a_one_day_boost(hass: HomeAssistant):
+    entry, weather = await _tips_setup(hass)
+    weather.days[1] = {"temperature": 36, "templow": 15, "precipitation": 0}
+    sched = data(hass, entry)["scheduler"]
+    await sched._async_refresh_daily()
+    tips = {t["kind"]: t for t in sched.tips()}
+    assert set(tips) == {"heat"} and len(tips["heat"]["runs"]) == 2 and tips["heat"]["pct"] == 30
     await hass.services.async_call(DOMAIN, "apply_tip", {"tip_id": f"heat:{tomorrow()}"}, blocking=True)
-    boost = store.boost
-    assert boost["pct"] == 30
+    boost = data(hass, entry)["store"].boost
     start = dt_util.start_of_local_day(dt_util.now().date() + timedelta(days=1))
+    assert boost["pct"] == 30
     assert boost["from"] == int(start.timestamp()) and boost["until"] == int((start + timedelta(days=1)).timestamp())
-    assert "heat" not in {t["kind"] for t in sched.tips()}
+    assert sched.tips() == []
+
+
+async def test_rain_after_a_heat_boost_says_so_and_ends_it(hass: HomeAssistant):
+    """UX-022: a boost set for a day that turns rainy: the rain tip names it, and skipping ends that boost."""
+    entry, weather = await _tips_setup(hass)
+    weather.days[1] = {"temperature": 36, "templow": 15, "precipitation": 0}
+    sched = data(hass, entry)["scheduler"]
+    await sched._async_refresh_daily()
+    await hass.services.async_call(DOMAIN, "apply_tip", {"tip_id": f"heat:{tomorrow()}"}, blocking=True)
+    weather.days[1] = {"temperature": 30, "templow": 15, "precipitation": 9, "precipitation_probability": 90}
+    await sched._async_refresh_daily()
+    rain = next(t for t in sched.tips() if t["kind"] == "rain")
+    assert rain["boost_pct"] == 30
+    # Savings use the boosted minutes: 10 min * 130 % = 13 min.
+    assert rain["minutes"] == 13
+    await hass.services.async_call(DOMAIN, "apply_tip", {"tip_id": f"rain:{tomorrow()}"}, blocking=True)
+    assert data(hass, entry)["store"].boost == {}
+
+
+async def test_no_heat_tip_while_the_temperature_adjustment_is_on(hass: HomeAssistant):
+    """UX-023: the automatic temperature adjustment already waters more on hot days."""
+    entry, weather = await _tips_setup(hass, seasonal_enabled=True, seasonal_temp_entity="sensor.none")
+    weather.days[1] = {"temperature": 40, "templow": 15, "precipitation": 0}
+    sched = data(hass, entry)["scheduler"]
+    await sched._async_refresh_daily()
+    assert sched.tips() == []
+
+
+async def test_skip_one_chosen_run(hass: HomeAssistant):
+    """UX-025: Skip this run works on any future run, not only the next one."""
+    entry = await setup_wizard(hass)
+    await add_valve(hass, Z1, "Front")
+    sched = await add_schedule(hass, valve_entity_id=Z1, time="23:50", days=DAYS, duration_minutes=5)
+    day = (dt_util.now().date() + timedelta(days=3)).isoformat()
+    await hass.services.async_call(DOMAIN, "skip_next", {"schedule_id": sched["id"], "date": day}, blocking=True)
+    store = data(hass, entry)["store"]
+    assert store.skips == {sched["id"]: [day]}
+    far = (dt_util.now().date() + timedelta(days=90)).isoformat()
+    with pytest.raises(HomeAssistantError, match="days ahead"):
+        await hass.services.async_call(DOMAIN, "skip_next", {"schedule_id": sched["id"], "date": far}, blocking=True)
 
 
 async def test_tips_dismiss_mute_and_limits(hass: HomeAssistant):
@@ -305,7 +353,7 @@ async def test_fahrenheit_forecast_is_converted(hass: HomeAssistant):
     day = sched.weather_days["days"][tomorrow()]
     assert day["max_c"] == pytest.approx(37.8, abs=0.1)
     assert day["mm"] == pytest.approx(12.7, abs=0.1)
-    assert {t["kind"] for t in sched.tips()} == {"heat", "rain"}
+    assert {t["kind"] for t in sched.tips()} == {"rain"}, "rain first: it covers the hot day too"
 
 
 async def test_tips_off(hass: HomeAssistant):
