@@ -85,6 +85,9 @@ class WizardStore:
             "skips": {},
             "cycle_state": {},
             "water_total_l": 0.0,
+            "overrides": {},
+            "boost": {},
+            "tips": {"dismissed": [], "muted": [], "digest": {}},
         }
         self._loaded = False
         self._pending = False
@@ -110,6 +113,14 @@ class WizardStore:
             self._data["skips"] = data.get("skips", {}) or {}
             self._data["cycle_state"] = data.get("cycle_state", {}) or {}
             self._data["water_total_l"] = float(data.get("water_total_l") or 0)
+            self._data["overrides"] = data.get("overrides", {}) or {}
+            self._data["boost"] = data.get("boost", {}) or {}
+            tips = data.get("tips") or {}
+            self._data["tips"] = {
+                "dismissed": list(tips.get("dismissed") or []),
+                "muted": list(tips.get("muted") or []),
+                "digest": dict(tips.get("digest") or {}),
+            }
         self._loaded = True
 
     async def async_save(self) -> None:
@@ -160,8 +171,92 @@ class WizardStore:
                 self._data["skips"].pop(schedule_id, None)
             await self._async_save_config()
 
+    # ---- one-off changes of a single run (v0.16.0): {schedule_id: {"YYYY-MM-DD": {"time": "HH:MM" | "", "pct": int}}}
+
+    @property
+    def overrides(self) -> dict[str, dict[str, dict]]:
+        return {sid: {d: dict(o) for d, o in days.items()} for sid, days in self._data["overrides"].items()}
+
+    def get_override(self, schedule_id: str, day: str) -> Optional[dict]:
+        o = self._data["overrides"].get(schedule_id, {}).get(day)
+        return dict(o) if o else None
+
+    async def async_set_override(self, schedule_id: str, day: str, time_hhmm: str, pct: int) -> None:
+        if not time_hhmm and int(pct) == 100:
+            await self.async_clear_override(schedule_id, day)
+            return
+        self._data["overrides"].setdefault(schedule_id, {})[day] = {"time": time_hhmm or "", "pct": int(pct)}
+        await self._async_save_config()
+
+    async def async_clear_override(self, schedule_id: str, day: str) -> bool:
+        days = self._data["overrides"].get(schedule_id, {})
+        if day not in days:
+            return False
+        days.pop(day)
+        if not days:
+            self._data["overrides"].pop(schedule_id, None)
+        await self._async_save_config()
+        return True
+
+    # ---- temporary boost (heat wave): {"pct": int, "from": unix, "until": unix}
+
+    @property
+    def boost(self) -> dict:
+        return dict(self._data.get("boost") or {})
+
+    async def async_set_boost(self, pct: int, start: int, until: int) -> None:
+        self._data["boost"] = {"pct": int(pct), "from": int(start), "until": int(until), "set_at": int(time.time())}
+        await self._async_save_config()
+
+    async def async_clear_boost(self) -> bool:
+        if not self._data.get("boost"):
+            return False
+        self._data["boost"] = {}
+        await self._async_save_config()
+        return True
+
+    # ---- weather tips: dismissed tip ids ("kind:YYYY-MM-DD"), muted kinds, digest sent per day
+
+    @property
+    def tips_state(self) -> dict:
+        t = self._data["tips"]
+        return {"dismissed": list(t["dismissed"]), "muted": list(t["muted"]), "digest": {k: list(v) for k, v in t["digest"].items()}}
+
+    async def async_dismiss_tip(self, tip_id: str) -> None:
+        if tip_id not in self._data["tips"]["dismissed"]:
+            self._data["tips"]["dismissed"].append(tip_id)
+            await self._async_save_config()
+
+    async def async_mute_tip(self, kind: str, muted: bool) -> None:
+        kinds = self._data["tips"]["muted"]
+        if muted and kind not in kinds:
+            kinds.append(kind)
+        elif not muted and kind in kinds:
+            kinds.remove(kind)
+        else:
+            return
+        await self._async_save_config()
+
+    async def async_set_digest(self, day: str, tip_ids: list[str]) -> None:
+        self._data["tips"]["digest"][day] = list(tip_ids)
+        await self.async_save()
+
     async def async_prune_skips(self, today: str) -> None:
         changed = False
+        for sid in list(self._data["overrides"]):
+            keep = {d: o for d, o in self._data["overrides"][sid].items() if d >= today}
+            if keep != self._data["overrides"][sid]:
+                changed = True
+                if keep:
+                    self._data["overrides"][sid] = keep
+                else:
+                    self._data["overrides"].pop(sid)
+        tips = self._data["tips"]
+        dismissed = [t for t in tips["dismissed"] if t.split(":")[-1] >= today]
+        digest = {d: v for d, v in tips["digest"].items() if d >= today}
+        if dismissed != tips["dismissed"] or digest != tips["digest"]:
+            tips["dismissed"], tips["digest"] = dismissed, digest
+            changed = True
         for sid in list(self._data["skips"]):
             keep = [d for d in self._data["skips"][sid] if d >= today]
             if keep != self._data["skips"][sid]:
@@ -384,6 +479,7 @@ class WizardStore:
         before = len(self._data["schedules"])
         self._data["schedules"] = [s for s in self._data["schedules"] if s["id"] != schedule_id]
         self._data["skips"].pop(schedule_id, None)
+        self._data["overrides"].pop(schedule_id, None)
         if len(self._data["schedules"]) != before:
             await self._async_save_config()
             return True

@@ -8,6 +8,7 @@ import os
 import secrets
 import time
 from collections import deque
+from datetime import timedelta as _timedelta
 from typing import Any
 
 import voluptuous as vol
@@ -109,6 +110,29 @@ from .voice import VoiceCommands
 from .const import MAX_CYCLES, MAX_NAME_LENGTH, MAX_SCHEDULES, MAX_TEXT_LENGTH, MAX_VALVES
 from .const import SUN_OFFSET_MAX, TIME_MODE_CLOCK, TIME_MODES
 from .const import CONF_CALENDAR_KEYWORD, CONF_MAX_EXTERNAL_MINUTES, MAX_CALENDAR_KEYWORD_LENGTH
+from .const import (
+    BOOST_MAX_DAYS,
+    BOOST_PCTS,
+    CONF_MAX_ZONES_AT_ONCE,
+    CONF_TIPS_BOOST_PCT,
+    CONF_TIPS_DIGEST_TIME,
+    CONF_TIPS_ENABLED,
+    CONF_TIPS_FROST_C,
+    CONF_TIPS_HOT_C,
+    CONF_TIPS_RAIN_MM,
+    CONF_TIPS_RAIN_PROB,
+    CONF_TIPS_WEATHER_ENTITY,
+    OVERRIDE_MAX_PCT,
+    OVERRIDE_MIN_PCT,
+    SERVICE_APPLY_TIP,
+    SERVICE_CLEAR_BOOST,
+    SERVICE_CLEAR_OVERRIDE,
+    SERVICE_DISMISS_TIP,
+    SERVICE_MUTE_TIP,
+    SERVICE_SET_BOOST,
+    SERVICE_SET_OVERRIDE,
+    TIP_KINDS,
+)
 
 NAME = vol.All(cv.string, vol.Length(max=MAX_NAME_LENGTH, msg=f"at most {MAX_NAME_LENGTH} characters"))
 TEXT = vol.All(cv.string, vol.Length(max=MAX_TEXT_LENGTH, msg=f"at most {MAX_TEXT_LENGTH} characters"))
@@ -132,6 +156,7 @@ WEBHOOK_REPEAT_SECONDS = 2
 # get_state keys that change while watering; a poll that sends the last `rev` gets only these (PERF-001).
 LIVE_STATE_KEYS = (
     "active", "active_cycles", "soaking", "flow", "forecast", "seasonal", "water_total_l", "rain_delay_until", "now",
+    "queue", "tips", "weather",
 )
 
 
@@ -352,6 +377,36 @@ vol.Optional("days"): vol.All(cv.ensure_list, [vol.In(["mon", "tue", "wed", "thu
     vol.Optional("start_date"): cv.date,
     vol.Optional("enabled"): cv.boolean,
     vol.Optional("conditions"): SCHEMA_CONDITIONS,
+})
+
+SCHEMA_SET_OVERRIDE = vol.Schema({
+    vol.Required("schedule_id"): cv.string,
+    vol.Required("date"): cv.date,
+    vol.Optional("time"): vol.Any(None, "", _hhmm),
+    vol.Optional("percent", default=100): vol.All(
+        vol.Coerce(int), vol.Range(min=OVERRIDE_MIN_PCT, max=OVERRIDE_MAX_PCT,
+                                   msg=f"percent must be {OVERRIDE_MIN_PCT} to {OVERRIDE_MAX_PCT}"),
+    ),
+})
+
+SCHEMA_CLEAR_OVERRIDE = vol.Schema({
+    vol.Required("schedule_id"): cv.string,
+    vol.Required("date"): cv.date,
+})
+
+SCHEMA_SET_BOOST = vol.Schema({
+    vol.Required("percent"): vol.All(vol.Coerce(int), vol.In(BOOST_PCTS, msg=f"percent must be one of {list(BOOST_PCTS)}")),
+    vol.Optional("days", default=1): vol.All(vol.Coerce(int), vol.Range(min=1, max=BOOST_MAX_DAYS)),
+    vol.Optional("start_date"): cv.date,
+})
+
+TIP_ID = vol.All(cv.string, vol.Length(max=40), vol.Match(r"^(rain|heat|frost):\d{4}-\d{2}-\d{2}$", msg="unknown tip"))
+
+SCHEMA_TIP = vol.Schema({vol.Required("tip_id"): TIP_ID})
+
+SCHEMA_MUTE_TIP = vol.Schema({
+    vol.Required("kind"): vol.In(TIP_KINDS),
+    vol.Optional("muted", default=True): cv.boolean,
 })
 
 DAY_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
@@ -691,10 +746,16 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             "forecast": scheduler.forecast_status,
             "seasonal": scheduler.seasonal_status,
             "water_total_l": store.water_total_l,
-            "week": planner.occurrences(
+            "week": planner.mark_overlaps(planner.occurrences(
                 store, options, dt_util.start_of_local_day(), dt_util.start_of_local_day() + _td(days=7),
-            ),
+            )),
             "skips": store.skips,
+            "overrides": store.overrides,
+            "boost": store.boost,
+            "queue": scheduler.queue,
+            "tips": scheduler.tips(),
+            "tips_muted": store.tips_state["muted"],
+            "weather": scheduler.weather_days,
             "history": store.history[:500],
             "options": options,
             "controllable": controllable,
@@ -762,6 +823,15 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
         vol.Optional(CONF_MAX_EXTERNAL_MINUTES): vol.All(
             int, vol.Range(min=1, max=MAX_RUN_MINUTES, msg=f"longest external run must be 1 to {MAX_RUN_MINUTES} minutes"),
         ),
+        vol.Optional(CONF_MAX_ZONES_AT_ONCE): vol.All(int, vol.Range(min=0, max=10, msg="max zones at once must be 0 to 10")),
+        vol.Optional(CONF_TIPS_ENABLED): cv.boolean,
+        vol.Optional(CONF_TIPS_WEATHER_ENTITY): vol.Any(None, "", vol.All(cv.entity_id, cv.entity_domain("weather"))),
+        vol.Optional(CONF_TIPS_HOT_C): vol.All(vol.Coerce(float), vol.Range(min=15, max=55, msg="hot day must be 15 to 55 °C")),
+        vol.Optional(CONF_TIPS_FROST_C): vol.All(vol.Coerce(float), vol.Range(min=-20, max=10, msg="frost must be -20 to 10 °C")),
+        vol.Optional(CONF_TIPS_RAIN_MM): vol.All(vol.Coerce(float), vol.Range(min=0.5, max=200, msg="rain must be 0.5 to 200 mm")),
+        vol.Optional(CONF_TIPS_RAIN_PROB): vol.All(vol.Coerce(int), vol.Range(min=0, max=100, msg="rain chance must be 0 to 100 %")),
+        vol.Optional(CONF_TIPS_BOOST_PCT): vol.All(vol.Coerce(int), vol.In((10, 20, 30, 50), msg="boost must be 10, 20, 30 or 50 %")),
+        vol.Optional(CONF_TIPS_DIGEST_TIME): _hhmm,
     })
     @websocket_api.require_admin
     @websocket_api.async_response
@@ -863,8 +933,51 @@ def _async_register_ws_commands(hass: HomeAssistant) -> None:
             after = fire
         connection.send_result(msg["id"], {"next": out})
 
+    @websocket_api.websocket_command({
+        vol.Required("type"): f"{DOMAIN}/check_conflicts",
+        vol.Optional("schedule_id", default=""): cv.string,
+        vol.Optional("repeat", default=REPEAT_WEEKDAYS): vol.In([REPEAT_WEEKDAYS, REPEAT_INTERVAL]),
+        vol.Optional("days_mask", default=127): vol.All(int, vol.Range(min=0, max=127)),
+        vol.Optional("interval_days", default=0): vol.All(int, vol.Range(min=0, max=INTERVAL_MAX_DAYS)),
+        vol.Optional("start_date", default=""): vol.Any("", cv.date),
+        vol.Optional("time", default="06:00"): _hhmm,
+        vol.Optional("time_mode", default=TIME_MODE_CLOCK): vol.In(TIME_MODES),
+        vol.Optional("sun_offset_minutes", default=0): SUN_OFFSET,
+        vol.Optional("valve_entity_id", default=""): cv.string,
+        vol.Optional("cycle_id", default=""): cv.string,
+        vol.Optional("minutes", default=1): vol.All(int, vol.Range(min=1, max=MAX_RUN_MINUTES)),
+    })
+    @callback
+    def _ws_check_conflicts(hass_inner, connection, msg):
+        """Other runs a schedule being edited would water at the same time as, in the next 14 days (v0.16.0)."""
+        domain_data = hass_inner.data.get(DOMAIN, {})
+        if not domain_data:
+            connection.send_error(msg["id"], "not_loaded", "integration not loaded")
+            return
+        data = domain_data[next(iter(domain_data))]
+        store = data["store"]
+        minutes = msg["minutes"]
+        if msg["cycle_id"]:
+            cycle = store.get_cycle(msg["cycle_id"]) or {}
+            minutes = max(1, sum(int(st.get("duration_min") or 0) for st in cycle.get("steps") or []))
+        start = msg["start_date"]
+        draft = {
+            "repeat": msg["repeat"],
+            "days_mask": msg["days_mask"],
+            "interval_days": msg["interval_days"],
+            "start_date": start.isoformat() if start else "",
+            "time_hhmm": msg["time"],
+            "time_mode": msg["time_mode"],
+            "sun_offset_min": msg["sun_offset_minutes"],
+            "minutes": minutes,
+        }
+        result = planner.draft_conflicts(store, data["options"], draft, dt_util.now(), exclude_id=msg["schedule_id"])
+        result["max_at_once"] = int(data["options"].get(CONF_MAX_ZONES_AT_ONCE) or 0)
+        connection.send_result(msg["id"], result)
+
     websocket_api.async_register_command(hass, _ws_get_state)
     websocket_api.async_register_command(hass, _ws_preview_schedule)
+    websocket_api.async_register_command(hass, _ws_check_conflicts)
     websocket_api.async_register_command(hass, _ws_update_options)
     websocket_api.async_register_command(hass, _ws_rotate_webhook)
     hass.data[WS_COMMANDS_REGISTERED_KEY] = True
@@ -1103,6 +1216,56 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             raise HomeAssistantError(str(e)) from e
         return {"skipped": occs}
 
+    async def _svc_set_override(call: ServiceCall) -> None:
+        sched = store.get_schedule(call.data["schedule_id"])
+        if sched is None:
+            raise HomeAssistantError("schedule not found")
+        day = call.data["date"]
+        today = dt_util.now().date()
+        if day < today:
+            raise HomeAssistantError("date has passed")
+        if not planner.runs_on(sched, day):
+            raise HomeAssistantError("the schedule has no run on that date")
+        new_time = call.data.get("time") or ""
+        if day == today:
+            if new_time:
+                hh, mm = (int(x) for x in new_time.split(":"))
+                when = dt_util.now().replace(hour=hh, minute=mm, second=0, microsecond=0)
+            else:
+                when = planner.fire_at(sched, day, hass)
+            if when is not None and when <= dt_util.now():
+                raise HomeAssistantError("time already passed today")
+        await store.async_set_override(sched["id"], day.isoformat(), new_time, call.data["percent"])
+
+    async def _svc_clear_override(call: ServiceCall) -> None:
+        await store.async_clear_override(call.data["schedule_id"], call.data["date"].isoformat())
+
+    async def _svc_set_boost(call: ServiceCall) -> None:
+        start_day = call.data.get("start_date")
+        now = dt_util.now()
+        if start_day is not None and start_day < now.date():
+            raise HomeAssistantError("date has passed")
+        first = start_day or now.date()
+        start = now if start_day is None else dt_util.start_of_local_day(first)
+        until = dt_util.start_of_local_day(first + _timedelta(days=call.data["days"]))
+        await store.async_set_boost(call.data["percent"], int(start.timestamp()), int(until.timestamp()))
+
+    async def _svc_clear_boost(call: ServiceCall) -> None:
+        await store.async_clear_boost()
+
+    async def _svc_apply_tip(call: ServiceCall) -> ServiceResponse:
+        try:
+            n = await scheduler.async_apply_tip(call.data["tip_id"], source=_call_source(call))
+        except ValueError as e:
+            raise HomeAssistantError(str(e)) from e
+        return {"changed": n}
+
+    async def _svc_dismiss_tip(call: ServiceCall) -> None:
+        await store.async_dismiss_tip(call.data["tip_id"])
+
+    async def _svc_mute_tip(call: ServiceCall) -> None:
+        await store.async_mute_tip(call.data["kind"], call.data["muted"])
+
     async def _svc_run_schedule(call: ServiceCall) -> None:
         try:
             await scheduler.async_run_schedule_now(call.data["schedule_id"], source="manual")
@@ -1251,6 +1414,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(
         DOMAIN, SERVICE_LIST, _svc_list, supports_response=SupportsResponse.ONLY
     )
+    hass.services.async_register(DOMAIN, SERVICE_SET_OVERRIDE, _svc_set_override, schema=SCHEMA_SET_OVERRIDE)
+    hass.services.async_register(DOMAIN, SERVICE_CLEAR_OVERRIDE, _svc_clear_override, schema=SCHEMA_CLEAR_OVERRIDE)
+    hass.services.async_register(DOMAIN, SERVICE_SET_BOOST, _svc_set_boost, schema=SCHEMA_SET_BOOST)
+    hass.services.async_register(DOMAIN, SERVICE_CLEAR_BOOST, _svc_clear_boost, schema=SCHEMA_NO_ARGS)
+    hass.services.async_register(
+        DOMAIN, SERVICE_APPLY_TIP, _svc_apply_tip, schema=SCHEMA_TIP, supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(DOMAIN, SERVICE_DISMISS_TIP, _svc_dismiss_tip, schema=SCHEMA_TIP)
+    hass.services.async_register(DOMAIN, SERVICE_MUTE_TIP, _svc_mute_tip, schema=SCHEMA_MUTE_TIP)
 
     _async_register_ws_commands(hass)
     await _async_register_panel(hass)
@@ -1366,6 +1538,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             SERVICE_PAUSE_CYCLE,
             SERVICE_RESUME_CYCLE,
             SERVICE_LIST,
+            SERVICE_SET_OVERRIDE,
+            SERVICE_CLEAR_OVERRIDE,
+            SERVICE_SET_BOOST,
+            SERVICE_CLEAR_BOOST,
+            SERVICE_APPLY_TIP,
+            SERVICE_DISMISS_TIP,
+            SERVICE_MUTE_TIP,
         ):
             if hass.services.has_service(DOMAIN, svc):
                 hass.services.async_remove(DOMAIN, svc)

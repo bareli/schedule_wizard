@@ -370,6 +370,49 @@ pre { background: var(--sw-bg); padding: 10px; border-radius: 6px; font-size: 12
   .stepper button { width: 44px; height: 44px; }
   .switch::before { content: ""; position: absolute; inset: -10px -2px; }
 }
+/* v0.16.0: weather tips, boost, timeline, overlaps */
+.tips { display: grid; gap: 8px; }
+.tip {
+  display: grid; gap: 6px; padding: 10px 12px; border: 1px solid var(--sw-border);
+  border-inline-start: 4px solid var(--sw-primary); border-radius: 10px; background: var(--sw-bg);
+}
+.tip.heat { border-inline-start-color: var(--sw-warn); }
+.tip.frost { border-inline-start-color: var(--sw-muted); }
+.tip-title { font-weight: 500; }
+.boost-card { border-color: var(--sw-warn); }
+.wk-meta { font-size: 11px; color: var(--sw-muted); font-variant-numeric: tabular-nums; }
+.wk-run.clash { border-color: var(--sw-danger); }
+.wk-tag.clash { color: var(--sw-danger-text); }
+.wk-tag.info { color: var(--sw-primary-text); }
+.wk-est { font-weight: 600; }
+.view-seg { display: flex; gap: 4px; }
+.view-seg .btn[aria-pressed="true"] { background: var(--sw-primary-fill); border-color: var(--sw-primary-fill); color: #fff; }
+.tl { display: grid; gap: 6px; --tl-label: 120px; }
+.tl-axis { position: relative; height: 16px; margin-inline-start: calc(var(--tl-label) + 8px); font-size: 11px; color: var(--sw-muted); }
+.tl-axis span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+[dir="rtl"] .tl-axis span { transform: translateX(50%); }
+.tl-axis span:first-child { transform: none; }
+.tl-axis span:last-child { transform: translateX(-100%); }
+[dir="rtl"] .tl-axis span:last-child { transform: translateX(100%); }
+.tl-row { display: grid; grid-template-columns: var(--tl-label) 1fr; align-items: center; gap: 8px; min-height: 32px; }
+.tl-name { font-size: 12px; overflow-wrap: anywhere; min-width: 0; }
+.tl-lane { position: relative; height: 28px; background: var(--sw-bg); border: 1px solid var(--sw-border); border-radius: 6px; }
+.tl-bar {
+  position: absolute; top: 2px; bottom: 2px; min-width: 8px; padding: 0 4px; border: none; border-radius: 5px;
+  background: var(--sw-primary-fill); color: #fff; font: inherit; font-size: 11px; line-height: 24px;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; text-align: start;
+}
+.tl-bar.clash { background: var(--sw-danger-fill); }
+.tl-bar.skipped { background: var(--sw-border); color: var(--sw-muted); text-decoration: line-through; }
+.tl-now { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--sw-warn); pointer-events: none; }
+.tl-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--sw-muted); }
+.tl-key { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin-inline-end: 4px; background: var(--sw-primary-fill); }
+.tl-key.clash { background: var(--sw-danger-fill); }
+.conflict { margin: -4px 0 12px; padding: 8px 10px; border: 1px solid var(--sw-warn); border-radius: 8px; font-size: 13px; display: grid; gap: 6px; }
+.conflict .muted { font-size: 12px; }
+.once { display: grid; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--sw-border); }
+.why { margin: 6px 0 0; padding-inline-start: 18px; font-size: 13px; display: grid; gap: 2px; }
+@media (max-width: 480px) { .tl { --tl-label: 78px; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 `;
 
@@ -644,9 +687,8 @@ function isSkipStatus(status) {
 // Current "HH:MM" (24 h) in the same time zone as todayKey().
 function nowHHMM(hass) {
   const tz = hass && hass.config && hass.config.time_zone;
-  const local = hass && hass.locale && hass.locale.time_zone === "local";
   const opts = { hour: "2-digit", minute: "2-digit", hourCycle: "h23" };
-  if (tz && !local) opts.timeZone = tz;
+  if (tz) opts.timeZone = tz;
   try {
     return new Intl.DateTimeFormat("en-GB", opts).format(new Date());
   } catch (e) {
@@ -703,6 +745,11 @@ class ScheduleWizardPanel extends HTMLElement {
     this._openGroups = new Set();
     this._dialog = null;
     this._rainPickers = new Set();
+    this._boostOpen = false;
+    this._boostPct = 30;
+    this._boostDays = 2;
+    this._weekView = "list";
+    this._tlDay = null;
   }
 
   set hass(hass) {
@@ -1312,6 +1359,10 @@ class ScheduleWizardPanel extends HTMLElement {
     }
 
     root.appendChild(this._statusCard());
+    const boostCard = this._boostCard();
+    if (boostCard) root.appendChild(boostCard);
+    const tipsCard = this._tipsCard();
+    if (tipsCard) root.appendChild(tipsCard);
 
     const now = st.now;
     const delayed = valves.filter(v => valveDelayUntil(v, now));
@@ -1405,7 +1456,17 @@ class ScheduleWizardPanel extends HTMLElement {
   _weekCard() {
     const now = this._state.now;
     const runs = this._weekRuns();
-    const card = el("section", { class: "card wk-wrap" }, [el("h2", {}, this._t("week.title"))]);
+    const titleId = uid("sw-week");
+    const head = el("div", { class: "row-between", style: "margin-bottom:8px;" }, [
+      el("h2", { id: titleId, style: "margin:0;" }, this._t("week.title")),
+      runs.length ? el("div", { class: "view-seg", role: "group", "aria-label": this._t("week.view") }, ["list", "timeline"].map(v => el("button", {
+        type: "button", class: "btn small", "aria-pressed": this._weekView === v ? "true" : "false",
+        onClick: () => { this._weekView = v; this._render(); },
+      }, this._t("week.view_" + v)))) : null,
+    ]);
+    const card = el("section", { class: "card wk-wrap", "aria-labelledby": titleId }, [head]);
+    const tzNote = this._tzNote();
+    if (tzNote) card.appendChild(el("p", { class: "muted small", style: "margin:0 0 8px;" }, tzNote));
     if (!runs.length) {
       card.appendChild(el("div", { class: "empty-state", style: "padding:8px;" }, [
         el("p", { class: "muted" }, this._t("week.empty")),
@@ -1413,13 +1474,23 @@ class ScheduleWizardPanel extends HTMLElement {
       ]));
       return card;
     }
+    if (this._weekView === "timeline") {
+      card.appendChild(this._timeline());
+      return card;
+    }
     const grid = el("div", { class: "week" });
     this._weekDays().forEach((key, i) => {
       const info = this._dayInfo(key);
       const dayRuns = runs.filter(r => r.day === key);
       const canSkip = dayRuns.some(r => r.start > now && r.skip !== "skipped_manual");
+      const ests = dayRuns.map(r => this._runEstimate(r));
+      const liters = dayRuns.reduce((a, r, j) => a + (this._waters(r, ests[j]) ? ests[j].liters : 0), 0);
+      const meta = joinParts([this._dayWeather(key), liters >= 1 ? this._t("week.water_est", { amount: this._fmtLiters(liters) }) : null], " · ");
       const head = el("div", { class: "wk-head" }, [
-        el("div", {}, [el("strong", {}, info.name), el("span", { class: "sub" }, i < 2 ? info.full : info.date)]),
+        el("div", {}, [
+          el("strong", {}, info.name), el("span", { class: "sub" }, i < 2 ? info.full : info.date),
+          meta.length ? el("div", { class: "wk-meta" }, meta) : null,
+        ]),
         canSkip ? el("button", {
           class: "btn ghost small",
           title: this._t("week.skip_day_title", { day: info.full }),
@@ -1431,22 +1502,147 @@ class ScheduleWizardPanel extends HTMLElement {
         }, this._t("week.skip_day")) : null,
       ]);
       const list = el("div", { class: "wk-runs" });
-      if (!dayRuns.length) list.appendChild(el("div", { class: "muted small" }, this._t("week.no_runs")));
-      dayRuns.forEach(r => {
-        const cls = ["wk-run"];
-        if (r.end < now) cls.push("past");
-        if (r.skip === "skipped_manual" || this._coolSkipped(r)) cls.push("skipped");
-        else if (r.skip === "rain_delay") cls.push("rain");
-        list.appendChild(el("button", { type: "button", class: cls.join(" "), onClick: () => this._openRunModal(r) }, [
-          el("span", { class: "t" }, this._fmtTime(r.start)),
-          el("span", { class: "n" }, [iso(r.name), " · ", el("span", { style: "white-space:nowrap;" }, this._t("unit.min", { n: r.minutes }))]),
-          this._skipTag(r),
-        ]));
-      });
+      if (!dayRuns.length) {
+        list.appendChild(el("div", { class: "muted small" }, this._t("week.no_runs")));
+        const wd = (new Date(dayNum(key) * 86400000).getUTCDay() + 6) % 7;
+        list.appendChild(el("button", {
+          class: "btn ghost small",
+          "aria-label": this._named(this._t("week.add"), info.full),
+          onClick: () => this._openScheduleModal(null, { mask: DAY_BITS[wd] }),
+        }, this._t("week.add")));
+      }
+      dayRuns.forEach((r, j) => list.appendChild(this._weekRunButton(r, ests[j])));
       grid.appendChild(el("div", { class: "wk-day" + (i === 0 ? " today" : "") }, [head, list]));
     });
     card.appendChild(grid);
     return card;
+  }
+
+  // Whether a run in the week view will water (not skipped, not paused, not likely skipped for rain).
+  _waters(r, est) {
+    return r.skip !== "skipped_manual" && r.skip !== "rain_delay" && !this._coolSkip(r) && !this._coolSkipped(r) && !est.rainLikely;
+  }
+
+  // "Times are in Home Assistant's time zone (Europe/Berlin)" when this browser is in another one.
+  _tzNote() {
+    const tz = this._hass && this._hass.config && this._hass.config.time_zone;
+    let local = "";
+    try { local = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (e) { local = ""; }
+    if (!tz || !local || tz === local) return null;
+    const probe = Math.floor(Date.now() / 1000);
+    const a = I18N.fmtTime(probe, "en", { hass: this._hass, timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    const b = I18N.fmtTime(probe, "en", { hass: this._hass, timeZone: local, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+    return a === b ? null : this._t("week.tz_note", { tz });
+  }
+
+  _weekRunButton(r, est) {
+    const now = this._state.now;
+    const cls = ["wk-run"];
+    if (r.end < now) cls.push("past");
+    if (r.skip === "skipped_manual" || this._coolSkipped(r)) cls.push("skipped");
+    else if (r.skip === "rain_delay") cls.push("rain");
+    const clash = (r.overlaps || []).length && r.skip !== "skipped_manual" && r.skip !== "rain_delay";
+    if (clash) cls.push("clash");
+    const minNode = est.minutes !== r.minutes && r.start > now
+      ? el("span", { style: "white-space:nowrap;" }, [this._t("unit.min", { n: r.minutes }), " ", this._arrow(), " ", el("span", { class: "wk-est" }, this._t("unit.min", { n: est.minutes }))])
+      : el("span", { style: "white-space:nowrap;" }, this._t("unit.min", { n: r.minutes }));
+    const tags = [this._skipTag(r)];
+    if (est.rainLikely && r.skip !== "skipped_manual" && r.skip !== "rain_delay") tags.push(el("span", { class: "wk-tag warn" }, this._t("week.rain_likely")));
+    if (clash) tags.push(el("span", { class: "wk-tag clash" }, this._t("week.overlaps", { names: [...new Set(r.overlaps.map(o => o.name))].join(", ") })));
+    if (r.override) tags.push(el("span", { class: "wk-tag info" }, this._t("week.changed_once")));
+    return el("button", { type: "button", class: cls.join(" "), onClick: () => this._openRunModal(r) }, [
+      el("span", { class: "t" }, this._fmtTime(r.start)),
+      el("span", { class: "n" }, [iso(r.name), " · ", minNode]),
+      ...tags,
+    ]);
+  }
+
+  // One day as lanes per zone on a time axis; runs that water at the same time are red (v0.16.0).
+  _timeline() {
+    const now = this._state.now;
+    const days = this._weekDays();
+    const day = days.includes(this._tlDay) ? this._tlDay : days[0];
+    const wrap = el("div", { class: "tl" });
+    wrap.appendChild(el("div", { class: "seg", role: "group", "aria-label": this._t("week.pick_day") }, days.map(key => el("button", {
+      type: "button", class: "btn small", "aria-pressed": key === day ? "true" : "false",
+      onClick: () => { this._tlDay = key; this._render(); },
+    }, this._dayInfo(key).name))));
+    const runs = this._weekRuns().filter(r => r.day === day);
+    if (!runs.length) {
+      wrap.appendChild(el("p", { class: "muted small" }, this._t("week.no_runs")));
+      return wrap;
+    }
+    // Zone segments: a plan waters its zones one after another (soak pauses left out).
+    const segs = [];
+    runs.forEach(r => {
+      const est = this._runEstimate(r);
+      const off = !this._waters(r, est);
+      let t = r.start;
+      est.zones.forEach(z => {
+        const len = Math.max(1, Number(z.minutes) || 0) * 60;
+        segs.push({ run: r, est, entity: z.entity_id, label: z.label || z.entity_id, start: t, end: t + len, minutes: z.minutes, off, clash: false });
+        if (r.kind === "cycle") t += len;
+      });
+    });
+    segs.forEach((a, i) => segs.slice(i + 1).forEach(b => {
+      if (a.off || b.off || a.run.schedule_id === b.run.schedule_id) return;
+      if (a.start < b.end && b.start < a.end) { a.clash = true; b.clash = true; }
+    }));
+    // Runs far apart get their own time axis (a gap of more than an hour), so a 10-minute run stays readable.
+    const sorted = [...segs].sort((x, y) => x.start - y.start);
+    const groups = [];
+    sorted.forEach(x => {
+      const g = groups[groups.length - 1];
+      if (g && x.start <= g.end + 3600) { g.items.push(x); g.end = Math.max(g.end, x.end); }
+      else groups.push({ items: [x], end: x.end });
+    });
+    const order = (this._state.valves || []).map(v => v.entity_id);
+    groups.forEach(g => {
+      const half = 1800;
+      const t0 = Math.floor(Math.min(...g.items.map(x => x.start)) / half) * half;
+      let t1 = Math.ceil(g.end / half) * half;
+      if (t1 - t0 < 3600) t1 = t0 + 3600;
+      const span = t1 - t0;
+      const pos = (ts) => `${((ts - t0) / span) * 100}%`;
+      const step = span <= 2 * 3600 ? 1800 : span <= 6 * 3600 ? 3600 : 2 * 3600;
+      const axis = el("div", { class: "tl-axis", "aria-hidden": "true" });
+      for (let ts = t0; ts <= t1; ts += step) axis.appendChild(el("span", { style: `inset-inline-start:${pos(ts)}` }, this._fmtTime(ts)));
+      wrap.appendChild(axis);
+      const lanes = [...new Set(g.items.map(x => x.entity))].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+      lanes.forEach(entity => {
+        const lane = el("div", { class: "tl-lane" });
+        if (now >= t0 && now <= t1) lane.appendChild(el("div", { class: "tl-now", style: `inset-inline-start:${pos(now)}` }));
+        g.items.filter(x => x.entity === entity).forEach(x => {
+          const others = [...new Set(segs.filter(o => o.clash && o.run.schedule_id !== x.run.schedule_id && o.start < x.end && x.start < o.end).map(o => o.run.name))];
+          const label = joinParts([
+            `${this._fmtTime(x.start)} ${x.run.kind === "cycle" ? x.run.name : ""}`.trim(),
+            this._t("unit.min", { n: x.minutes }),
+            x.clash ? this._t("week.overlaps", { names: others.join(", ") }) : null,
+            x.off ? this._t("week.skipped") : null,
+          ], ", ").join("");
+          lane.appendChild(el("button", {
+            type: "button",
+            class: "tl-bar" + (x.clash ? " clash" : "") + (x.off ? " skipped" : ""),
+            style: `inset-inline-start:${pos(x.start)};width:${((x.end - x.start) / span) * 100}%`,
+            title: label,
+            "aria-label": `${x.label}: ${label}`,
+            onClick: () => this._openRunModal(x.run),
+          }, this._t("unit.min", { n: x.minutes })));
+        });
+        wrap.appendChild(el("div", { class: "tl-row" }, [el("div", { class: "tl-name" }, iso(this._valveName(entity).textContent || entity)), lane]));
+      });
+    });
+    const anyClash = segs.some(x => x.clash);
+    wrap.appendChild(el("div", { class: "tl-legend" }, [
+      el("span", {}, [el("span", { class: "tl-key" }), this._t("week.legend_run")]),
+      el("span", {}, [el("span", { class: "tl-key clash" }), this._t("week.legend_clash")]),
+    ]));
+    if (anyClash) {
+      const limit = parseInt((this._state.options || {}).max_zones_at_once, 10) || 0;
+      wrap.appendChild(el("p", { class: "muted small", style: "margin:0;" },
+        limit ? this._t("week.clash_queued", { n: limit }) : this._t("week.clash_hint")));
+    }
+    return wrap;
   }
 
   _openRunModal(r) {
@@ -1474,7 +1670,67 @@ class ScheduleWizardPanel extends HTMLElement {
     ])));
     modal.appendChild(zones);
 
+    const est = this._runEstimate(r);
+    if (est.why.length) {
+      modal.appendChild(el("div", { class: "small", style: "margin-top:10px;font-weight:500;" },
+        est.minutes !== r.minutes && r.start > now ? this._t("why.expected", { n: est.minutes }) : this._t("why.title")));
+      modal.appendChild(el("ul", { class: "why" }, est.why.map(w => el("li", {}, w))));
+    }
+    if (est.liters >= 1) modal.appendChild(el("div", { class: "muted small", style: "margin-top:6px;" }, this._t("why.water", { amount: this._fmtLiters(est.liters) })));
+    if ((r.overlaps || []).length && r.skip !== "skipped_manual" && r.skip !== "rain_delay") {
+      const limit = parseInt((this._state.options || {}).max_zones_at_once, 10) || 0;
+      modal.appendChild(el("div", { class: "conflict", style: "margin-top:10px;" }, [
+        el("div", {}, this._t("week.overlaps_long", { names: [...new Set(r.overlaps.map(o => `${o.name} (${this._fmtTime(o.start)})`))].join(", ") })),
+        el("div", { class: "muted" }, limit ? this._t("week.clash_queued", { n: limit }) : this._t("week.clash_hint")),
+      ]));
+    }
+    const sched = (this._state.schedules || []).find(x => x.id === r.schedule_id);
+    if (r.start > now && r.skip !== "skipped_manual") {
+      const curTime = r.override && r.override.time ? r.override.time : I18N.fmtTime(r.start, "en", { hass: this._hass, hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+      const timeIn = el("input", { type: "time", value: curTime });
+      const pctSel = el("select", {});
+      const curPct = r.override ? Number(r.override.pct) : 100;
+      [50, 75, 100, 125, 150, 200].concat([curPct].filter(p => ![50, 75, 100, 125, 150, 200].includes(p))).sort((a, b) => a - b).forEach(p => {
+        const opt = el("option", { value: String(p) }, p === 100 ? this._t("once.as_planned") : this._t("once.pct", { pct: this._fmtNum(p) }));
+        if (p === curPct) opt.selected = true;
+        pctSel.appendChild(opt);
+      });
+      const onceErr = el("div", { class: "field-error", id: uid("sw-once-err"), role: "alert", hidden: true });
+      const saveOnce = async () => {
+        const t = /^\d{2}:\d{2}$/.test(timeIn.value) ? timeIn.value : "";
+        const payload = { schedule_id: r.schedule_id, date: r.day, percent: parseInt(pctSel.value, 10) || 100 };
+        // A new time only when the user changed it (or keeps an earlier one-off time).
+        if (t && (t !== curTime || (r.override && r.override.time))) payload.time = t;
+        try {
+          await this._hass.callService("schedule_wizard", "set_override", payload);
+        } catch (e) {
+          const msg = String((e && (e.message || e.code)) || e);
+          setFieldError(onceErr, timeIn, /passed/.test(msg) ? this._t("once.err_passed") : msg);
+          return;
+        }
+        this._toast(this._t("common.done"), "ok");
+        this._refresh();
+        close();
+      };
+      modal.appendChild(el("div", { class: "once" }, [
+        el("div", { class: "small", style: "font-weight:500;" }, this._t("once.title")),
+        el("p", { class: "muted small", style: "margin:0;" }, this._t("once.hint")),
+        el("div", { class: "field-row" }, [
+          el("label", { class: "field", style: "margin:0;" }, [el("span", {}, this._t("once.time")), timeIn]),
+          el("label", { class: "field", style: "margin:0;" }, [el("span", {}, this._t("once.minutes")), pctSel]),
+        ]),
+        onceErr,
+        el("div", { class: "actions" }, [
+          el("button", { class: "btn small primary", onClick: saveOnce }, this._t("once.save")),
+          r.override ? el("button", { class: "btn small", onClick: act("clear_override", { schedule_id: r.schedule_id, date: r.day }) }, this._t("once.undo")) : null,
+        ]),
+      ]));
+    }
+
     const actions = [el("button", { class: "btn", onClick: () => close() }, this._t("common.close"))];
+    if (sched) {
+      actions.push(el("button", { class: "btn", onClick: () => { close(); this._openScheduleModal(sched); } }, this._t("week.edit_schedule")));
+    }
     if (r.skip === "skipped_manual") {
       actions.push(el("button", { class: "btn", onClick: act("unskip", { schedule_id: r.schedule_id, date: r.day }) }, this._t("week.undo_skip")));
     } else if (isNext) {
@@ -1637,9 +1893,22 @@ class ScheduleWizardPanel extends HTMLElement {
       actions.push(el("button", {
         class: "btn",
         "aria-expanded": this._rainOpen ? "true" : "false",
-        onClick: () => { this._rainOpen = !this._rainOpen; this._render(); },
+        onClick: () => { this._rainOpen = !this._rainOpen; this._boostOpen = false; this._render(); },
       }, this._t("home.pause_rain")));
+      if (!this._boostActive()) {
+        actions.push(el("button", {
+          class: "btn",
+          "aria-expanded": this._boostOpen ? "true" : "false",
+          onClick: () => { this._boostOpen = !this._boostOpen; this._rainOpen = false; this._render(); },
+        }, this._t("boost.btn")));
+      }
       if (this._rainOpen) extra = this._rainChooser();
+      else if (this._boostOpen) extra = this._boostChooser();
+    }
+
+    const queue = st.queue || [];
+    if (queue.length) {
+      subs.push(this._t("queue.waiting", { names: queue.map(q => q.name).join(", ") }));
     }
 
     const flow = st.flow || {};
@@ -1659,6 +1928,222 @@ class ScheduleWizardPanel extends HTMLElement {
     if (progress) card.appendChild(progress);
     if (extra) card.appendChild(extra);
     return card;
+  }
+
+  // ---------- Boost (water more / less for some days) ----------
+
+  // The boost that is running or still to come, else null.
+  _boostActive() {
+    const b = this._state.boost || {};
+    return b.pct && (parseInt(b.until, 10) || 0) > this._state.now ? b : null;
+  }
+
+  _signedPct(pct) {
+    const n = parseInt(pct, 10) || 0;
+    return (n > 0 ? "+" : n < 0 ? "\u2212" : "") + this._fmtNum(Math.abs(n)) + "\u00a0%";
+  }
+
+  _boostCard() {
+    const b = this._boostActive();
+    if (!b) return null;
+    const now = this._state.now;
+    const pct = ltr(this._signedPct(b.pct));
+    const from = parseInt(b.from, 10) || 0;
+    const until = parseInt(b.until, 10) || 0;
+    const future = from > now;
+    // A boost of one whole day (a heat tip) reads "on Sat 10/10", not "from Sat 12:00 AM until Sun 12:00 AM".
+    const oneDay = future && until - from >= 82800 && until - from <= 90000
+      && I18N.fmtTime(from, "en", { hass: this._hass, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }) === "00:00";
+    let text;
+    if (oneDay) text = this._tn("boost.planned_day", { pct, day: this._dayInfo(I18N.dayKey(from, this._hass)).full });
+    else if (future) text = this._tn("boost.planned", { pct, from: this._fmtWhen(from), until: this._fmtWhen(until) });
+    else text = this._tn("boost.active", { pct, until: this._fmtWhen(until) });
+    return el("section", { class: "card boost-card" }, el("div", { class: "row-between" }, [
+      el("div", { class: "small", style: "min-width:0;" }, text),
+      el("button", { class: "btn small", onClick: () => this._callService("clear_boost", {}) }, this._t(future ? "common.cancel" : "boost.end")),
+    ]));
+  }
+
+  _boostChooser() {
+    const seg = (values, current, label, fmt, onPick) => el("div", { class: "seg", role: "group", "aria-label": label },
+      values.map(v => el("button", {
+        type: "button", class: "btn small", "aria-pressed": v === current ? "true" : "false",
+        onClick: () => { onPick(v); this._render(); },
+      }, fmt(v))));
+    return el("div", { class: "rain-chooser" }, [
+      el("div", { class: "small", style: "font-weight:500;" }, this._t("boost.how_much")),
+      seg([20, 30, 50, -20, -30], this._boostPct, this._t("boost.how_much"), v => ltr(this._signedPct(v)), v => { this._boostPct = v; }),
+      el("div", { class: "small", style: "font-weight:500;" }, this._t("boost.how_long")),
+      seg([1, 2, 3, 7], this._boostDays, this._t("boost.how_long"), v => this._t("boost.days", { n: v }), v => { this._boostDays = v; }),
+      el("p", { class: "muted small", style: "margin:0;" }, this._t("boost.hint")),
+      el("div", { class: "actions" }, [
+        el("button", {
+          class: "btn primary small",
+          onClick: async () => {
+            if (await this._callService("set_boost", { percent: this._boostPct, days: this._boostDays })) {
+              this._boostOpen = false;
+              this._render();
+            }
+          },
+        }, this._t("boost.start")),
+      ]),
+    ]);
+  }
+
+  // ---------- Weather tips ----------
+
+  _isF() {
+    return /F/.test(String(this._state.temperature_unit || ""));
+  }
+
+  // A temperature stored in °C, in the user's unit.
+  _fmtTemp(c) {
+    const n = Number(c);
+    if (c === null || c === undefined || isNaN(n)) return "";
+    return this._isF() ? `${this._fmtNum(n * 9 / 5 + 32)}\u00a0°F` : `${this._fmtNum(n)}\u00a0°C`;
+  }
+
+  _tipsCard() {
+    const tips = this._state.tips || [];
+    if (!tips.length) return null;
+    const titleId = uid("sw-tips");
+    const card = el("section", { class: "card", "aria-labelledby": titleId }, [el("h2", { id: titleId }, this._t("tips.title"))]);
+    const list = el("div", { class: "tips" });
+    tips.forEach(t => list.appendChild(this._tipRow(t)));
+    card.appendChild(list);
+    const opts = this._state.options || {};
+    const events = Array.isArray(opts.notify_events) ? opts.notify_events : [];
+    const targets = Array.isArray(opts.notify_targets) ? opts.notify_targets : [];
+    if (this._hass && this._hass.user && this._hass.user.is_admin && !events.includes("tips")) {
+      card.appendChild(el("div", { class: "row-between", style: "margin-top:8px;" }, [
+        el("span", { class: "muted small" }, this._t(targets.length ? "tips.push_offer" : "tips.push_need_target")),
+        targets.length ? el("button", {
+          class: "btn small",
+          onClick: async () => {
+            try {
+              await this._hass.callWS({ type: "schedule_wizard/update_options", notify_events: [...events, "tips"] });
+              this._toast(this._t("tips.push_on"), "ok");
+              this._refresh();
+            } catch (e) {
+              this._toast(e.message || String(e), "error");
+            }
+          },
+        }, this._t("tips.push_btn")) : null,
+      ]));
+    }
+    return card;
+  }
+
+  _tipRow(t) {
+    const w = t.weather || {};
+    const day = t.today ? this._t("tips.today") : this._t("tips.tomorrow");
+    const names = [...new Set((t.runs || []).map(r => r.name))].join(", ");
+    let title;
+    let text;
+    let doLabel;
+    if (t.kind === "rain") {
+      title = this._t("tips.rain_title", { day, mm: this._fmtNum(w.mm, 1) });
+      text = this._t("tips.rain_text", { names });
+      doLabel = t.today ? this._t("tips.do_rain_today") : this._t("tips.do_rain");
+    } else if (t.kind === "heat") {
+      title = this._t("tips.heat_title", { day, temp: this._fmtTemp(Math.round(w.max_c)) });
+      text = this._t("tips.heat_text", { pct: this._fmtNum(t.pct), names });
+      doLabel = this._t(t.today ? "tips.do_heat_today" : "tips.do_heat", { pct: this._fmtNum(t.pct) });
+    } else {
+      title = this._t("tips.frost_title", { day, temp: this._fmtTemp(Math.round(w.min_c)) });
+      text = this._t("tips.frost_text", { names });
+      doLabel = this._t("tips.do_frost");
+    }
+    const facts = [];
+    if (t.liters && t.kind !== "heat") facts.push(this._t("tips.saves", { amount: this._fmtLiters(t.liters), n: t.minutes }));
+    else if (t.kind !== "heat") facts.push(this._t("tips.saves_min", { n: t.minutes }));
+    const srcId = (this._state.weather || {}).entity_id || "";
+    const srcState = srcId && this._hass && this._hass.states ? this._hass.states[srcId] : null;
+    const src = (srcState && srcState.attributes && srcState.attributes.friendly_name) || srcId;
+    facts.push(w.prob !== null && w.prob !== undefined && t.kind === "rain"
+      ? this._t("tips.source_prob", { entity: src, prob: this._fmtNum(w.prob) })
+      : this._t("tips.source", { entity: src }));
+    const rowTitle = uid("sw-tip");
+    return el("article", { class: "tip " + t.kind, "aria-labelledby": rowTitle }, [
+      el("div", { class: "tip-title", id: rowTitle }, title),
+      el("div", { class: "small" }, text),
+      el("div", { class: "muted small" }, joinParts(facts, " · ")),
+      el("div", { class: "actions" }, [
+        el("button", {
+          class: "btn primary small",
+          onClick: () => this._callService("apply_tip", { tip_id: t.id }),
+        }, doLabel),
+        el("button", {
+          class: "btn small",
+          "aria-label": this._named(this._t("tips.not_now"), title),
+          onClick: () => this._callService("dismiss_tip", { tip_id: t.id }),
+        }, this._t("tips.not_now")),
+        el("button", {
+          class: "btn ghost small",
+          "aria-label": this._named(this._t("tips.mute"), this._t("tips.kind_" + t.kind)),
+          onClick: async () => {
+            if (!await this._confirm(this._t("tips.mute_confirm", { kind: this._t("tips.kind_" + t.kind) }), this._t("tips.mute"), { danger: false })) return;
+            this._callService("mute_tip", { kind: t.kind, muted: true });
+          },
+        }, this._t("tips.mute")),
+      ]),
+    ]);
+  }
+
+  // ---------- Run estimate (what will really happen) ----------
+
+  _valveLpm(entityId) {
+    const v = (this._state.valves || []).find(x => x.entity_id === entityId);
+    return v ? (Number(v.flow_rate_lpm) || Number(v.avg_lpm) || 0) : 0;
+  }
+
+  // Minutes after the temperature adjustment (today and tomorrow) and the boost, litres, and why.
+  _runEstimate(r) {
+    const st = this._state;
+    const now = st.now;
+    const why = [];
+    let factor = 1;
+    const idx = this._weekDays().indexOf(r.day);
+    const s = st.seasonal || {};
+    const future = r.start > now;
+    if (future && idx >= 0 && idx <= 1 && s.pct !== undefined && s.pct !== null && Number(s.pct) !== 100 && Number(s.pct) > 0) {
+      factor *= Number(s.pct) / 100;
+      why.push(this._t("why.seasonal", { pct: this._fmtNum(s.pct) }));
+    }
+    const b = st.boost || {};
+    if (future && b.pct && (parseInt(b.from, 10) || 0) <= r.start && r.start < (parseInt(b.until, 10) || 0)) {
+      factor *= 1 + Number(b.pct) / 100;
+      why.push(this._tn("why.boost", { pct: ltr(this._signedPct(b.pct)) }));
+    }
+    if (r.override) {
+      if (r.override.time) why.push(this._tn("why.once_time", { time: ltr(this._fmtClock(r.override.time)) }));
+      if (Number(r.override.pct) !== 100) why.push(this._t("why.once_pct", { pct: this._fmtNum(r.override.pct) }));
+    }
+    const zones = (r.zones || []).map(z => ({ ...z, minutes: factor === 1 ? z.minutes : Math.max(1, Math.round(z.minutes * factor)) }));
+    const minutes = zones.reduce((a, z) => a + (Number(z.minutes) || 0), 0);
+    const liters = zones.reduce((a, z) => a + this._valveLpm(z.entity_id) * (Number(z.minutes) || 0), 0);
+    const opts = st.options || {};
+    const fc = st.forecast || {};
+    const thr = Number(opts.forecast_skip_mm) || 0;
+    const outdoor = (r.zones || []).some(z => !z.indoor);
+    const rainLikely = future && outdoor && thr > 0 && fc.mm !== null && fc.mm !== undefined && Number(fc.mm) >= thr
+      && r.start <= now + (Number(fc.hours) || 24) * 3600;
+    if (rainLikely) why.push(this._t("why.forecast", { mm: this._fmtNum(fc.mm, 1) }));
+    return { minutes, zones, liters, why, rainLikely };
+  }
+
+  // Short weather line for a day of the week view: high / low and rain, from the daily forecast.
+  _dayWeather(key) {
+    const d = ((this._state.weather || {}).days || {})[key];
+    if (!d) return null;
+    const parts = [];
+    if (d.max_c !== null && d.max_c !== undefined) {
+      parts.push(d.min_c !== null && d.min_c !== undefined
+        ? `${this._fmtTemp(Math.round(d.max_c))} / ${this._fmtTemp(Math.round(d.min_c))}`
+        : this._fmtTemp(Math.round(d.max_c)));
+    }
+    if (d.mm) parts.push(this._t("week.rain_mm", { mm: this._fmtNum(d.mm, 1) }));
+    return parts.length ? joinParts(parts, " · ") : null;
   }
 
   _nextOverall() {
@@ -2010,8 +2495,11 @@ class ScheduleWizardPanel extends HTMLElement {
   _zoneAdminCard(v) {
     const st = this._state;
     const stats = v.stats || {};
+    const running = (st.active || []).find(a => a.entity_id === v.entity_id);
     let lastLine = this._t("valves.never_run");
-    if (stats.last_run) {
+    if (running) {
+      lastLine = this._t("valves.running_now", { left: fmtRemaining(Math.max(0, running.ends_at - st.now)) });
+    } else if (stats.last_run) {
       const ago = Math.max(0, st.now - stats.last_run.ts);
       lastLine = joinParts([
         this._t("valves.last", { ago: this._fmtAgo(ago) }),
@@ -2023,7 +2511,7 @@ class ScheduleWizardPanel extends HTMLElement {
     // "Never run" already says there were no runs this week (UX-018).
     const week = stats.runs_7d
       ? this._t("valves.week", { n: stats.runs_7d, runs: stats.runs_7d, min: stats.total_min_7d })
-      : (stats.last_run ? this._t("valves.week_none") : "");
+      : (stats.last_run && !running && stats.last_run.status !== "started" ? this._t("valves.week_none") : "");
     const badges = [];
     if (v.rain_exempt) badges.push(el("span", { class: "badge", title: this._t("valves.badge_indoor_title") }, this._t("valves.badge_indoor")));
     if ((v.soak_run_min || 0) > 0 && (v.soak_pause_min || 0) > 0) {
@@ -2558,9 +3046,9 @@ class ScheduleWizardPanel extends HTMLElement {
 
     let targetKind;
     if (existing) targetKind = existing.cycle_id ? "cycle" : "valve";
-    else if (preset) targetKind = preset.kind;
+    else if (preset && preset.kind) targetKind = preset.kind;
     else targetKind = hasValves ? "valve" : "cycle";
-    const locked = !!(existing || preset);
+    const locked = !!(existing || (preset && preset.kind));
     let valveEntity = existing && existing.valve_entity_id ? existing.valve_entity_id
       : (preset && preset.kind === "valve" ? preset.id : (hasValves ? this._state.valves[0].entity_id : ""));
     let cycleId = existing && existing.cycle_id ? existing.cycle_id
@@ -2570,7 +3058,7 @@ class ScheduleWizardPanel extends HTMLElement {
     let time = existing ? existing.time_hhmm : "06:00";
     let duration = existing ? existing.duration_min
       : (presetValve ? presetValve.default_duration_min : (this._state.options.default_duration || 10));
-    let mask = existing && existing.repeat !== "interval" ? existing.days_mask : 127;
+    let mask = existing && existing.repeat !== "interval" ? existing.days_mask : ((preset && preset.mask) || 127);
     let repeat = existing && existing.repeat === "interval" ? "interval" : "weekdays";
     let enabled = existing ? !!existing.enabled : true;
     let timeMode = existing && (existing.time_mode === "sunrise" || existing.time_mode === "sunset") ? existing.time_mode : "clock";
@@ -2580,7 +3068,7 @@ class ScheduleWizardPanel extends HTMLElement {
     if (hasValves) targetSel.appendChild(el("option", { value: "valve" }, this._t("sched.single_valve")));
     if (hasCycles) targetSel.appendChild(el("option", { value: "cycle" }, this._t("sched.cycle_multi")));
     targetSel.value = targetKind;
-    targetSel.addEventListener("change", () => { targetKind = targetSel.value; renderTargetField(); });
+    targetSel.addEventListener("change", () => { targetKind = targetSel.value; renderTargetField(); queueConflictCheck(); });
 
     const targetFieldHost = el("div");
     const valveSel = el("select", { disabled: locked });
@@ -2589,7 +3077,7 @@ class ScheduleWizardPanel extends HTMLElement {
       if (v.entity_id === valveEntity) opt.selected = true;
       valveSel.appendChild(opt);
     });
-    valveSel.addEventListener("change", () => { valveEntity = valveSel.value; });
+    valveSel.addEventListener("change", () => { valveEntity = valveSel.value; queueConflictCheck(); });
 
     const cycleSel = el("select", { disabled: locked });
     (this._state.cycles || []).forEach(c => {
@@ -2597,7 +3085,7 @@ class ScheduleWizardPanel extends HTMLElement {
       if (c.id === cycleId) opt.selected = true;
       cycleSel.appendChild(opt);
     });
-    cycleSel.addEventListener("change", () => { cycleId = cycleSel.value; });
+    cycleSel.addEventListener("change", () => { cycleId = cycleSel.value; queueConflictCheck(); });
 
     const durRow = el("div", { class: "field-row" });
     const timeInput = el("input", { type: "time", value: time });
@@ -2608,6 +3096,7 @@ class ScheduleWizardPanel extends HTMLElement {
     durInput.addEventListener("input", () => {
       duration = minutesValue(durInput.value);
       if (duration !== null) setErr(durErr, durInput, "");
+      queueConflictCheck();
     });
     const renderTargetField = () => {
       targetFieldHost.innerHTML = "";
@@ -2668,6 +3157,7 @@ class ScheduleWizardPanel extends HTMLElement {
     let sunSeq = 0;
     let sunTimer = null;
     const updateSunPreview = () => {
+      queueConflictCheck();
       clearTimeout(sunTimer);
       const seq = ++sunSeq;
       sunPreview.innerHTML = "";
@@ -2692,6 +3182,60 @@ class ScheduleWizardPanel extends HTMLElement {
           sunPreview.append(...this._tn("sched.next_runs", { list: text }));
         }).catch(() => { if (seq === sunSeq) sunPreview.innerHTML = ""; });
       }, 250);
+    };
+    // Other runs this one would water at the same time as, in the next 14 days (v0.16.0); a warning, not a block.
+    const conflictBox = el("div", { "aria-live": "polite" });
+    let conflictSeq = 0;
+    let conflictTimer = null;
+    function queueConflictCheck() {
+      clearTimeout(conflictTimer);
+      conflictTimer = setTimeout(runConflictCheck, 400);
+    }
+    const runConflictCheck = () => {
+      const seq = ++conflictSeq;
+      const msg = { type: "schedule_wizard/check_conflicts", time_mode: timeMode, time: /^\d{2}:\d{2}$/.test(String(timeInput.value)) ? timeInput.value : "06:00" };
+      if (existing) msg.schedule_id = existing.id;
+      if (timeMode !== "clock") {
+        const off = offsetValue();
+        if (off === null) return;
+        msg.sun_offset_minutes = signedOffset(off);
+      }
+      if (repeat === "interval") {
+        const n = intervalValue();
+        const start = startValue();
+        if (n === null || !start) { conflictBox.innerHTML = ""; return; }
+        Object.assign(msg, { repeat: "interval", interval_days: n, start_date: start });
+      } else {
+        if (!mask) { conflictBox.innerHTML = ""; return; }
+        Object.assign(msg, { repeat: "weekdays", days_mask: mask });
+      }
+      if (targetKind === "cycle") msg.cycle_id = cycleId;
+      else {
+        msg.valve_entity_id = valveEntity;
+        msg.minutes = minutesValue(durInput.value) || 1;
+      }
+      this._hass.callWS(msg).then((res) => {
+        if (seq !== conflictSeq) return;
+        conflictBox.innerHTML = "";
+        const list = (res && res.conflicts) || [];
+        if (!list.length) return;
+        const names = list.map(c => `${c.name} (${this._fmtWhen(c.start)})`).join(", ");
+        const box = el("div", { class: "conflict" }, [el("div", {}, this._t("sched.conflict", { names }))]);
+        if (res.suggestion && timeMode === "clock") {
+          box.appendChild(el("div", {}, el("button", {
+            type: "button", class: "btn small",
+            onClick: () => {
+              timeInput.value = res.suggestion;
+              time = res.suggestion;
+              updateFirstRun();
+            },
+          }, this._t("sched.conflict_move", { time: this._fmtClock(res.suggestion) }))));
+        }
+        box.appendChild(el("div", { class: "muted" }, res.max_at_once
+          ? this._t("week.clash_queued", { n: res.max_at_once })
+          : this._t("sched.conflict_hint")));
+        conflictBox.appendChild(box);
+      }).catch(() => { if (seq === conflictSeq) conflictBox.innerHTML = ""; });
     };
     const startField = el("label", { class: "field" }, [el("span", {}, this._t("sched.start_at")), modeSel]);
     const sunRow = el("div", {}, [
@@ -2894,6 +3438,7 @@ class ScheduleWizardPanel extends HTMLElement {
       startField,
       sunRow,
       durRow,
+      conflictBox,
       el("label", { class: "field" }, [el("span", {}, this._t("common.name")), nameInput]),
       el("div", { class: "field" }, [el("span", { id: condCap }, this._t("sched.conditions")), condWrap]),
       enabledField,
@@ -3523,6 +4068,25 @@ class ScheduleWizardPanel extends HTMLElement {
         this._t(history.length >= 500 ? "reports.based_on_full" : "reports.based_on", { n: history.length })),
     ]));
 
+    // What skips saved in the last 30 days: planned minutes of skipped runs, litres where flow rates are known.
+    let savedMin = 0;
+    let savedL = 0;
+    history.forEach(h => {
+      if (!isSkipStatus(h.status) || !inWindow(h.ts, 30)) return;
+      const cyc = cyclesById[h.valve_entity_id];
+      const steps = cyc ? (cyc.steps || []) : [{ entity_id: h.valve_entity_id, duration_min: parseInt(h.duration_min || 0, 10) }];
+      steps.forEach(st => {
+        const m = parseInt(st.duration_min || 0, 10) || 0;
+        savedMin += m;
+        savedL += m * this._valveLpm(st.entity_id);
+      });
+    });
+    if (savedMin > 0) {
+      root.appendChild(el("div", { class: "card" }, el("p", { style: "margin:0;font-weight:500;" }, savedL >= 1
+        ? this._t("reports.saved_water", { n: savedMin, amount: this._fmtLiters(savedL) })
+        : this._t("reports.saved_min", { n: savedMin }))));
+    }
+
     const totalWater = Number(this._state.water_total_l) || 0;
     const hasWater = historyWater || totalWater > 0 || valves.some(v => (Number(v.water_total_l) || 0) > 0);
     if (hasWater) {
@@ -3829,6 +4393,43 @@ class ScheduleWizardPanel extends HTMLElement {
     const rainPicker = this._rainPicker(opts.rain_entity, () => rainRules(rainStatesInput.value, rainAttrInput.value, rainThresholdInput.value));
     [rainStatesInput, rainAttrInput, rainThresholdInput].forEach(i => i.addEventListener("input", rainPicker.update));
 
+    // Max zones at once, and weather tips (v0.16.0). Temperatures are stored in °C and shown in the HA unit.
+    const maxAtOnce = el("select", {});
+    [0, 1, 2, 3].forEach(n => maxAtOnce.appendChild(el("option", { value: String(n) }, n ? String(n) : this._t("set.max_at_once_none"))));
+    maxAtOnce.value = String([0, 1, 2, 3].includes(parseInt(opts.max_zones_at_once, 10)) ? parseInt(opts.max_zones_at_once, 10) : 0);
+    const maxAtOnceValue = () => parseInt(maxAtOnce.value, 10) || 0;
+    const isF = this._isF();
+    const tUnit = isF ? "°F" : "°C";
+    const fromC = (c) => (isF ? c * 9 / 5 + 32 : c);
+    const toC = (v) => (isF ? (v - 32) * 5 / 9 : v);
+    const tipNum = (v, d) => String(Math.round((v === null || v === undefined || v === "" ? d : Number(v)) * 10) / 10);
+    let tipsOn = opts.tips_enabled !== false;
+    const tipsSwitch = el("button", {
+      class: "switch", role: "switch", type: "button", "aria-checked": tipsOn ? "true" : "false", "aria-label": this._t("set.tips_toggle"),
+      onClick: () => { tipsOn = !tipsOn; tipsSwitch.setAttribute("aria-checked", tipsOn ? "true" : "false"); },
+    });
+    const tipsEntity = el("select", {});
+    const weatherIds = Object.keys((this._hass && this._hass.states) || {}).filter(id => id.startsWith("weather.")).sort();
+    const autoId = (this._state.weather || {}).entity_id || weatherIds[0] || "";
+    tipsEntity.appendChild(el("option", { value: "" }, autoId ? this._t("set.tips_auto", { entity: autoId }) : this._t("set.tips_auto_none")));
+    weatherIds.forEach(id => {
+      const st = this._hass.states[id];
+      tipsEntity.appendChild(el("option", { value: id }, optLabel((st && st.attributes && st.attributes.friendly_name) || id, id)));
+    });
+    tipsEntity.value = weatherIds.includes(opts.tips_weather_entity) ? opts.tips_weather_entity : "";
+    const numIn = (value, min, max, step) => el("input", { type: "number", min: String(min), max: String(max), step: String(step), inputmode: "decimal", value });
+    const tipsHot = numIn(tipNum(fromC(Number(opts.tips_hot_c ?? 32)), 32), Math.round(fromC(15)), Math.round(fromC(55)), 0.5);
+    const tipsFrost = numIn(tipNum(fromC(Number(opts.tips_frost_c ?? 2)), 2), Math.round(fromC(-20)), Math.round(fromC(10)), 0.5);
+    const tipsRain = numIn(tipNum(opts.tips_rain_mm, 5), 0.5, 200, 0.5);
+    const tipsProb = numIn(tipNum(opts.tips_rain_prob, 60), 0, 100, 5);
+    const tipsBoost = el("select", {});
+    [10, 20, 30, 50].forEach(p => tipsBoost.appendChild(el("option", { value: String(p) }, ltr(this._signedPct(p)))));
+    tipsBoost.value = String([10, 20, 30, 50].includes(parseInt(opts.tips_boost_pct, 10)) ? parseInt(opts.tips_boost_pct, 10) : 30);
+    const tipsDigest = el("input", { type: "time", value: /^\d{2}:\d{2}$/.test(String(opts.tips_digest_time || "")) ? opts.tips_digest_time : "19:00" });
+    const tipsErr = {};
+    ["hot", "frost", "rain", "prob", "digest"].forEach(k => { tipsErr[k] = el("div", { class: "field-error", id: uid("sw-tips-err"), role: "alert", hidden: true }); });
+    const mutedKinds = Array.isArray(this._state.tips_muted) ? this._state.tips_muted : [];
+
     // Essentials
     const ess = el("div", { class: "card" }, [el("h2", {}, this._t("set.essentials"))]);
     ess.appendChild(rainPicker.node);
@@ -3858,6 +4459,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const eventsWrap = el("div", { class: "check-wrap", role: "group", "aria-labelledby": eventsCap });
     // Short label for the long 0 % skip text, next to "Skipped (rain)" (UX-018).
     const eventLabel = (ev) => (ev === "skipped_seasonal" ? this._t("set.ev_skipped_seasonal")
+      : ev === "tips" ? this._t("set.ev_tips")
       : this._t.has("event." + ev) ? this._t("event." + ev) : ev);
     availableEvents.forEach(ev => {
       const cb = el("input", { type: "checkbox" });
@@ -4144,9 +4746,37 @@ class ScheduleWizardPanel extends HTMLElement {
         field(this._t("common.enabled"), failEnabled),
         field(this._t("settings.fail_window"), failSeconds),
       ]),
-      this._optGroup("overlap", this._t("set.g_overlap"), this._t("set.g_overlap_d"), !!opts.allow_concurrent_cycles, [
+      this._optGroup("overlap", this._t("set.g_overlap"), this._t("set.g_overlap_d"), !!opts.allow_concurrent_cycles || maxAtOnceValue() > 0, [
         hint(this._t("settings.overlap_hint")),
         field(this._t("settings.allow_concurrent"), allowConcurrent),
+        field(this._t("set.max_at_once"), maxAtOnce),
+        hint(this._t("set.max_at_once_hint")),
+      ]),
+      this._optGroup("tips", this._t("set.g_tips"), this._t("set.g_tips_d"), opts.tips_enabled !== false, [
+        el("div", { class: "row-between", style: "margin-bottom:12px;gap:12px;" }, [el("span", {}, this._t("set.tips_toggle")), tipsSwitch]),
+        field(this._t("set.tips_entity"), tipsEntity),
+        el("div", { class: "field-row" }, [
+          el("label", { class: "field" }, [el("span", {}, this._t("set.tips_hot", { unit: tUnit })), tipsHot, tipsErr.hot]),
+          el("label", { class: "field" }, [el("span", {}, this._t("set.tips_frost", { unit: tUnit })), tipsFrost, tipsErr.frost]),
+        ]),
+        el("div", { class: "field-row" }, [
+          el("label", { class: "field" }, [el("span", {}, this._t("set.tips_rain_mm")), tipsRain, tipsErr.rain]),
+          el("label", { class: "field" }, [el("span", {}, this._t("set.tips_rain_prob")), tipsProb, tipsErr.prob]),
+        ]),
+        el("div", { class: "field-row" }, [
+          field(this._t("set.tips_boost"), tipsBoost),
+          el("label", { class: "field" }, [el("span", {}, this._t("set.tips_digest")), tipsDigest, tipsErr.digest]),
+        ]),
+        hint(this._t("set.tips_hint")),
+        mutedKinds.length ? el("div", { class: "row-between" }, [
+          el("span", { class: "small" }, this._t("set.tips_muted", { kinds: mutedKinds.map(k => this._t("tips.kind_" + k)).join(", ") })),
+          el("button", {
+            class: "btn small", type: "button",
+            onClick: async () => {
+              for (const k of mutedKinds) await this._callService("mute_tip", { kind: k, muted: false });
+            },
+          }, this._t("set.tips_unmute")),
+        ]) : null,
       ]),
       this._optGroup("voice", this._t("set.g_voice"), this._t("set.g_voice_d"), opts.voice_enabled !== false, voiceChildren),
       this._optGroup("calendar", this._t("set.g_calendar"), this._t("set.g_calendar_d"), null, [
@@ -4177,6 +4807,24 @@ class ScheduleWizardPanel extends HTMLElement {
     root.appendChild(el("div", { class: "card" }, more));
 
     const feedback = el("div", { class: "muted", style: "font-size:12px;", "aria-live": "polite" });
+    // Weather tips fields: a number in range, or an inline error (the server checks the same ranges).
+    const tipsCheck = () => {
+      const bad = [];
+      const check = (key, input, lo, hi, msg) => {
+        const v = parseFloat(input.value);
+        const ok = input.value.trim() !== "" && !isNaN(v) && v >= lo && v <= hi;
+        setFieldError(tipsErr[key], input, ok ? "" : msg);
+        if (!ok) bad.push(input);
+      };
+      check("hot", tipsHot, fromC(15), fromC(55), this._t("set.tips_err_range", { lo: Math.round(fromC(15)), hi: Math.round(fromC(55)) }));
+      check("frost", tipsFrost, fromC(-20), fromC(10), this._t("set.tips_err_range", { lo: Math.round(fromC(-20)), hi: Math.round(fromC(10)) }));
+      check("rain", tipsRain, 0.5, 200, this._t("set.tips_err_range", { lo: 0.5, hi: 200 }));
+      check("prob", tipsProb, 0, 100, this._t("set.tips_err_range", { lo: 0, hi: 100 }));
+      const dOk = /^\d{2}:\d{2}$/.test(tipsDigest.value);
+      setFieldError(tipsErr.digest, tipsDigest, dOk ? "" : this._t("set.tips_err_time"));
+      if (!dOk) bad.push(tipsDigest);
+      return bad[0] || null;
+    };
     const saveBtn = el("button", { class: "btn primary" }, this._t("settings.save"));
     saveBtn.addEventListener("click", async () => {
       if (!masterCheck()) {
@@ -4192,6 +4840,14 @@ class ScheduleWizardPanel extends HTMLElement {
       if (rainNow && rainNow !== String(opts.rain_entity || "").trim() && (!(this._hass.states || {})[rainNow] || ownIds.has(rainNow))) {
         rainPicker.setError(this._t("set.rain_invalid", { entity: rainNow }));
         rainPicker.select.focus();
+        return;
+      }
+      const badTips = tipsCheck();
+      if (badTips) {
+        more.open = true;
+        const group = badTips.closest("details");
+        if (group) group.open = true;
+        badTips.focus();
         return;
       }
       const badExternal = externalCheck();
@@ -4262,6 +4918,15 @@ class ScheduleWizardPanel extends HTMLElement {
           interleave_soak: interleaveOn,
           calendar_keyword: calKeywordInput.value.trim(),
           max_external_minutes: maxExtValue(),
+          max_zones_at_once: maxAtOnceValue(),
+          tips_enabled: tipsOn,
+          tips_weather_entity: tipsEntity.value,
+          tips_hot_c: Math.round(toC(parseFloat(tipsHot.value)) * 10) / 10,
+          tips_frost_c: Math.round(toC(parseFloat(tipsFrost.value)) * 10) / 10,
+          tips_rain_mm: parseFloat(tipsRain.value),
+          tips_rain_prob: Math.round(parseFloat(tipsProb.value)),
+          tips_boost_pct: parseInt(tipsBoost.value, 10) || 30,
+          tips_digest_time: tipsDigest.value,
         });
         feedback.textContent = this._t("settings.saved_at", {
           time: this._fmtTime(Math.floor(Date.now() / 1000), { hour: "numeric", minute: "2-digit", second: "2-digit" }),

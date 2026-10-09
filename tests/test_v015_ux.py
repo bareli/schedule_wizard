@@ -399,5 +399,5 @@ def test_wording_points():
     assert en["set.ev_skipped_seasonal"] == "Skipped (too cool)"
     admin = _method(PANEL, "_zoneAdminCard")
     assert "ltr(v.entity_id)" not in admin
-    assert '(stats.last_run ? this._t("valves.week_none") : "")' in admin
+    assert '(stats.last_run && !running && stats.last_run.status !== "started" ? this._t("valves.week_none") : "")' in admin
     assert 'this._t("reports.runs", { n: runs })' in _method(PANEL, "_renderReports")

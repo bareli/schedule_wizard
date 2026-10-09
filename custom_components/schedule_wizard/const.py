@@ -61,6 +61,17 @@ MAX_CALENDAR_KEYWORD_LENGTH = 40
 # #79: longest run a webhook call or a calendar event may start, in minutes.
 CONF_MAX_EXTERNAL_MINUTES = "max_external_minutes"
 DEFAULT_MAX_EXTERNAL_MINUTES = 120
+# v0.16.0: at most this many zones / plans water at once; a scheduled run waits its turn (0 = no limit).
+CONF_MAX_ZONES_AT_ONCE = "max_zones_at_once"
+# Weather tips (v0.16.0): suggestions from the daily forecast, shown in the panel and sent as an evening digest.
+CONF_TIPS_ENABLED = "tips_enabled"
+CONF_TIPS_WEATHER_ENTITY = "tips_weather_entity"
+CONF_TIPS_HOT_C = "tips_hot_c"
+CONF_TIPS_FROST_C = "tips_frost_c"
+CONF_TIPS_RAIN_MM = "tips_rain_mm"
+CONF_TIPS_RAIN_PROB = "tips_rain_prob"
+CONF_TIPS_BOOST_PCT = "tips_boost_pct"
+CONF_TIPS_DIGEST_TIME = "tips_digest_time"
 
 DEFAULT_RAIN_SKIP_STATES = "rainy,pouring,snowy,lightning-rainy"
 
@@ -105,6 +116,15 @@ DEFAULT_OPTIONS = {
     CONF_VOICE_ENABLED: True,
     CONF_CALENDAR_KEYWORD: "",
     CONF_MAX_EXTERNAL_MINUTES: DEFAULT_MAX_EXTERNAL_MINUTES,
+    CONF_MAX_ZONES_AT_ONCE: 0,
+    CONF_TIPS_ENABLED: True,
+    CONF_TIPS_WEATHER_ENTITY: "",
+    CONF_TIPS_HOT_C: 32,
+    CONF_TIPS_FROST_C: 2,
+    CONF_TIPS_RAIN_MM: 5,
+    CONF_TIPS_RAIN_PROB: 60,
+    CONF_TIPS_BOOST_PCT: 30,
+    CONF_TIPS_DIGEST_TIME: "19:00",
 }
 
 NOTIFY_EVENTS = (
@@ -120,6 +140,7 @@ NOTIFY_EVENTS = (
     "rain_delay",
     "leak_detected",
     "low_flow",
+    "tips",
 )
 
 CONDITION_OPERATORS = ("above", "below", "equals", "not_equals")
@@ -186,6 +207,19 @@ TIME_MODE_SUNSET = "sunset"
 TIME_MODES = (TIME_MODE_CLOCK, TIME_MODE_SUNRISE, TIME_MODE_SUNSET)
 SUN_OFFSET_MAX = 180
 
+# One-off change of a single run (v0.16.0): its percent of the planned minutes.
+OVERRIDE_MIN_PCT = 25
+OVERRIDE_MAX_PCT = 300
+# Temporary boost (heat wave), percent added to or taken from every scheduled run.
+BOOST_PCTS = (-50, -30, -20, 10, 20, 30, 50)
+BOOST_MAX_DAYS = 14
+# A run waiting for a free slot gives up after this long (max zones at once).
+QUEUE_MAX_WAIT_SECONDS = 3 * 3600
+QUEUE_POLL_SECONDS = 5
+# Weather tips: kinds, and the start hour before which a run counts as early morning (frost).
+TIP_KINDS = ("rain", "heat", "frost")
+TIP_FROST_BEFORE_HOUR = 10
+
 DAY_BITS = {0: 1, 1: 2, 2: 4, 3: 8, 4: 16, 5: 32, 6: 64}
 
 SERVICE_RUN_VALVE = "run_valve"
@@ -210,3 +244,10 @@ SERVICE_RAIN_DELAY = "set_rain_delay"
 SERVICE_CLEAR_RAIN_DELAY = "clear_rain_delay"
 SERVICE_PAUSE_CYCLE = "pause_cycle"
 SERVICE_RESUME_CYCLE = "resume_cycle"
+SERVICE_SET_OVERRIDE = "set_override"
+SERVICE_CLEAR_OVERRIDE = "clear_override"
+SERVICE_SET_BOOST = "set_boost"
+SERVICE_CLEAR_BOOST = "clear_boost"
+SERVICE_DISMISS_TIP = "dismiss_tip"
+SERVICE_MUTE_TIP = "mute_tip"
+SERVICE_APPLY_TIP = "apply_tip"
