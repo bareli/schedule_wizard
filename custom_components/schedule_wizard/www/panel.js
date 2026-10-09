@@ -2133,7 +2133,7 @@ class ScheduleWizardPanel extends HTMLElement {
       card.appendChild(el("button", {
         type: "button", class: "btn ghost small", style: "margin-top:6px;", "aria-expanded": this._tipsAll ? "true" : "false",
         onClick: () => { this._tipsAll = !this._tipsAll; this._render(); },
-      }, this._tipsAll ? this._t("tips.fewer") : this._tn("tips.more", { n: tips.length - 2 })));
+      }, this._tipsAll ? this._t("tips.fewer") : this._t("tips.more", { n: tips.length - 2 })));
     }
     const opts = this._state.options || {};
     const events = Array.isArray(opts.notify_events) ? opts.notify_events : [];
@@ -2169,7 +2169,7 @@ class ScheduleWizardPanel extends HTMLElement {
     let doLabel;
     if (t.kind === "rain") {
       title = t.frost_c !== null && t.frost_c !== undefined
-        ? this._t("tips.rain_frost_title", { day, mm: this._fmtNum(w.mm, 1), temp: this._fmtTemp(Math.round(t.frost_c)) })
+        ? this._t("tips.rain_frost_title", { day: day.charAt(0).toLocaleUpperCase(this._lang) + day.slice(1), mm: this._fmtNum(w.mm, 1), temp: this._fmtTemp(Math.round(t.frost_c)) })
         : this._t("tips.rain_title", { day, mm: this._fmtNum(w.mm, 1) });
       text = t.boost_pct
         ? this._t("tips.rain_boost_text", { pct: this._signedPct(t.boost_pct), day, names })

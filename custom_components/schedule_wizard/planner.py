@@ -1,6 +1,7 @@
 """Upcoming schedule occurrences, shared by the calendar entity, the week view and reminders."""
 from __future__ import annotations
 
+import math
 from datetime import date, datetime, time as dtime, timedelta
 from typing import Any, Optional
 
@@ -365,7 +366,8 @@ def scale_pct(minutes: int, pct: int) -> int:
     """Minutes at a percent of the plan, at least 1 (0 stays 0)."""
     if pct == 100 or minutes <= 0:
         return int(minutes)
-    return max(1, int(round(minutes * pct / 100)))
+    # Half rounds up, like the panel's Math.round (6.5 min is 7, not 6), so both show the same minutes.
+    return max(1, int(math.floor(minutes * pct / 100 + 0.5)))
 
 
 # Runs that do not water: they cannot clash with anything.

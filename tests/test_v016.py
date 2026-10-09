@@ -513,3 +513,10 @@ def test_panel_fixes_in_source():
     assert "timeInput.focus();" in src and "sched.conflict_moved" in src
     assert r'(x.clash ? "\u26a0\ufe0e " : "")' in src
     assert "return lri(this._isF()" in src and "return fsi(l < 999.5" in src
+
+
+def test_minutes_round_half_up_like_the_panel():
+    """UX-022 residue: 6.5 minutes is 7 on the server too, so tips and the week view agree."""
+    assert planner.scale_pct(5, 130) == 7
+    assert planner.scale_pct(10, 125) == 13
+    assert planner.scale_pct(1, 25) == 1
