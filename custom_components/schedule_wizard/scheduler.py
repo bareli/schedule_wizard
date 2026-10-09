@@ -2329,6 +2329,16 @@ class Scheduler:
         runs = planner.occurrences(self.store, self.options, start, start + timedelta(days=2), limit=None)
         auto_rain = bool((self.options.get("forecast_entity") or "").strip()) and self._opt_float("forecast_skip_mm", 0) > 0
         hot = self._opt_float("tips_hot_c", 32)
+        seasonal_on = bool(self.options.get("seasonal_enabled"))
+        season = self._seasonal_factor()
+
+        def expect(run: dict) -> float:
+            """What the run will water as a factor: temperature adjustment (today and tomorrow) and boost."""
+            factor = self.boost_factor(run["start"])
+            if not self._seasonal_skips(season):
+                factor *= season
+            return factor
+
         frost = self._opt_float("tips_frost_c", 2)
         rain_mm = self._opt_float("tips_rain_mm", 5)
         rain_prob = self._opt_float("tips_rain_prob", 60)
@@ -2350,8 +2360,8 @@ class Scheduler:
                 tip_id = f"{kind}:{day}"
                 if kind in muted or tip_id in dismissed or not runs_for:
                     return
-                liters = sum(self._run_liters(r) * self.boost_factor(r["start"]) for r in runs_for)
-                minutes = sum(planner.scale_pct(r["minutes"], round(self.boost_factor(r["start"]) * 100)) for r in runs_for)
+                liters = sum(self._run_liters(r) * expect(r) for r in runs_for)
+                minutes = sum(planner.scale_pct(r["minutes"], round(expect(r) * 100)) for r in runs_for)
                 out.append({
                     "id": tip_id, "kind": kind, "day": day, "today": offset == 0,
                     "runs": [{"schedule_id": r["schedule_id"], "name": r["name"], "start": r["start"], "minutes": r["minutes"]} for r in runs_for],
@@ -2362,14 +2372,21 @@ class Scheduler:
                 })
 
             mm, prob = w.get("mm"), w.get("prob")
-            if not auto_rain and mm is not None and mm >= rain_mm and rain_mm > 0 and (prob is None or prob >= rain_prob):
-                add("rain", outdoor)
-            if w.get("max_c") is not None and w["max_c"] >= hot:
-                day_start = dt_util.start_of_local_day(date.fromisoformat(day)).timestamp()
-                if self.boost_factor(day_start + 12 * 3600) <= 1.0:
-                    add("heat", day_runs, pct=self.boost_pct_option())
-            if w.get("min_c") is not None and w["min_c"] <= frost:
-                early = [r for r in outdoor if dt_util.as_local(dt_util.utc_from_timestamp(r["start"])).hour < TIP_FROST_BEFORE_HOUR]
+            day_start = dt_util.start_of_local_day(date.fromisoformat(day)).timestamp()
+            boost = self.store.boost
+            day_boost = int(boost.get("pct") or 0) if self.boost_factor(day_start + 12 * 3600) != 1.0 else 0
+            rainy = (not auto_rain and mm is not None and mm >= rain_mm and rain_mm > 0
+                     and (prob is None or prob >= rain_prob) and "rain" not in muted and f"rain:{day}" not in dismissed
+                     and bool(outdoor))
+            frosty = w.get("min_c") is not None and w["min_c"] <= frost
+            early = [r for r in outdoor if dt_util.as_local(dt_util.utc_from_timestamp(r["start"])).hour < TIP_FROST_BEFORE_HOUR]
+            if rainy:
+                # Rain skips every outdoor run of the day, so it also covers frost (merged) and makes heat moot.
+                add("rain", outdoor, frost_c=w["min_c"] if frosty and early else None, boost_pct=day_boost or None)
+                continue
+            if w.get("max_c") is not None and w["max_c"] >= hot and not seasonal_on and not day_boost:
+                add("heat", day_runs, pct=self.boost_pct_option())
+            if frosty:
                 add("frost", early)
         return out
 
@@ -2410,6 +2427,10 @@ class Scheduler:
             for r in tip["runs"]:
                 await self.store.async_add_skip(r["schedule_id"], day)
             n = len(tip["runs"])
+            boost = self.store.boost
+            start = int(dt_util.start_of_local_day(day_d).timestamp())
+            if kind == "rain" and boost and int(boost.get("from") or 0) >= start and int(boost.get("until") or 0) <= start + 90000:
+                await self.store.async_clear_boost()
         LOG.info("tip %s applied (%s)", tip_id, source)
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
         return n

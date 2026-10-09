@@ -87,7 +87,8 @@ def test_render_restores_focus(filename, root):
     body = _method(SOURCES[filename], "_render")
     capture = body.index(f"captureFocus({root})")
     assert capture < body.index(f"{root}.innerHTML = \"\"")
-    assert body.rstrip().endswith(f"restoreFocus({root}, focusKey);")
+    # Restored after the rebuild; the panel may then move focus on purpose (a link into Settings, UX-024).
+    assert body.index(f"restoreFocus({root}, focusKey);") > body.index(f"{root}.innerHTML = \"\"")
 
 
 @pytest.mark.parametrize("filename", ["panel.js", "card.js"])

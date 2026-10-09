@@ -346,6 +346,11 @@ SCHEMA_NO_ARGS = vol.Schema({})
 
 SCHEMA_SKIP_NEXT = vol.Schema({
     vol.Required("schedule_id"): cv.string,
+    vol.Optional("date"): cv.date,
+})
+
+SCHEMA_RUN_SCHEDULE = vol.Schema({
+    vol.Required("schedule_id"): cv.string,
 })
 
 SCHEMA_SKIP_DAY = vol.Schema({
@@ -1203,8 +1208,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await scheduler.async_stop_all()
 
     async def _svc_skip_next(call: ServiceCall) -> ServiceResponse:
-        if not store.get_schedule(call.data["schedule_id"]):
+        sched = store.get_schedule(call.data["schedule_id"])
+        if not sched:
             raise HomeAssistantError("schedule not found")
+        day = call.data.get("date")
+        if day is not None:
+            # One chosen run (UX-025): a real run of this schedule, today or later, within the next-run window.
+            today = dt_util.now().date()
+            if day < today or day > today + _timedelta(days=planner.NEXT_RUN_DAYS):
+                raise HomeAssistantError(f"date must be from today to {planner.NEXT_RUN_DAYS} days ahead")
+            if not planner.runs_on(sched, day):
+                raise HomeAssistantError("the schedule has no run on that date")
+            await store.async_add_skip(sched["id"], day.isoformat())
+            return {"skipped": {"schedule_id": sched["id"], "day": day.isoformat()}}
         occ = await scheduler.async_skip_next(call.data["schedule_id"])
         return {"skipped": occ}
 
@@ -1420,7 +1436,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         supports_response=SupportsResponse.OPTIONAL,
     )
     hass.services.async_register(DOMAIN, SERVICE_UNSKIP, _svc_unskip, schema=SCHEMA_UNSKIP)
-    hass.services.async_register(DOMAIN, SERVICE_RUN_SCHEDULE, _svc_run_schedule, schema=SCHEMA_SKIP_NEXT)
+    hass.services.async_register(DOMAIN, SERVICE_RUN_SCHEDULE, _svc_run_schedule, schema=SCHEMA_RUN_SCHEDULE)
     hass.services.async_register(DOMAIN, SERVICE_RAIN_DELAY, _svc_rain_delay, schema=SCHEMA_RAIN_DELAY)
     hass.services.async_register(DOMAIN, SERVICE_CLEAR_RAIN_DELAY, _svc_clear_rain_delay, schema=SCHEMA_CLEAR_RAIN_DELAY)
     hass.services.async_register(DOMAIN, SERVICE_PAUSE_CYCLE, _svc_pause_cycle, schema=SCHEMA_PAUSE_RESUME_CYCLE)

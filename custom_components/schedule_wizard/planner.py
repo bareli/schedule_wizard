@@ -426,7 +426,7 @@ def draft_conflicts(store: WizardStore, options: dict, draft: dict, start: datet
                 if o["start"] < a1 and a0 < o["end"] and o["schedule_id"] not in found:
                     found[o["schedule_id"]] = {
                         "schedule_id": o["schedule_id"], "name": o["name"], "kind": o["kind"],
-                        "start": o["start"], "end": o["end"],
+                        "target": o["target"], "start": o["start"], "end": o["end"],
                     }
         return sorted(found.values(), key=lambda c: c["start"])
 

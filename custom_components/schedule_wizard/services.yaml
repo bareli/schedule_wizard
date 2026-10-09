@@ -531,13 +531,19 @@ stop_all:
 
 skip_next:
   name: Skip next run
-  description: Skip the next run of one schedule. Returns the skipped run.
+  description: Skip the next run of one schedule, or its run on a date. Returns the skipped run.
   fields:
     schedule_id:
       name: Schedule ID
       required: true
       selector:
         text:
+    date:
+      name: Date
+      description: Optional. Skip the run on this date (today up to 31 days ahead) instead of the next one.
+      required: false
+      selector:
+        date:
 
 skip_day:
   name: Skip a day
