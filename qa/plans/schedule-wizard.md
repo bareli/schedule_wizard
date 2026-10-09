@@ -49,3 +49,27 @@ IDs are stable forever.
 - I18N-02 en / he (RTL) / de across the panel; plural forms ("1 runs" known bug).
 - MOBILE-01 320x568 every tab; forms reachable; no horizontal scroll.
 - CARD-01 Lovelace card: zones, quick run (minutes input stable), next run, errors.
+
+## v0.16.0 (cycle 2026-10-09)
+
+### TIP: weather tips
+- TIP-01 Tips card shows rain / heat / frost for today (runs still to come) and tomorrow from the daily forecast: numbers, units (°C / °F), runs named, litres or minutes saved, forecast source.
+- TIP-02 Apply each tip: rain skips the day's outdoor runs; frost skips outdoor runs before 10:00; heat waters +X % that day only (boost); the tip disappears; the user can undo (week run Undo skip, boost Cancel).
+- TIP-03 Not now (dismiss), Don't suggest (mute) and Settings "Suggest again"; tips off; thresholds saved and applied; no rain tip while the automatic rain-forecast skip is on.
+- TIP-04 Evening digest: notify event "Weather tips" + a target; at the digest time one notification; mobile action buttons; a TIP action event applies the tip; forged / malformed actions change nothing; a forecast change replaces or clears the notification.
+- TIP-05 After an HA restart the forecast (and tips) appear within minutes, not after 30.
+
+### BOOST / ONCE: temporary changes
+- BOOST-01 Water more / less chooser (+20..-30 %, 1-7 days) → banner; scheduled and calendar runs scaled; Water now not scaled; End now / Cancel.
+- ONCE-01 Run dialog "This time only": new time the same day and/or percent; week shows "changed for this day"; the run fires only at the new time with the new minutes; Undo change; time already passed today and dates beyond 31 days refused.
+
+### WEEK / CONF / QUEUE
+- WEEK-01 Week list: estimated minutes arrow (temperature today / tomorrow, boost), litres per day, weather line, likely-skipped rain tag, overlap tag, "+ Add" on an empty day opens the editor with that weekday.
+- WEEK-02 Timeline view: day chips, a lane per zone, runs far apart get their own axis, overlaps red, a bar opens the run dialog; RTL mirrored; 320 px.
+- CONF-01 Schedule editor warns about runs at the same time (add and edit, zone and plan, weekdays and every N days, sunrise) with a "Move to" suggestion; saving still allowed.
+- QUEUE-01 Zones at once = 1: overlapping scheduled runs wait their turn and then start; Water now never waits; status card says who is waiting; give-up after 3 h records skipped_overlap.
+
+### REP / TZ / ZONE
+- REP-01 Reports: "Skips saved N min and about X L" over 30 days.
+- TZ-01 Browser time zone different from HA's: Home, Zones, Plans, schedule editor, week list, timeline and run dialog all show HA's clock; a note says so.
+- ZONE-01 Zone card on the Zones tab while the zone waters says "Watering now, X left", not "no runs last 7 days".
