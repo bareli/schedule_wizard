@@ -398,3 +398,70 @@ async def test_stored_tip_and_override_dates_are_bounded(hass: HomeAssistant):
         await hass.services.async_call(DOMAIN, "set_override", {"schedule_id": sched["id"], "date": far, "percent": 50}, blocking=True)
     with pytest.raises(HomeAssistantError, match="no such tip"):
         await hass.services.async_call(DOMAIN, "dismiss_tip", {"tip_id": f"rain:{far}"}, blocking=True)
+
+
+# ---------------------------------------------------------------- QA cycle 2026-10-09 regressions
+
+async def test_heat_tip_without_a_current_tip_changes_nothing(hass: HomeAssistant):
+    """SEC-011 / BUG-041: a forged heat tip (service or notification action) must not replace the boost."""
+    entry, weather = await _tips_setup(hass)
+    weather.days[1] = {"temperature": 20, "templow": 12, "precipitation": 0}
+    sched = data(hass, entry)["scheduler"]
+    await sched._async_refresh_daily()
+    await hass.services.async_call(DOMAIN, "set_boost", {"percent": 50, "days": 3}, blocking=True)
+    before = data(hass, entry)["store"].boost
+    later = (dt_util.now().date() + timedelta(days=20)).isoformat()
+    with pytest.raises(HomeAssistantError, match="nothing to change"):
+        await hass.services.async_call(DOMAIN, "apply_tip", {"tip_id": f"heat:{later}"}, blocking=True)
+    hass.bus.async_fire("mobile_app_notification_action", {"action": "SCHEDULE_WIZARD_TIP_HEAT_" + later.replace("-", "")})
+    await settle(hass)
+    assert data(hass, entry)["store"].boost == before
+    with pytest.raises(HomeAssistantError, match="within"):
+        await hass.services.async_call(DOMAIN, "set_boost", {"percent": 50, "start_date": "9999-12-31"}, blocking=True)
+
+
+async def test_no_second_watering_by_moving_todays_finished_run(hass: HomeAssistant):
+    """BUG-042: today's run already started at its time; moving it later would water twice."""
+    entry = await setup_wizard(hass)
+    await add_valve(hass, Z1, "Front")
+    now = dt_util.now()
+    earlier = now - timedelta(minutes=5)
+    sched = await add_schedule(hass, valve_entity_id=Z1, time=earlier.strftime("%H:%M"),
+                               days=[DAYS[now.weekday()]], duration_minutes=1)
+    later = (now + timedelta(minutes=30)).strftime("%H:%M")
+    with pytest.raises(HomeAssistantError, match="already started"):
+        await hass.services.async_call(DOMAIN, "set_override", {
+            "schedule_id": sched["id"], "date": now.date().isoformat(), "time": later,
+        }, blocking=True)
+    assert data(hass, entry)["store"].overrides == {}
+
+
+async def test_waiting_run_survives_a_reload(hass: HomeAssistant):
+    """BUG-043: a run waiting for a free slot waits again after a restart / reload and then waters."""
+    entry = await setup_wizard(hass, {"max_zones_at_once": 1})
+    await add_valve(hass, Z1, "Front")
+    await add_valve(hass, Z2, "Back")
+    fire_at = await _schedule_now(hass, valve_entity_id=Z1, duration_minutes=2)
+    await add_schedule(hass, valve_entity_id=Z2, time=fire_at.strftime("%H:%M"), days=[DAYS[fire_at.weekday()]], duration_minutes=2)
+    await fire(hass, fire_at)
+    waiting = Z2 if is_on(hass, Z1) else Z1
+    assert [q["target"] for q in data(hass, entry)["store"].queue] == [waiting]
+
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await settle(hass)
+    assert [q["target"] for q in data(hass, entry)["scheduler"].queue] == [waiting]
+    assert not is_on(hass, waiting)
+    await advance(hass, 2 * 60 + 1)
+    await advance(hass, 6)
+    assert is_on(hass, waiting)
+    assert data(hass, entry)["store"].queue == []
+
+
+def test_panel_fixes_in_source():
+    """BUG-039, BUG-040, UX-021: focus kept after Move to, overlap not by colour only, isolated units."""
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parent.parent / "custom_components" / "schedule_wizard" / "www" / "panel.js").read_text(encoding="utf-8")
+    assert "timeInput.focus();" in src and "sched.conflict_moved" in src
+    assert r'(x.clash ? "\u26a0\ufe0e " : "")' in src
+    assert "return lri(this._isF()" in src and "return fsi(l < 999.5" in src

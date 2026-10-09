@@ -622,9 +622,6 @@ export const STRINGS = /*JSON-START*/ {
     "once.title": "This time only",
     "once.hint": "Changes only this run. The schedule stays as it is.",
     "once.time": "Start at",
-    "once.minutes": "Minutes",
-    "once.as_planned": "As planned",
-    "once.pct": "{pct} %",
     "once.save": "Save change",
     "once.undo": "Undo change",
     "once.err_passed": "That time has already passed today.",
@@ -655,7 +652,12 @@ export const STRINGS = /*JSON-START*/ {
     "set.tips_unmute": "Suggest again",
     "set.tips_err_range": "Enter a number from {lo} to {hi}.",
     "set.tips_err_time": "Enter a time.",
-    "boost.planned_day": "Watering {pct} on {day}."
+    "boost.planned_day": "Watering {pct} on {day}.",
+    "sched.conflict_moved": "Moved to {time}. No other watering at that time.",
+    "once.length": "Length",
+    "once.as_planned_min": "As planned ({min})",
+    "once.pct_min": "{pct} % ({min})",
+    "once.err_started": "Today's run has already started or watered. Change a later day instead."
   },
   "de": {
     "common.save": "Speichern",
@@ -1278,9 +1280,6 @@ export const STRINGS = /*JSON-START*/ {
     "once.title": "Nur dieses Mal",
     "once.hint": "Ändert nur diesen Lauf. Der Zeitplan bleibt, wie er ist.",
     "once.time": "Start um",
-    "once.minutes": "Minuten",
-    "once.as_planned": "Wie geplant",
-    "once.pct": "{pct} %",
     "once.save": "Änderung speichern",
     "once.undo": "Änderung zurücknehmen",
     "once.err_passed": "Diese Uhrzeit ist heute schon vorbei.",
@@ -1311,7 +1310,12 @@ export const STRINGS = /*JSON-START*/ {
     "set.tips_unmute": "Wieder vorschlagen",
     "set.tips_err_range": "Gib eine Zahl von {lo} bis {hi} ein.",
     "set.tips_err_time": "Gib eine Uhrzeit ein.",
-    "boost.planned_day": "Bewässerung {pct} am {day}."
+    "boost.planned_day": "Bewässerung {pct} am {day}.",
+    "sched.conflict_moved": "Auf {time} verschoben. Keine andere Bewässerung zu dieser Zeit.",
+    "once.length": "Dauer",
+    "once.as_planned_min": "Wie geplant ({min})",
+    "once.pct_min": "{pct} % ({min})",
+    "once.err_started": "Der heutige Lauf hat schon begonnen oder bewässert. Ändere stattdessen einen späteren Tag."
   },
   "he": {
     "common.save": "שמירה",
@@ -1934,9 +1938,6 @@ export const STRINGS = /*JSON-START*/ {
     "once.title": "רק הפעם",
     "once.hint": "משנה רק את ההשקיה הזו. התזמון נשאר כמו שהוא.",
     "once.time": "התחלה ב־",
-    "once.minutes": "דקות",
-    "once.as_planned": "כמתוכנן",
-    "once.pct": "{pct}%",
     "once.save": "שמירת השינוי",
     "once.undo": "ביטול השינוי",
     "once.err_passed": "השעה הזו כבר עברה היום.",
@@ -1967,7 +1968,12 @@ export const STRINGS = /*JSON-START*/ {
     "set.tips_unmute": "להציע שוב",
     "set.tips_err_range": "יש להזין מספר בין {lo} ל־{hi}.",
     "set.tips_err_time": "יש להזין שעה.",
-    "boost.planned_day": "השקיה {pct} ביום {day}."
+    "boost.planned_day": "השקיה {pct} ביום {day}.",
+    "sched.conflict_moved": "הוזז ל־{time}. אין השקיה אחרת בשעה הזו.",
+    "once.length": "משך",
+    "once.as_planned_min": "כמתוכנן ({min})",
+    "once.pct_min": "{pct}% ({min})",
+    "once.err_started": "ההשקיה של היום כבר התחילה או הסתיימה. אפשר לשנות יום מאוחר יותר."
   },
   "es": {
     "common.save": "Guardar",
@@ -2590,9 +2596,6 @@ export const STRINGS = /*JSON-START*/ {
     "once.title": "Solo esta vez",
     "once.hint": "Cambia solo este riego. El horario queda igual.",
     "once.time": "Empezar a las",
-    "once.minutes": "Minutos",
-    "once.as_planned": "Según lo previsto",
-    "once.pct": "{pct} %",
     "once.save": "Guardar cambio",
     "once.undo": "Deshacer cambio",
     "once.err_passed": "Esa hora ya ha pasado hoy.",
@@ -2623,7 +2626,12 @@ export const STRINGS = /*JSON-START*/ {
     "set.tips_unmute": "Volver a sugerir",
     "set.tips_err_range": "Introduce un número de {lo} a {hi}.",
     "set.tips_err_time": "Introduce una hora.",
-    "boost.planned_day": "Riego {pct} el {day}."
+    "boost.planned_day": "Riego {pct} el {day}.",
+    "sched.conflict_moved": "Movido a las {time}. No hay otro riego a esa hora.",
+    "once.length": "Duración",
+    "once.as_planned_min": "Según lo previsto ({min})",
+    "once.pct_min": "{pct} % ({min})",
+    "once.err_started": "El riego de hoy ya empezó o ya regó. Cambia un día posterior."
   },
   "fr": {
     "common.save": "Enregistrer",
@@ -3246,9 +3254,6 @@ export const STRINGS = /*JSON-START*/ {
     "once.title": "Cette fois seulement",
     "once.hint": "Ne change que cet arrosage. L'horaire reste tel quel.",
     "once.time": "Démarrer à",
-    "once.minutes": "Minutes",
-    "once.as_planned": "Comme prévu",
-    "once.pct": "{pct} %",
     "once.save": "Enregistrer la modification",
     "once.undo": "Annuler la modification",
     "once.err_passed": "Cette heure est déjà passée aujourd'hui.",
@@ -3279,7 +3284,12 @@ export const STRINGS = /*JSON-START*/ {
     "set.tips_unmute": "Suggérer de nouveau",
     "set.tips_err_range": "Saisissez un nombre de {lo} à {hi}.",
     "set.tips_err_time": "Saisissez une heure.",
-    "boost.planned_day": "Arrosage {pct} le {day}."
+    "boost.planned_day": "Arrosage {pct} le {day}.",
+    "sched.conflict_moved": "Déplacé à {time}. Aucun autre arrosage à cette heure.",
+    "once.length": "Durée",
+    "once.as_planned_min": "Comme prévu ({min})",
+    "once.pct_min": "{pct} % ({min})",
+    "once.err_started": "L'arrosage d'aujourd'hui a déjà commencé ou eu lieu. Modifiez plutôt un jour suivant."
   },
   "it": {
     "common.save": "Salva",
@@ -3902,9 +3912,6 @@ export const STRINGS = /*JSON-START*/ {
     "once.title": "Solo questa volta",
     "once.hint": "Cambia solo questa irrigazione. L'orario resta com'è.",
     "once.time": "Inizio alle",
-    "once.minutes": "Minuti",
-    "once.as_planned": "Come previsto",
-    "once.pct": "{pct} %",
     "once.save": "Salva modifica",
     "once.undo": "Annulla modifica",
     "once.err_passed": "Quest'ora oggi è già passata.",
@@ -3935,7 +3942,12 @@ export const STRINGS = /*JSON-START*/ {
     "set.tips_unmute": "Suggerisci di nuovo",
     "set.tips_err_range": "Inserisci un numero da {lo} a {hi}.",
     "set.tips_err_time": "Inserisci un orario.",
-    "boost.planned_day": "Irrigazione {pct} il {day}."
+    "boost.planned_day": "Irrigazione {pct} il {day}.",
+    "sched.conflict_moved": "Spostato alle {time}. Nessun'altra irrigazione a quell'ora.",
+    "once.length": "Durata",
+    "once.as_planned_min": "Come previsto ({min})",
+    "once.pct_min": "{pct} % ({min})",
+    "once.err_started": "L'irrigazione di oggi è già iniziata o avvenuta. Modifica un giorno successivo."
   },
   "nl": {
     "common.save": "Opslaan",
@@ -4558,9 +4570,6 @@ export const STRINGS = /*JSON-START*/ {
     "once.title": "Alleen deze keer",
     "once.hint": "Wijzigt alleen deze beurt. Het schema blijft zoals het is.",
     "once.time": "Start om",
-    "once.minutes": "Minuten",
-    "once.as_planned": "Zoals gepland",
-    "once.pct": "{pct} %",
     "once.save": "Wijziging opslaan",
     "once.undo": "Wijziging ongedaan maken",
     "once.err_passed": "Die tijd is vandaag al voorbij.",
@@ -4591,7 +4600,12 @@ export const STRINGS = /*JSON-START*/ {
     "set.tips_unmute": "Weer voorstellen",
     "set.tips_err_range": "Voer een getal van {lo} tot {hi} in.",
     "set.tips_err_time": "Voer een tijd in.",
-    "boost.planned_day": "Sproeien {pct} op {day}."
+    "boost.planned_day": "Sproeien {pct} op {day}.",
+    "sched.conflict_moved": "Verplaatst naar {time}. Geen andere beurt op dat moment.",
+    "once.length": "Duur",
+    "once.as_planned_min": "Zoals gepland ({min})",
+    "once.pct_min": "{pct} % ({min})",
+    "once.err_started": "De beurt van vandaag is al begonnen of geweest. Wijzig een latere dag."
   },
   "pt": {
     "common.save": "Guardar",
@@ -5214,9 +5228,6 @@ export const STRINGS = /*JSON-START*/ {
     "once.title": "Só desta vez",
     "once.hint": "Altera só esta rega. O horário fica como está.",
     "once.time": "Começar às",
-    "once.minutes": "Minutos",
-    "once.as_planned": "Como planeado",
-    "once.pct": "{pct} %",
     "once.save": "Guardar alteração",
     "once.undo": "Anular alteração",
     "once.err_passed": "Essa hora já passou hoje.",
@@ -5247,7 +5258,12 @@ export const STRINGS = /*JSON-START*/ {
     "set.tips_unmute": "Sugerir de novo",
     "set.tips_err_range": "Introduza um número de {lo} a {hi}.",
     "set.tips_err_time": "Introduza uma hora.",
-    "boost.planned_day": "Rega {pct} em {day}."
+    "boost.planned_day": "Rega {pct} em {day}.",
+    "sched.conflict_moved": "Mudado para as {time}. Nenhuma outra rega a essa hora.",
+    "once.length": "Duração",
+    "once.as_planned_min": "Como planeado ({min})",
+    "once.pct_min": "{pct} % ({min})",
+    "once.err_started": "A rega de hoje já começou ou já regou. Altere um dia posterior."
   },
   "ru": {
     "common.save": "Сохранить",
@@ -5870,9 +5886,6 @@ export const STRINGS = /*JSON-START*/ {
     "once.title": "Только в этот раз",
     "once.hint": "Меняет только этот полив. Расписание остаётся прежним.",
     "once.time": "Начать в",
-    "once.minutes": "Минуты",
-    "once.as_planned": "Как запланировано",
-    "once.pct": "{pct} %",
     "once.save": "Сохранить изменение",
     "once.undo": "Отменить изменение",
     "once.err_passed": "Это время сегодня уже прошло.",
@@ -5903,7 +5916,12 @@ export const STRINGS = /*JSON-START*/ {
     "set.tips_unmute": "Предлагать снова",
     "set.tips_err_range": "Введите число от {lo} до {hi}.",
     "set.tips_err_time": "Введите время.",
-    "boost.planned_day": "Полив {pct}: {day}."
+    "boost.planned_day": "Полив {pct}: {day}.",
+    "sched.conflict_moved": "Перенесено на {time}. В это время других поливов нет.",
+    "once.length": "Длительность",
+    "once.as_planned_min": "Как запланировано ({min})",
+    "once.pct_min": "{pct} % ({min})",
+    "once.err_started": "Сегодняшний полив уже начался или прошёл. Измените более поздний день."
   },
   "uk": {
     "common.save": "Зберегти",
@@ -6526,9 +6544,6 @@ export const STRINGS = /*JSON-START*/ {
     "once.title": "Лише цього разу",
     "once.hint": "Змінює лише цей полив. Розклад лишається незмінним.",
     "once.time": "Почати о",
-    "once.minutes": "Хвилини",
-    "once.as_planned": "Як заплановано",
-    "once.pct": "{pct} %",
     "once.save": "Зберегти зміну",
     "once.undo": "Скасувати зміну",
     "once.err_passed": "Цей час сьогодні вже минув.",
@@ -6559,7 +6574,12 @@ export const STRINGS = /*JSON-START*/ {
     "set.tips_unmute": "Пропонувати знову",
     "set.tips_err_range": "Введіть число від {lo} до {hi}.",
     "set.tips_err_time": "Введіть час.",
-    "boost.planned_day": "Полив {pct}: {day}."
+    "boost.planned_day": "Полив {pct}: {day}.",
+    "sched.conflict_moved": "Перенесено на {time}. У цей час інших поливів немає.",
+    "once.length": "Тривалість",
+    "once.as_planned_min": "Як заплановано ({min})",
+    "once.pct_min": "{pct} % ({min})",
+    "once.err_started": "Сьогоднішній полив уже почався або минув. Змініть пізніший день."
   },
   "pl": {
     "common.save": "Zapisz",
@@ -7182,9 +7202,6 @@ export const STRINGS = /*JSON-START*/ {
     "once.title": "Tylko tym razem",
     "once.hint": "Zmienia tylko to podlewanie. Harmonogram zostaje bez zmian.",
     "once.time": "Start o",
-    "once.minutes": "Minuty",
-    "once.as_planned": "Zgodnie z planem",
-    "once.pct": "{pct} %",
     "once.save": "Zapisz zmianę",
     "once.undo": "Cofnij zmianę",
     "once.err_passed": "Ta godzina dziś już minęła.",
@@ -7215,7 +7232,12 @@ export const STRINGS = /*JSON-START*/ {
     "set.tips_unmute": "Proponuj znowu",
     "set.tips_err_range": "Wpisz liczbę od {lo} do {hi}.",
     "set.tips_err_time": "Wpisz godzinę.",
-    "boost.planned_day": "Podlewanie {pct}: {day}."
+    "boost.planned_day": "Podlewanie {pct}: {day}.",
+    "sched.conflict_moved": "Przesunięto na {time}. O tej porze nie ma innego podlewania.",
+    "once.length": "Czas trwania",
+    "once.as_planned_min": "Zgodnie z planem ({min})",
+    "once.pct_min": "{pct} % ({min})",
+    "once.err_started": "Dzisiejsze podlewanie już się zaczęło lub odbyło. Zmień późniejszy dzień."
   },
   "ar": {
     "common.save": "حفظ",
@@ -7838,9 +7860,6 @@ export const STRINGS = /*JSON-START*/ {
     "once.title": "هذه المرة فقط",
     "once.hint": "يغير هذا الري فقط. يبقى الجدول كما هو.",
     "once.time": "البدء في",
-    "once.minutes": "الدقائق",
-    "once.as_planned": "كما هو مخطط",
-    "once.pct": "{pct}%",
     "once.save": "حفظ التغيير",
     "once.undo": "التراجع عن التغيير",
     "once.err_passed": "هذا الوقت مضى اليوم.",
@@ -7871,7 +7890,12 @@ export const STRINGS = /*JSON-START*/ {
     "set.tips_unmute": "اقترح مجددًا",
     "set.tips_err_range": "أدخل رقمًا من {lo} إلى {hi}.",
     "set.tips_err_time": "أدخل وقتًا.",
-    "boost.planned_day": "الري {pct} يوم {day}."
+    "boost.planned_day": "الري {pct} يوم {day}.",
+    "sched.conflict_moved": "نُقل إلى {time}. لا يوجد ري آخر في هذا الوقت.",
+    "once.length": "المدة",
+    "once.as_planned_min": "كما هو مخطط ({min})",
+    "once.pct_min": "{pct}% ({min})",
+    "once.err_started": "بدأ ري اليوم أو انتهى بالفعل. غيّر يومًا لاحقًا بدلًا من ذلك."
   },
   "zh-hans": {
     "common.save": "保存",
@@ -8494,9 +8518,6 @@ export const STRINGS = /*JSON-START*/ {
     "once.title": "仅此一次",
     "once.hint": "只更改这次浇水，计划本身不变。",
     "once.time": "开始时间",
-    "once.minutes": "分钟",
-    "once.as_planned": "按计划",
-    "once.pct": "{pct}%",
     "once.save": "保存更改",
     "once.undo": "撤销更改",
     "once.err_passed": "今天这个时间已经过了。",
@@ -8527,7 +8548,12 @@ export const STRINGS = /*JSON-START*/ {
     "set.tips_unmute": "重新建议",
     "set.tips_err_range": "请输入 {lo} 到 {hi} 之间的数字。",
     "set.tips_err_time": "请输入时间。",
-    "boost.planned_day": "{day}浇水 {pct}。"
+    "boost.planned_day": "{day}浇水 {pct}。",
+    "sched.conflict_moved": "已改到 {time}。该时间没有其他浇水。",
+    "once.length": "时长",
+    "once.as_planned_min": "按计划（{min}）",
+    "once.pct_min": "{pct}%（{min}）",
+    "once.err_started": "今天的浇水已经开始或已完成。请改为更改之后的某一天。"
   },
   "sv": {
     "common.save": "Spara",
@@ -9150,9 +9176,6 @@ export const STRINGS = /*JSON-START*/ {
     "once.title": "Bara den här gången",
     "once.hint": "Ändrar bara den här körningen. Schemat är oförändrat.",
     "once.time": "Starta kl.",
-    "once.minutes": "Minuter",
-    "once.as_planned": "Som planerat",
-    "once.pct": "{pct} %",
     "once.save": "Spara ändringen",
     "once.undo": "Ångra ändringen",
     "once.err_passed": "Den tiden har redan passerat i dag.",
@@ -9183,7 +9206,12 @@ export const STRINGS = /*JSON-START*/ {
     "set.tips_unmute": "Föreslå igen",
     "set.tips_err_range": "Ange ett tal från {lo} till {hi}.",
     "set.tips_err_time": "Ange en tid.",
-    "boost.planned_day": "Vattnar {pct} {day}."
+    "boost.planned_day": "Vattnar {pct} {day}.",
+    "sched.conflict_moved": "Flyttad till {time}. Ingen annan vattning vid den tiden.",
+    "once.length": "Längd",
+    "once.as_planned_min": "Som planerat ({min})",
+    "once.pct_min": "{pct} % ({min})",
+    "once.err_started": "Dagens körning har redan startat eller vattnat. Ändra en senare dag i stället."
   },
   "da": {
     "common.save": "Gem",
@@ -9806,9 +9834,6 @@ export const STRINGS = /*JSON-START*/ {
     "once.title": "Kun denne gang",
     "once.hint": "Ændrer kun denne vanding. Tidsplanen forbliver som den er.",
     "once.time": "Start kl.",
-    "once.minutes": "Minutter",
-    "once.as_planned": "Som planlagt",
-    "once.pct": "{pct} %",
     "once.save": "Gem ændringen",
     "once.undo": "Fortryd ændringen",
     "once.err_passed": "Det tidspunkt er allerede passeret i dag.",
@@ -9839,7 +9864,12 @@ export const STRINGS = /*JSON-START*/ {
     "set.tips_unmute": "Foreslå igen",
     "set.tips_err_range": "Indtast et tal fra {lo} til {hi}.",
     "set.tips_err_time": "Indtast et tidspunkt.",
-    "boost.planned_day": "Vander {pct} {day}."
+    "boost.planned_day": "Vander {pct} {day}.",
+    "sched.conflict_moved": "Flyttet til {time}. Ingen anden vanding på det tidspunkt.",
+    "once.length": "Varighed",
+    "once.as_planned_min": "Som planlagt ({min})",
+    "once.pct_min": "{pct} % ({min})",
+    "once.err_started": "Dagens vanding er allerede startet eller sket. Ændr en senere dag i stedet."
   },
   "nb": {
     "common.save": "Lagre",
@@ -10462,9 +10492,6 @@ export const STRINGS = /*JSON-START*/ {
     "once.title": "Bare denne gangen",
     "once.hint": "Endrer bare denne vanningen. Tidsplanen er uendret.",
     "once.time": "Start kl.",
-    "once.minutes": "Minutter",
-    "once.as_planned": "Som planlagt",
-    "once.pct": "{pct} %",
     "once.save": "Lagre endringen",
     "once.undo": "Angre endringen",
     "once.err_passed": "Det tidspunktet har allerede passert i dag.",
@@ -10495,7 +10522,12 @@ export const STRINGS = /*JSON-START*/ {
     "set.tips_unmute": "Foreslå igjen",
     "set.tips_err_range": "Skriv inn et tall fra {lo} til {hi}.",
     "set.tips_err_time": "Skriv inn et tidspunkt.",
-    "boost.planned_day": "Vanner {pct} {day}."
+    "boost.planned_day": "Vanner {pct} {day}.",
+    "sched.conflict_moved": "Flyttet til {time}. Ingen annen vanning på det tidspunktet.",
+    "once.length": "Varighet",
+    "once.as_planned_min": "Som planlagt ({min})",
+    "once.pct_min": "{pct} % ({min})",
+    "once.err_started": "Dagens vanning har allerede startet eller vannet. Endre en senere dag i stedet."
   },
   "fi": {
     "common.save": "Tallenna",
@@ -11118,9 +11150,6 @@ export const STRINGS = /*JSON-START*/ {
     "once.title": "Vain tällä kertaa",
     "once.hint": "Muuttaa vain tämän kastelun. Ajastus pysyy ennallaan.",
     "once.time": "Alkaa klo",
-    "once.minutes": "Minuutit",
-    "once.as_planned": "Kuten suunniteltu",
-    "once.pct": "{pct} %",
     "once.save": "Tallenna muutos",
     "once.undo": "Peru muutos",
     "once.err_passed": "Se aika on jo mennyt tänään.",
@@ -11151,7 +11180,12 @@ export const STRINGS = /*JSON-START*/ {
     "set.tips_unmute": "Ehdota taas",
     "set.tips_err_range": "Anna luku väliltä {lo}–{hi}.",
     "set.tips_err_time": "Anna aika.",
-    "boost.planned_day": "Kastelu {pct} {day}."
+    "boost.planned_day": "Kastelu {pct} {day}.",
+    "sched.conflict_moved": "Siirretty klo {time}. Ei muuta kastelua siihen aikaan.",
+    "once.length": "Kesto",
+    "once.as_planned_min": "Kuten suunniteltu ({min})",
+    "once.pct_min": "{pct} % ({min})",
+    "once.err_started": "Tämänpäiväinen kastelu on jo alkanut tai tehty. Muuta myöhempää päivää."
   }
 } /*JSON-END*/;
 

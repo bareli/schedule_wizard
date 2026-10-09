@@ -88,6 +88,7 @@ class WizardStore:
             "overrides": {},
             "boost": {},
             "tips": {"dismissed": [], "muted": [], "digest": {}},
+            "queue": [],
         }
         self._loaded = False
         self._pending = False
@@ -115,6 +116,7 @@ class WizardStore:
             self._data["water_total_l"] = float(data.get("water_total_l") or 0)
             self._data["overrides"] = data.get("overrides", {}) or {}
             self._data["boost"] = data.get("boost", {}) or {}
+            self._data["queue"] = [q for q in (data.get("queue") or []) if isinstance(q, dict)]
             tips = data.get("tips") or {}
             self._data["tips"] = {
                 "dismissed": list(tips.get("dismissed") or []),
@@ -197,6 +199,18 @@ class WizardStore:
             self._data["overrides"].pop(schedule_id, None)
         await self._async_save_config()
         return True
+
+    # ---- runs waiting for a free slot (max zones at once), kept across a restart (BUG-043)
+
+    @property
+    def queue(self) -> list[dict]:
+        return [dict(q) for q in self._data.get("queue") or []]
+
+    async def async_set_queue(self, entries: list[dict]) -> None:
+        self._data["queue"] = [
+            {k: q.get(k) for k in ("ref", "name", "kind", "target", "since", "base_min")} for q in entries
+        ]
+        await self.async_save()
 
     # ---- temporary boost (heat wave): {"pct": int, "from": unix, "until": unix}
 

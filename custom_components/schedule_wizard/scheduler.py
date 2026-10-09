@@ -208,6 +208,7 @@ class Scheduler:
         await self._async_restore_pending_closes()
         await self._async_restore_active_runs()
         await self._async_restore_cycles()
+        await self._async_restore_queue()
         self._arm_flow()
         self._arm_forecast()
         self._arm_daily()
@@ -725,7 +726,7 @@ class Scheduler:
 
     async def _async_trigger_valve(
         self, entity_id: str, base_min: int, source: str, ref: str, sched: Optional[dict] = None,
-        max_min: Optional[int] = None,
+        max_min: Optional[int] = None, since: Optional[int] = None,
     ) -> None:
         """Gate and start a scheduled/calendar valve run. All checks happen at fire time."""
         try:
@@ -735,7 +736,7 @@ class Scheduler:
             if self._is_valve_busy(entity_id):
                 LOG.debug("skip %s: valve %s already running", ref, entity_id)
                 return
-            if not await self._async_wait_turn(ref, self._entity_label(entity_id), "valve", entity_id, base_min):
+            if not await self._async_wait_turn(ref, self._entity_label(entity_id), "valve", entity_id, base_min, since):
                 return
             if self._is_valve_busy(entity_id):
                 LOG.debug("skip %s: valve %s started while waiting", ref, entity_id)
@@ -770,7 +771,7 @@ class Scheduler:
             LOG.warning("%s run of %s failed: %s", source, entity_id, e)
 
     async def _async_trigger_cycle(
-        self, cycle_id: str, source: str, ref: str, sched: Optional[dict] = None,
+        self, cycle_id: str, source: str, ref: str, sched: Optional[dict] = None, since: Optional[int] = None,
     ) -> None:
         try:
             cycle = self.store.get_cycle(cycle_id)
@@ -787,7 +788,7 @@ class Scheduler:
             if cycle_id in self._active_cycles:
                 LOG.debug("skip %s: cycle %s already running", ref, cycle_id)
                 return
-            if not await self._async_wait_turn(ref, cycle.get("name", cycle_id), "cycle", cycle_id, 0):
+            if not await self._async_wait_turn(ref, cycle.get("name", cycle_id), "cycle", cycle_id, 0, since):
                 return
             if cycle_id in self._active_cycles:
                 LOG.debug("skip %s: cycle %s started while waiting", ref, cycle_id)
@@ -874,7 +875,8 @@ class Scheduler:
                 jobs.add(eid)
         return len(jobs)
 
-    async def _async_wait_turn(self, ref: str, name: str, kind: str, target: str, base_min: int) -> bool:
+    async def _async_wait_turn(self, ref: str, name: str, kind: str, target: str, base_min: int,
+                               since: Optional[int] = None) -> bool:
         """Wait until fewer than max zones at once are watering; False when it gave up or is stopping.
 
         Waiting runs start oldest first. The check and the start that follows run without an await in
@@ -883,11 +885,13 @@ class Scheduler:
         limit = self._max_at_once()
         if limit <= 0 or (not self._queue and self._slots_in_use() < limit):
             return True
-        entry = {"ref": ref, "name": name, "kind": kind, "target": target, "since": int(time.time())}
+        entry = {"ref": ref, "name": name, "kind": kind, "target": target, "since": since or int(time.time()),
+                 "base_min": int(base_min)}
         self._queue.append(entry)
+        await self.store.async_set_queue(self._queue)
         LOG.info("%s waits for a free slot (%d at once)", ref, limit)
         async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
-        deadline = time.monotonic() + QUEUE_MAX_WAIT_SECONDS
+        deadline = time.monotonic() + max(0, entry["since"] + QUEUE_MAX_WAIT_SECONDS - time.time())
         try:
             while True:
                 if self._stopping:
@@ -906,7 +910,45 @@ class Scheduler:
         finally:
             if entry in self._queue:
                 self._queue.remove(entry)
+                # Stopping (restart): the stored list keeps the entry, so it waits again after the restart.
+                if not self._stopping:
+                    self.hass.async_create_task(self.store.async_set_queue(self._queue))
                 async_dispatcher_send(self.hass, SIGNAL_STATE_CHANGED)
+
+    async def _async_restore_queue(self) -> None:
+        """Runs that were waiting for a free slot when Home Assistant stopped wait again (BUG-043).
+
+        One that has waited longer than the give-up time is recorded as skipped_overlap, like a give-up.
+        Gating (rain, skips, conditions) runs again when it starts, as for any scheduled run.
+        """
+        saved = self.store.queue
+        if not saved:
+            return
+        await self.store.async_set_queue([])
+        now = int(time.time())
+        for q in saved:
+            ref = str(q.get("ref") or "")
+            target = str(q.get("target") or "")
+            kind = q.get("kind")
+            since = int(q.get("since") or now)
+            base_min = int(q.get("base_min") or 0)
+            if now - since >= QUEUE_MAX_WAIT_SECONDS:
+                await self.store.async_record_run(
+                    target, "schedule" if ref.startswith("schedule:") else "calendar",
+                    base_min if kind == "valve" else 0, "skipped_overlap", f"{ref}|queue_timeout",
+                )
+                continue
+            sched = self.store.get_schedule(ref[9:]) if ref.startswith("schedule:") else None
+            source = "schedule" if sched else "calendar"
+            if ref.startswith("schedule:") and sched is None:
+                continue  # the schedule was deleted meanwhile
+            if kind == "cycle":
+                coro = self._async_trigger_cycle(target, source, ref, sched, since=since)
+            else:
+                coro = self._async_trigger_valve(target, base_min, source, ref, sched,
+                                                 max_min=None if sched else self.external_cap(), since=since)
+            LOG.info("%s waits for a free slot again after the restart", ref)
+            self.hass.async_create_background_task(coro, f"{DOMAIN}_{ref}_restored")
 
     @staticmethod
     def _is_rain_exempt(valve: Optional[dict]) -> bool:
@@ -2308,11 +2350,12 @@ class Scheduler:
                 tip_id = f"{kind}:{day}"
                 if kind in muted or tip_id in dismissed or not runs_for:
                     return
-                liters = sum(self._run_liters(r) for r in runs_for)
+                liters = sum(self._run_liters(r) * self.boost_factor(r["start"]) for r in runs_for)
+                minutes = sum(planner.scale_pct(r["minutes"], round(self.boost_factor(r["start"]) * 100)) for r in runs_for)
                 out.append({
                     "id": tip_id, "kind": kind, "day": day, "today": offset == 0,
                     "runs": [{"schedule_id": r["schedule_id"], "name": r["name"], "start": r["start"], "minutes": r["minutes"]} for r in runs_for],
-                    "minutes": sum(r["minutes"] for r in runs_for),
+                    "minutes": minutes,
                     "liters": round(liters, 1) if liters else None,
                     "weather": w,
                     **extra,
@@ -2355,14 +2398,15 @@ class Scheduler:
         if day_d < today:
             raise ValueError("that day has passed")
         tip = next((t for t in self.tips() if t["id"] == tip_id), None)
+        if tip is None:
+            # No current tip (forged action, old notification, already applied): change nothing, so an active
+            # boost is never replaced by one nobody was offered (SEC-011).
+            raise ValueError("nothing to change")
         if kind == "heat":
-            pct = tip["pct"] if tip else self.boost_pct_option()
             start = dt_util.start_of_local_day(day_d)
-            await self.store.async_set_boost(pct, int(start.timestamp()), int((start + timedelta(days=1)).timestamp()))
-            n = len(tip["runs"]) if tip else 0
+            await self.store.async_set_boost(tip["pct"], int(start.timestamp()), int((start + timedelta(days=1)).timestamp()))
+            n = len(tip["runs"])
         else:
-            if tip is None:
-                raise ValueError("nothing to change")
             for r in tip["runs"]:
                 await self.store.async_add_skip(r["schedule_id"], day)
             n = len(tip["runs"])

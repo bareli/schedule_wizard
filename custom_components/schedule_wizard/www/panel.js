@@ -407,7 +407,7 @@ pre { background: var(--sw-bg); padding: 10px; border-radius: 6px; font-size: 12
 .tl-now { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--sw-warn); pointer-events: none; }
 .tl-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--sw-muted); }
 .tl-key { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: middle; margin-inline-end: 4px; background: var(--sw-primary-fill); }
-.tl-key.clash { background: var(--sw-danger-fill); }
+.tl-key.clash { background: var(--sw-danger-fill); color: #fff; font-size: 9px; line-height: 12px; text-align: center; }
 .conflict { margin: -4px 0 12px; padding: 8px 10px; border: 1px solid var(--sw-warn); border-radius: 8px; font-size: 13px; display: grid; gap: 6px; }
 .conflict .muted { font-size: 12px; }
 .once { display: grid; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--sw-border); }
@@ -519,6 +519,15 @@ function ltr(text) {
 // Isolate user-provided labels (direction auto-detected).
 function iso(text) {
   return el("bdi", {}, String(text == null ? "" : text));
+}
+
+// A number with its unit inside a sentence or an <option>, as a Unicode isolate (UX-021): first-strong for
+// "30 °C" / "302 ליטר", left-to-right for signed percents, so Hebrew never reorders "+30 %" into "% 30+".
+function fsi(text) {
+  return `\u2068${text == null ? "" : text}\u2069`;
+}
+function lri(text) {
+  return `\u2066${text == null ? "" : text}\u2069`;
 }
 
 // Plain-text label for <option> (no child nodes allowed): isolate label and entity id with Unicode isolates.
@@ -816,7 +825,7 @@ class ScheduleWizardPanel extends HTMLElement {
   // Litres below 1000, cubic metres (1 decimal) from there on.
   _fmtLiters(liters) {
     const l = Math.max(0, Number(liters) || 0);
-    return l < 999.5 ? this._t("water.l", { n: this._fmtNum(l) }) : this._t("water.m3", { n: this._fmtNum(l / 1000, 1) });
+    return fsi(l < 999.5 ? this._t("water.l", { n: this._fmtNum(l) }) : this._t("water.m3", { n: this._fmtNum(l / 1000, 1) }));
   }
 
   _fmtLpm(lpm) { return this._t("water.lpm", { n: this._fmtNum(lpm, Number(lpm) < 10 ? 1 : 0) }); }
@@ -1627,7 +1636,7 @@ class ScheduleWizardPanel extends HTMLElement {
             title: label,
             "aria-label": `${x.label}: ${label}`,
             onClick: () => this._openRunModal(x.run),
-          }, this._t("unit.min", { n: x.minutes })));
+          }, (x.clash ? "\u26a0\ufe0e " : "") + this._t("unit.min", { n: x.minutes })));
         });
         wrap.appendChild(el("div", { class: "tl-row" }, [el("div", { class: "tl-name" }, iso(this._valveName(entity).textContent || entity)), lane]));
       });
@@ -1635,7 +1644,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const anyClash = segs.some(x => x.clash);
     wrap.appendChild(el("div", { class: "tl-legend" }, [
       el("span", {}, [el("span", { class: "tl-key" }), this._t("week.legend_run")]),
-      el("span", {}, [el("span", { class: "tl-key clash" }), this._t("week.legend_clash")]),
+      el("span", {}, [el("span", { class: "tl-key clash", "aria-hidden": "true" }, "\u26a0\ufe0e"), this._t("week.legend_clash")]),
     ]));
     if (anyClash) {
       const limit = parseInt((this._state.options || {}).max_zones_at_once, 10) || 0;
@@ -1690,12 +1699,17 @@ class ScheduleWizardPanel extends HTMLElement {
       const timeIn = el("input", { type: "time", value: curTime });
       const pctSel = el("select", {});
       const curPct = r.override ? Number(r.override.pct) : 100;
+      const baseMin = Number(r.base_minutes) || Number(r.minutes) || 0;
+      const minsAt = (p) => this._t("unit.min", { n: Math.max(1, Math.round(baseMin * p / 100)) });
       [50, 75, 100, 125, 150, 200].concat([curPct].filter(p => ![50, 75, 100, 125, 150, 200].includes(p))).sort((a, b) => a - b).forEach(p => {
-        const opt = el("option", { value: String(p) }, p === 100 ? this._t("once.as_planned") : this._t("once.pct", { pct: this._fmtNum(p) }));
+        const opt = el("option", { value: String(p) }, p === 100
+          ? this._t("once.as_planned_min", { min: minsAt(100) })
+          : this._t("once.pct_min", { pct: this._fmtNum(p), min: minsAt(p) }));
         if (p === curPct) opt.selected = true;
         pctSel.appendChild(opt);
       });
       const onceErr = el("div", { class: "field-error", id: uid("sw-once-err"), role: "alert", hidden: true });
+      timeIn.addEventListener("input", () => { if (!onceErr.hidden) setFieldError(onceErr, timeIn, ""); });
       const saveOnce = async () => {
         const t = /^\d{2}:\d{2}$/.test(timeIn.value) ? timeIn.value : "";
         const payload = { schedule_id: r.schedule_id, date: r.day, percent: parseInt(pctSel.value, 10) || 100 };
@@ -1705,7 +1719,9 @@ class ScheduleWizardPanel extends HTMLElement {
           await this._hass.callService("schedule_wizard", "set_override", payload);
         } catch (e) {
           const msg = String((e && (e.message || e.code)) || e);
-          setFieldError(onceErr, timeIn, /passed/.test(msg) ? this._t("once.err_passed") : msg);
+          setFieldError(onceErr, timeIn, /already started/.test(msg) ? this._t("once.err_started")
+            : /passed/.test(msg) ? this._t("once.err_passed") : msg);
+          timeIn.focus();
           return;
         }
         this._toast(this._t("common.done"), "ok");
@@ -1717,7 +1733,7 @@ class ScheduleWizardPanel extends HTMLElement {
         el("p", { class: "muted small", style: "margin:0;" }, this._t("once.hint")),
         el("div", { class: "field-row" }, [
           el("label", { class: "field", style: "margin:0;" }, [el("span", {}, this._t("once.time")), timeIn]),
-          el("label", { class: "field", style: "margin:0;" }, [el("span", {}, this._t("once.minutes")), pctSel]),
+          el("label", { class: "field", style: "margin:0;" }, [el("span", {}, this._t("once.length")), pctSel]),
         ]),
         onceErr,
         el("div", { class: "actions" }, [
@@ -1940,7 +1956,7 @@ class ScheduleWizardPanel extends HTMLElement {
 
   _signedPct(pct) {
     const n = parseInt(pct, 10) || 0;
-    return (n > 0 ? "+" : n < 0 ? "\u2212" : "") + this._fmtNum(Math.abs(n)) + "\u00a0%";
+    return lri((n > 0 ? "+" : n < 0 ? "\u2212" : "") + this._fmtNum(Math.abs(n)) + "\u00a0%");
   }
 
   _boostCard() {
@@ -2000,7 +2016,7 @@ class ScheduleWizardPanel extends HTMLElement {
   _fmtTemp(c) {
     const n = Number(c);
     if (c === null || c === undefined || isNaN(n)) return "";
-    return this._isF() ? `${this._fmtNum(n * 9 / 5 + 32)}\u00a0°F` : `${this._fmtNum(n)}\u00a0°C`;
+    return lri(this._isF() ? `${this._fmtNum(n * 9 / 5 + 32)}\u00a0°F` : `${this._fmtNum(n)}\u00a0°C`);
   }
 
   _tipsCard() {
@@ -2142,7 +2158,7 @@ class ScheduleWizardPanel extends HTMLElement {
         ? `${this._fmtTemp(Math.round(d.max_c))} / ${this._fmtTemp(Math.round(d.min_c))}`
         : this._fmtTemp(Math.round(d.max_c)));
     }
-    if (d.mm) parts.push(this._t("week.rain_mm", { mm: this._fmtNum(d.mm, 1) }));
+    if (d.mm) parts.push(fsi(this._t("week.rain_mm", { mm: this._fmtNum(d.mm, 1) })));
     return parts.length ? joinParts(parts, " · ") : null;
   }
 
@@ -3186,6 +3202,7 @@ class ScheduleWizardPanel extends HTMLElement {
     // Other runs this one would water at the same time as, in the next 14 days (v0.16.0); a warning, not a block.
     const conflictBox = el("div", { "aria-live": "polite" });
     let conflictSeq = 0;
+    let movedTo = "";
     let conflictTimer = null;
     function queueConflictCheck() {
       clearTimeout(conflictTimer);
@@ -3218,7 +3235,13 @@ class ScheduleWizardPanel extends HTMLElement {
         if (seq !== conflictSeq) return;
         conflictBox.innerHTML = "";
         const list = (res && res.conflicts) || [];
-        if (!list.length) return;
+        if (!list.length) {
+          // After "Move to": say the overlap is gone instead of only clearing the box (BUG-039).
+          if (movedTo) conflictBox.appendChild(el("div", { class: "muted small", style: "margin:-4px 0 12px;" }, this._t("sched.conflict_moved", { time: this._fmtClock(movedTo) })));
+          movedTo = "";
+          return;
+        }
+        movedTo = "";
         const names = list.map(c => `${c.name} (${this._fmtWhen(c.start)})`).join(", ");
         const box = el("div", { class: "conflict" }, [el("div", {}, this._t("sched.conflict", { names }))]);
         if (res.suggestion && timeMode === "clock") {
@@ -3227,6 +3250,9 @@ class ScheduleWizardPanel extends HTMLElement {
             onClick: () => {
               timeInput.value = res.suggestion;
               time = res.suggestion;
+              movedTo = res.suggestion;
+              // The button goes away with the warning: keep keyboard focus on the field it changed.
+              timeInput.focus();
               updateFirstRun();
             },
           }, this._t("sched.conflict_move", { time: this._fmtClock(res.suggestion) }))));
@@ -4399,7 +4425,7 @@ class ScheduleWizardPanel extends HTMLElement {
     maxAtOnce.value = String([0, 1, 2, 3].includes(parseInt(opts.max_zones_at_once, 10)) ? parseInt(opts.max_zones_at_once, 10) : 0);
     const maxAtOnceValue = () => parseInt(maxAtOnce.value, 10) || 0;
     const isF = this._isF();
-    const tUnit = isF ? "°F" : "°C";
+    const tUnit = lri(isF ? "°F" : "°C");
     const fromC = (c) => (isF ? c * 9 / 5 + 32 : c);
     const toC = (v) => (isF ? (v - 32) * 5 / 9 : v);
     const tipNum = (v, d) => String(Math.round((v === null || v === undefined || v === "" ? d : Number(v)) * 10) / 10);
@@ -4423,7 +4449,7 @@ class ScheduleWizardPanel extends HTMLElement {
     const tipsRain = numIn(tipNum(opts.tips_rain_mm, 5), 0.5, 200, 0.5);
     const tipsProb = numIn(tipNum(opts.tips_rain_prob, 60), 0, 100, 5);
     const tipsBoost = el("select", {});
-    [10, 20, 30, 50].forEach(p => tipsBoost.appendChild(el("option", { value: String(p) }, ltr(this._signedPct(p)))));
+    [10, 20, 30, 50].forEach(p => tipsBoost.appendChild(el("option", { value: String(p) }, this._signedPct(p))));
     tipsBoost.value = String([10, 20, 30, 50].includes(parseInt(opts.tips_boost_pct, 10)) ? parseInt(opts.tips_boost_pct, 10) : 30);
     const tipsDigest = el("input", { type: "time", value: /^\d{2}:\d{2}$/.test(String(opts.tips_digest_time || "")) ? opts.tips_digest_time : "19:00" });
     const tipsErr = {};

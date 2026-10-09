@@ -1231,6 +1231,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             raise HomeAssistantError("the schedule has no run on that date")
         new_time = call.data.get("time") or ""
         if day == today:
+            # Today's run already watered (or was skipped) at its time: moving it later would water twice (BUG-042).
+            ran_at = planner.run_at(store, sched, day, hass)
+            if ran_at is not None and ran_at <= dt_util.now():
+                raise HomeAssistantError("today's run has already started")
             if new_time:
                 hh, mm = (int(x) for x in new_time.split(":"))
                 when = dt_util.now().replace(hour=hh, minute=mm, second=0, microsecond=0)
@@ -1248,6 +1252,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         now = dt_util.now()
         if start_day is not None and start_day < now.date():
             raise HomeAssistantError("date has passed")
+        if start_day is not None and start_day > now.date() + _timedelta(days=planner.NEXT_RUN_DAYS):
+            raise HomeAssistantError(f"start_date must be within {planner.NEXT_RUN_DAYS} days")
         first = start_day or now.date()
         start = now if start_day is None else dt_util.start_of_local_day(first)
         until = dt_util.start_of_local_day(first + _timedelta(days=call.data["days"]))
