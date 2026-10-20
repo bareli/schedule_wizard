@@ -17,3 +17,6 @@ venv/
 Thumbs.db
 !qa/CLAUDE.md
 .playwright-mcp/
+
+# MkDocs build output
+site/

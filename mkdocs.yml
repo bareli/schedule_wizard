@@ -1,0 +1,103 @@
+site_name: Schedule Wizard
+site_description: Calendar and time-driven scheduler for irrigation valves, switches, lights and covers in Home Assistant.
+site_url: https://bareli.github.io/schedule_wizard/
+repo_url: https://github.com/bareli/schedule_wizard
+repo_name: bareli/schedule_wizard
+edit_uri: edit/main/docs/
+docs_dir: docs
+exclude_docs: |
+  FORUM_POST.md
+  GIF_RECORDING.md
+
+hooks:
+  - hooks/docs_hooks.py
+
+theme:
+  name: material
+  logo: assets/icon.png
+  favicon: assets/icon.png
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.top
+    - navigation.sections
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+
+plugins:
+  - search
+  - i18n:
+      docs_structure: suffix
+      fallback_to_default: true
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+        - locale: he
+          name: עברית
+          build: true
+          site_name: Schedule Wizard
+          theme:
+            language: he
+            palette:
+              - media: "(prefers-color-scheme: light)"
+                scheme: default
+                primary: teal
+                accent: teal
+                toggle:
+                  icon: material/brightness-7
+                  name: מעבר למצב כהה
+              - media: "(prefers-color-scheme: dark)"
+                scheme: slate
+                primary: teal
+                accent: teal
+                toggle:
+                  icon: material/brightness-4
+                  name: מעבר למצב בהיר
+          nav_translations:
+            Home: בית
+            Install: התקנה
+            Usage: שימוש
+            Features: יכולות
+            Reference: מדריך עזר
+            Troubleshooting: פתרון בעיות
+            Changelog: יומן שינויים
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+  - attr_list
+
+extra_css:
+  - assets/extra.css
+
+nav:
+  - Home: index.md
+  - Install: install.md
+  - Usage: usage.md
+  - Features: features.md
+  - Reference: reference.md
+  - Troubleshooting: troubleshooting.md
+  - Changelog: changelog.md

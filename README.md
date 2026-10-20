@@ -4,6 +4,8 @@
 [![Validate](https://github.com/bareli/schedule_wizard/actions/workflows/validate.yml/badge.svg)](https://github.com/bareli/schedule_wizard/actions/workflows/validate.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+Documentation (English and Hebrew): https://bareli.github.io/schedule_wizard/
+
 Home Assistant **custom integration** that runs a scheduler for irrigation valves, switches, lights, and covers. Triggers entities on recurring schedules or from calendar events, auto-closes after the configured duration, survives HA restarts. Works on every HA install type (HAOS, Supervised, Container, Core).
 
 ![Schedule Wizard: setup wizard, Home, week view, Hebrew right-to-left](docs/demo.gif)

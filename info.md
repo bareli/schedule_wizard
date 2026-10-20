@@ -1,5 +1,7 @@
 # Schedule Wizard
 
+Documentation (English and Hebrew): https://bareli.github.io/schedule_wizard/
+
 Calendar and time-driven scheduler for irrigation valves, switches, lights, and covers.
 
 ## Features
