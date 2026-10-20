@@ -173,6 +173,9 @@ Pick one or more `notify.*` services in Settings → Notifications, then tick wh
 
 ## Lovelace card
 
+![Schedule Wizard Lovelace card showing the running zone and quick Water now buttons](assets/screens/card.png)
+
+
 The card is registered automatically. Add it from the card picker, or in YAML:
 
 ```yaml

@@ -13,7 +13,7 @@ The first time you open the panel, **Start setup** walks you through four short 
 
 It creates the zones, the plan and its schedule. Run it again any time with **+ New watering plan**.
 
-![Setup wizard](screenshots/panel-wizard.png)
+![Setup wizard, step 2: choose days, start time and minutes per zone](assets/screens/wizard.png)
 
 ## Home
 
@@ -26,7 +26,7 @@ One status card at the top: watering now (with time left and Stop), paused for r
 
 A run started with **Water now** reads "manual (Water now)"; one started by an automation reads "service".
 
-![Home](screenshots/panel-home.png)
+![Home tab: a plan watering now, zone cards and the week view](assets/screens/home.png)
 
 ## This week, overlaps and timeline
 
@@ -43,13 +43,13 @@ Runs that water at the same time are marked red, because zones watering together
 
 Every zone with its schedule written out, for example "Mon, Thu at 06:00 · 10 min". Edit a zone (name, minutes, indoor, split long runs, its own moisture sensor, flow rate) and add or change its times.
 
-![Zones](screenshots/panel-zones.png)
+![Zones tab with each zone and its schedule](assets/screens/zones.png)
 
 ## Plans
 
 Your watering plans, with the zones in order. Each plan has **Run now**, Pause and Stop, **Edit plan** and **Delete plan**. Its **Watering times** are listed below, each with Skip next, on/off, **Edit time** and **Delete time**.
 
-![Watering plans](screenshots/panel-programs.png)
+![Plans tab: a watering plan with its zones and watering times](assets/screens/plans.png)
 
 ## Every N days
 
@@ -70,6 +70,6 @@ Opened from Home: a 30-day daily-minutes chart, totals per zone and plan, skip r
 
 Three essentials: rain sensor, notifications and calendar. Everything else is under **More options**, one group per feature with a one-line explanation: hot-weather adjustment, wet-soil skip, main valve or pump, leak alerts, open-check, watering at the same time, calendar fine-tuning, rain details, weather tips, voice commands and the webhook.
 
-![Settings](screenshots/panel-settings.png)
+![Settings tab: rain sensor, notifications and calendar essentials](assets/screens/settings.png)
 
 The Home Assistant **Configure** dialog (Settings → Devices & Services → Schedule Wizard → Configure) edits the basic options and does not wipe the advanced settings made in the panel. Settings apply live and do not interrupt a running plan.

@@ -173,6 +173,9 @@ curl -X POST https://<your-ha-url>/api/webhook/<WEBHOOK_ID> \
 
 ## כרטיס Lovelace
 
+![כרטיס Lovelace של Schedule Wizard עם האזור הפעיל וכפתורי השקיה מהירה](assets/screens/card.he.png)
+
+
 הכרטיס נרשם אוטומטית. מוסיפים אותו מבורר הכרטיסים, או ב-YAML:
 
 ```yaml
