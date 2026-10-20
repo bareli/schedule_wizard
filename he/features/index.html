@@ -1,0 +1,1376 @@
+
+<!doctype html>
+<html lang="he" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Calendar and time-driven scheduler for irrigation valves, switches, lights and covers in Home Assistant.">
+      
+      
+      
+        <link rel="canonical" href="https://bareli.github.io/schedule_wizard/he/features/">
+      
+      
+        <link rel="prev" href="../usage/">
+      
+      
+        <link rel="next" href="../reference/">
+      
+      
+        
+          <link rel="alternate" href="../../features/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="he">
+        
+      
+      
+      <link rel="icon" href="../../assets/icon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>יכולות - Schedule Wizard</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="rtl" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="teal">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#_1" class="md-skip">
+          לדלג לתוכן
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="כותרת עליונה">
+    <a href="../" title="Schedule Wizard" class="md-header__button md-logo" aria-label="Schedule Wizard" data-md-component="logo">
+      
+  <img src="../../assets/icon.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Schedule Wizard
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              יכולות
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="teal"  aria-label="מעבר למצב כהה"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="מעבר למצב כהה" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="teal"  aria-label="מעבר למצב בהיר"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="מעבר למצב בהיר" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="בחירת שפה">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../features/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="he" class="md-select__link">
+              עברית
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="חיפוש" placeholder="חיפוש" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="חיפוש">
+        
+        <button type="reset" class="md-search__icon md-icon" title="ניקוי" aria-label="ניקוי" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            אתחול חיפוש
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/bareli/schedule_wizard" title="לעבור אל המאגר" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bareli/schedule_wizard
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="לשוניות" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  בית
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../install/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  התקנה
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../usage/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  שימוש
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  יכולות
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../reference/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  מדריך עזר
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../troubleshooting/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  פתרון בעיות
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../changelog/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  יומן שינויים
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="ניווט" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../" title="Schedule Wizard" class="md-nav__button md-logo" aria-label="Schedule Wizard" data-md-component="logo">
+      
+  <img src="../../assets/icon.png" alt="logo">
+
+    </a>
+    Schedule Wizard
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/bareli/schedule_wizard" title="לעבור אל המאגר" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bareli/schedule_wizard
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    בית
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    התקנה
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    שימוש
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    יכולות
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    יכולות
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="תוכן העניינים">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      תוכן העניינים
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        הפעלה לפי יומן
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        דילוגים והתאמות
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="דילוגים והתאמות">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        השהיית גשם
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        חיישן גשם
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        תחזית גשם
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        לחות קרקע
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        התאמה לטמפרטורה
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        תנאים ללוח זמנים
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        טיפים לפי מזג האוויר
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        תוכניות השקיה והשקיה וספיגה
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        הגנות
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        צריכת מים
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#webhook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Webhook
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#assist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        שליטה בקול (Assist)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_14" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        התראות
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lovelace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        כרטיס Lovelace
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    מדריך עזר
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    פתרון בעיות
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    יומן שינויים
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="תוכן העניינים">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      תוכן העניינים
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        הפעלה לפי יומן
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        דילוגים והתאמות
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="דילוגים והתאמות">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        השהיית גשם
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        חיישן גשם
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        תחזית גשם
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        לחות קרקע
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_8" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        התאמה לטמפרטורה
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_9" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        תנאים ללוח זמנים
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        טיפים לפי מזג האוויר
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        תוכניות השקיה והשקיה וספיגה
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        הגנות
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_13" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        צריכת מים
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#webhook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Webhook
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#assist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        שליטה בקול (Assist)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_14" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        התראות
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lovelace" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        כרטיס Lovelace
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/bareli/schedule_wizard/edit/main/docs/features.he.md" title="עריכת הדף הזה" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="_1">יכולות<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<h2 id="_2">הפעלה לפי יומן<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p>בוחרים יומן בהגדרות. אירוע מפעיל אזור או תוכנית כשה<strong>כותרת</strong> שלו מכילה את שם האזור או התוכנית כמילים שלמות (אותיות גדולות וקטנות לא משנות). נקראת רק הכותרת, אף פעם לא התיאור, המיקום או המוזמנים.</p>
+<table>
+<thead>
+<tr>
+<th>כותרת האירוע, לאזור בשם <code>Front lawn</code></th>
+<th>מפעיל את האזור?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Front lawn</code></td>
+<td>כן</td>
+</tr>
+<tr>
+<td><code>Front Lawn morning cycle</code></td>
+<td>כן</td>
+</tr>
+<tr>
+<td><code>Front lawns</code></td>
+<td>לא (חלק ממילה ארוכה יותר)</td>
+</tr>
+<tr>
+<td><code>Garden zone 1</code></td>
+<td>לא</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>שם של תו אחד או שני תווים מתאים רק לאירוע שכל הכותרת שלו היא השם הזה בדיוק.</li>
+<li><strong>תיאור האירוע</strong>: מספר הדקות, כתוב <code>15 min</code>, <code>15 minutes</code> או <code>15 דקות</code>, או פשוט המספר <code>15</code>. מספרים אחרים (כמו "Zone 2") לא נחשבים. בלי דקות, נלקח אורך האירוע, ואחריו ברירת המחדל של האזור.</li>
+<li><strong>מילת מפתח ליומן</strong> (הגדרות ← אפשרויות נוספות ← כוונון לוח השנה): כשהיא מוגדרת, למשל <code>water:</code>, רק אירועים שהכותרת שלהם מתחילה בה נספרים, ומחפשים את השם בהמשך הכותרת.</li>
+<li><strong>ההשקיה הארוכה ביותר מיומן או מ-webhook</strong> (ברירת מחדל 120 דקות): אירוע ארוך יותר מתקצר לערך הזה.</li>
+<li>אירועי יום שלם מתעלמים מהם. מחיקה או הזזה של אירוע מבטלת את ההשקיה הממתינה שלו.</li>
+<li>השהיית גשם, דילוג בגשם, דילוג לפי לחות והתאמה לטמפרטורה נבדקים ברגע שהאירוע מתחיל.</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">אזהרה</p>
+<p>כל מי שיכול להוסיף אירוע ליומן שנבחר יכול להפעיל השקיה. אם היומן מאשר הזמנות אוטומטית (Google, Outlook, CalDAV), כדאי להקצות יומן ייעודי להשקיה.</p>
+</div>
+<h2 id="_3">דילוגים והתאמות<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<p>השהיית גשם, דילוג בגשם, דילוג לפי לחות, תנאים והתאמה לטמפרטורה חלים על השקיות מתוזמנות ועל השקיות מיומן. הפעלה ידנית (<strong>השקה עכשיו</strong>) לא מושפעת.</p>
+<h3 id="_4">השהיית גשם<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
+<p>במסך הבית לוחצים <strong>24 שעות</strong>, <strong>48 שעות</strong> או <strong>7 ימים</strong> ובוחרים אם זה חל על כל האזורים או על אזור אחד. השקיות מתוזמנות והשקיות מיומן מדולגות עד שהטיימר מסתיים; הכרטיס מציג את הזמן שנותר וכפתור לניקוי.</p>
+<p>אזור שסומן <strong>פנימי</strong> (<code>rain_exempt: true</code> ב-<code>add_valve</code>) לא מושפע מהשהיית גשם כללית ומדילוג בגשם. תוכנית שמערבבת אזורים פנימיים וחיצוניים ממשיכה לרוץ בזמן השהיה כללית: האזורים הפנימיים מושקים והחיצוניים מדולגים.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">schedule_wizard.set_rain_delay</span>
+<span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">hours</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">48</span>
+<span class="w">  </span><span class="nt">entity_id</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">switch.zone_front_lawn</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">switch.zone_back_lawn</span>
+</code></pre></div>
+<h3 id="_5">חיישן גשם<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h3>
+<p>בוחרים בהגדרות ישות מזג אוויר, חיישן גשם או חיישן אחר. שלושה מצבים נבדקים לפי הסדר הזה:</p>
+<ol>
+<li><strong>תכונה וסף</strong>: קורא את התכונה (attribute) ומדלג כשהיא שווה לסף או גבוהה ממנו.</li>
+<li><strong>סף בלבד</strong>: קורא את המצב כמספר ומדלג כשהוא שווה לסף או גבוה ממנו.</li>
+<li><strong>מצבי דילוג</strong>: מדלג כשהמצב תואם אחד מהרשימה (ברירת מחדל <code>rainy,pouring,snowy,lightning-rainy</code>). גם <code>binary_sensor</code> נחשב לגשם כשהוא במצב <code>on</code>.</li>
+</ol>
+<p>סף 0 או ריק מכבה את המצבים המספריים. הלוח מציג מה נחשב לגשם, מה המקור מדווח כרגע, והאם ההשקיה הייתה מדולגת עכשיו.</p>
+<h3 id="_6">תחזית גשם<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h3>
+<p>הגדרות ← אפשרויות נוספות ← <strong>דילוג כשצפוי גשם</strong>. בוחרים ישות מזג אוויר שמספקת תחזית, כמות במ״מ וכמה זמן קדימה להסתכל (6, 12, 24 או 48 שעות). התחזית מתרעננת כל 30 דקות; אם אי אפשר לקרוא אותה במשך 3 שעות, לא מדלגים על כלום. אזורים פנימיים והפעלה ידנית אף פעם לא מדולגים.</p>
+<h3 id="_7">לחות קרקע<a class="headerlink" href="#_7" title="Permanent link">&para;</a></h3>
+<p>מגדירים בהגדרות חיישן לחות כללי וסף (מדלגים כשהערך שווה לסף או גבוה ממנו). לאזור אפשר לתת חיישן משלו שגובר על הכללי; בתוך תוכנית כל שלב בודק את האזור שלו.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">schedule_wizard.add_valve</span>
+<span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">entity_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">switch.zone_flower_bed</span>
+<span class="w">  </span><span class="nt">label</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Flower bed</span>
+<span class="w">  </span><span class="nt">moisture_entity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sensor.flower_bed_moisture</span>
+<span class="w">  </span><span class="nt">moisture_threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">45</span>
+</code></pre></div>
+<h3 id="_8">התאמה לטמפרטורה<a class="headerlink" href="#_8" title="Permanent link">&para;</a></h3>
+<p>משנה את אורך ההשקיות המתוזמנות וההשקיות מיומן בין טמפרטורה נמוכה לגבוהה, בהגבלה לאחוז מינימום ומקסימום. משתמשים בחיישן טמפרטורה, או בישות מזג אוויר עם התכונה <code>temperature</code>.</p>
+<p>דוגמה: טמפרטורה 18 מעלות, נמוכה 10, גבוהה 30, מינימום 50 אחוז, מקסימום 120 אחוז נותנת <code>50 + (18 - 10) / (30 - 10) x (120 - 50) = 78</code> אחוז, ולכן השקיה של 10 דקות נמשכת 8 דקות.</p>
+<p>בגורם של <strong>0 אחוז</strong> ההשקיה מדולגת (<code>skipped_seasonal_zero</code>). כל גורם גבוה מ-0 עדיין משקה לפחות דקה אחת. במצב כזה מסך הבית מציג "השקיה מתוזמנת מושהית: קריר מדי".</p>
+<h3 id="_9">תנאים ללוח זמנים<a class="headerlink" href="#_9" title="Permanent link">&para;</a></h3>
+<p>לוח זמנים יכול לשאת עד 10 תנאים; כולם חייבים להתקיים ברגע ההפעלה, אחרת ההשקיה מדולגת (<code>skipped_condition</code>). ישות לא זמינה נכשלת בתנאי שלה.</p>
+<table>
+<thead>
+<tr>
+<th>שדה</th>
+<th>משמעות</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>entity_id</code></td>
+<td>כל ישות.</td>
+</tr>
+<tr>
+<td><code>attribute</code></td>
+<td>אופציונלי; משווים תכונה במקום המצב.</td>
+</tr>
+<tr>
+<td><code>operator</code></td>
+<td><code>above</code>, <code>below</code> (מספרי), <code>equals</code>, <code>not_equals</code> (מספרי או טקסט ללא הבחנה בין אותיות גדולות לקטנות).</td>
+</tr>
+<tr>
+<td><code>value</code></td>
+<td>הערך להשוואה.</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">schedule_wizard.add_schedule</span>
+<span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">valve_entity_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">switch.zone_lawn</span>
+<span class="w">  </span><span class="nt">time</span><span class="p">:</span><span class="w"> </span><span class="s">"05:30"</span>
+<span class="w">  </span><span class="nt">days</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">mon</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">wed</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">fri</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">duration_minutes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">  </span><span class="nt">conditions</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">entity_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sensor.outdoor_temperature</span>
+<span class="w">      </span><span class="nt">operator</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">above</span>
+<span class="w">      </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">12</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">entity_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">input_boolean.vacation_mode</span>
+<span class="w">      </span><span class="nt">operator</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">equals</span>
+<span class="w">      </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">"off"</span>
+</code></pre></div>
+<h3 id="_10">טיפים לפי מזג האוויר<a class="headerlink" href="#_10" title="Permanent link">&para;</a></h3>
+<p>כשיש ישות מזג אוויר עם תחזית יומית, מסך הבית מציג טיפים להיום ולמחר, לכל אחד כפתור אחד:</p>
+<ul>
+<li><strong>גשם</strong> (מ-5 מ״מ ו-60 אחוז סיכוי): לדלג על ההשקיות החיצוניות של אותו יום.</li>
+<li><strong>יום חם</strong> (מ-32 מעלות): להשקות 30 אחוז יותר באותו יום.</li>
+<li><strong>כפור</strong> (1 עד 2 מעלות ומטה): לדלג על ההשקיות שלפני 10:00.</li>
+</ul>
+<p>יש טיפ אחד ביום; גשם קודם וכולל גם כפור. <strong>לא עכשיו</strong> מסתיר טיפ, ו<strong>לא להציע</strong> עוצר סוג שלם של טיפים. הטיפים רק מציעים; שום דבר לא משתנה עד שלוחצים על כפתור. הספים נמצאים בהגדרות ← אפשרויות נוספות ← <strong>טיפים לפי מזג האוויר</strong>. כדי לקבל את הטיפים בערב שלפני כהתראה עם כפתורים, מסמנים <strong>טיפים לפי מזג האוויר (בערב)</strong> תחת <strong>שליחת התראה כש</strong>.</p>
+<h2 id="_11">תוכניות השקיה והשקיה וספיגה<a class="headerlink" href="#_11" title="Permanent link">&para;</a></h2>
+<p>תוכנית מפעילה את האזורים שלה לפי הסדר. לכל אזור אפשר להגדיר <strong>זמן הפעלה מרבי (דק׳)</strong> ו<strong>הפסקת ספיגה (דק׳)</strong>, כדי לפצל השקיות ארוכות למקטעים ולתת למים לחלחל. השקיה של 10 דקות עם מקסימום 4 והפסקה 3 רצה כך: 4, הפסקה 3, 3, הפסקה 3, 3. בתוך תוכנית, האזור הבא מושקה בזמן שאחד מחלחל. כיבוי: הגדרות ← אפשרויות נוספות ← <strong>השקיה וספיגה חכמה</strong>.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">schedule_wizard.add_valve</span>
+<span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">entity_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">switch.zone_slope</span>
+<span class="w">  </span><span class="nt">label</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Slope</span>
+<span class="w">  </span><span class="nt">default_duration_minutes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">12</span>
+<span class="w">  </span><span class="nt">soak_run_minutes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">  </span><span class="nt">soak_pause_minutes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+</code></pre></div>
+<p>אפשר להפעיל תוכנית, להשהות, להמשיך ולעצור מהלוח או בשירותים. תוכנית שהופסקה בגלל הפעלה מחדש ממשיכה באזור הבא אם Home Assistant חזר תוך 30 דקות מהרגע שבו האזור הנוכחי היה אמור להסתיים.</p>
+<h2 id="_12">הגנות<a class="headerlink" href="#_12" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>ברז ראשי או משאבה</strong>: נפתח לפני כל אזור ונסגר אחרי שהאזור האחרון והתוכנית מסתיימים; אפשר להגדיר השהיה בשניות לפני הפתיחה. חייב להיות מפסק, ברז, תאורה, תריס או input_boolean.</li>
+<li><strong>בדיקת פתיחה</strong>: אחרי שהברז מקבל פקודת הפעלה, מחכים עד N שניות שידווח שהוא פתוח. אם לא, נרשמת שגיאה, נשלח האירוע <code>schedule_wizard_valve_failed_to_open</code> ומתקבלת התראה.</li>
+<li><strong>זיהוי דליפה ופיצוץ</strong>: בוחרים חיישן זרימה, סף דליפה (זרימה כשאין השקיה), זרימה מרבית בזמן השקיה והשהיה (ברירת מחדל 60 שניות). בהתראה נשלח האירוע <code>schedule_wizard_leak_detected</code>, מתקבלת התראה, ואפשר גם לעצור הכול ולסגור את הברז הראשי.</li>
+<li><strong>עצירת הכול</strong>: סוגרת כל אזור ומסיימת כל תוכנית ורצף ספיגה.</li>
+<li><strong>הפעלה מחדש</strong>: ההשקיות הפעילות נטענות מהאחסון. ברז פתוח שנשאר לו זמן מקבל מחדש סגירה אוטומטית; ברז שהזמן שלו עבר נסגר מיד; ברז סגור נרשם כמבוטל.</li>
+</ul>
+<h2 id="_13">צריכת מים<a class="headerlink" href="#_13" title="Permanent link">&para;</a></h2>
+<p>עם מד זרימה, המים של כל השקיה נמדדים. בלי מד, מגדירים באזור <strong>ספיקה (ליטר/דקה)</strong> והצריכה מוערכת לפי זמן ההשקיה. את <code>sensor.&lt;zone&gt;_water_used</code> ואת <code>sensor.schedule_wizard_water_used</code> (ליטרים) אפשר להוסיף ללוח האנרגיה תחת צריכת מים. אחרי 3 השקיות שנמדדו האזור לומד את הזרימה הרגילה שלו, והשקיה עם פחות מחציה ממנה מפעילה את <code>schedule_wizard_low_flow</code>.</p>
+<h2 id="webhook">Webhook<a class="headerlink" href="#webhook" title="Permanent link">&para;</a></h2>
+<p>לכל התקנה יש מזהה webhook ייחודי. את הכתובת מוצאים בהגדרות ← אפשרויות נוספות ← Webhook (למנהלים בלבד). המזהה הוא הסוד; <strong>כתובת חדשה</strong> מחליפה אותו.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>https://&lt;your-ha-url&gt;/api/webhook/&lt;WEBHOOK_ID&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"entity_id": "switch.front_lawn_valve", "duration_minutes": 15}'</span>
+</code></pre></div>
+<p>לעצירה משתמשים ב-<code>"action": "stop"</code>. מתקבלים רק אזורים שהוגדרו ב-Schedule Wizard (אחרת <code>404 unknown zone</code>, לאזור מושבת <code>409</code>, ולגוף בקשה פגום <code>400</code>).</p>
+<h2 id="assist">שליטה בקול (Assist)<a class="headerlink" href="#assist" title="Permanent link">&para;</a></h2>
+<p>זמינה באנגלית, בגרמנית ובעברית. שמות אזורים ותוכניות מזוהים בגמישות.</p>
+<table>
+<thead>
+<tr>
+<th>English</th>
+<th>Deutsch</th>
+<th>עברית</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Water the front lawn for 10 minutes</td>
+<td>Bewässere den Rasen für 10 Minuten</td>
+<td>תשקה את הדשא 10 דקות</td>
+</tr>
+<tr>
+<td>Stop watering</td>
+<td>Stoppe die Bewässerung</td>
+<td>עצור את ההשקיה</td>
+</tr>
+<tr>
+<td>Skip watering today</td>
+<td>Bewässerung heute überspringen</td>
+<td>דלג על ההשקיה היום</td>
+</tr>
+<tr>
+<td>Pause watering for 2 days</td>
+<td>Pausiere die Bewässerung für 2 Tage</td>
+<td>השהה את ההשקיה ל 2 ימים</td>
+</tr>
+</tbody>
+</table>
+<p>מכבים את הפקודות הקוליות בהגדרות ← אפשרויות נוספות ← <strong>פקודות קוליות (Assist)</strong>.</p>
+<h2 id="_14">התראות<a class="headerlink" href="#_14" title="Permanent link">&para;</a></h2>
+<p>בוחרים שירות <code>notify.*</code> אחד או יותר בהגדרות ← התראות, ואז מסמנים אילו אירועים ישלחו הודעה (תחילת וסיום השקיה, תחילת וסיום תוכנית, דילוג בגלל גשם, לחות, תנאים או טמפרטורה, כשל בפתיחה, השהיית גשם, דליפות). ההודעות נכתבות בשפה של Home Assistant.</p>
+<p><strong>תזכורת לפני השקיה</strong> (10 עד 60 דקות) שולחת הודעה כמו "Morning watering starts at 06:00 (35 min)" עם כפתורים <strong>דילוג היום</strong> ו<strong>השקה עכשיו</strong>. הכפתורים דורשים את אפליקציית Home Assistant; שירותי התראה אחרים מקבלים טקסט בלבד.</p>
+<h2 id="lovelace">כרטיס Lovelace<a class="headerlink" href="#lovelace" title="Permanent link">&para;</a></h2>
+<p><img alt="כרטיס Lovelace של Schedule Wizard עם האזור הפעיל וכפתורי השקיה מהירה" src="../assets/screens/card.png" /></p>
+<p>הכרטיס נרשם אוטומטית. מוסיפים אותו מבורר הכרטיסים, או ב-YAML:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">custom:schedule-wizard-card</span>
+<span class="nt">title</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Irrigation</span>
+<span class="nt">show_active</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">show_quick_run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">valves</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">switch.front_lawn_valve</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">switch.back_lawn_valve</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>אפשרות</th>
+<th>ברירת מחדל</th>
+<th>משמעות</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>title</code></td>
+<td><code>Schedule Wizard</code></td>
+<td>כותרת הכרטיס.</td>
+</tr>
+<tr>
+<td><code>show_active</code></td>
+<td><code>true</code></td>
+<td>להציג בראש הכרטיס את האזורים שמשקים עכשיו.</td>
+</tr>
+<tr>
+<td><code>show_quick_run</code></td>
+<td><code>true</code></td>
+<td>להציג את רשימת האזורים עם הדקות וכפתור <strong>השקה עכשיו</strong>.</td>
+</tr>
+<tr>
+<td><code>valves</code></td>
+<td>כל האזורים</td>
+<td>רשימה אופציונלית של מזהי ישויות להצגה.</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  חזרה למעלה
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.top", "navigation.sections", "search.highlight", "content.code.copy", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u05d4\u05d5\u05e2\u05ea\u05e7 \u05dc\u05dc\u05d5\u05d7", "clipboard.copy": "\u05d4\u05e2\u05ea\u05e7\u05d4 \u05dc\u05dc\u05d5\u05d7", "search.result.more.one": "\u05e2\u05d5\u05d3 \u05d0\u05d7\u05d3 \u05d1\u05d3\u05e3 \u05d4\u05d6\u05d4", "search.result.more.other": "\u05e2\u05d5\u05d3 # \u05d1\u05d3\u05e3 \u05d4\u05d6\u05d4", "search.result.none": "\u05d0\u05d9\u05df \u05de\u05e1\u05de\u05db\u05d9\u05dd \u05ea\u05d5\u05d0\u05de\u05d9\u05dd", "search.result.one": "\u05de\u05e1\u05de\u05da1 \u05ea\u05d5\u05d0\u05dd", "search.result.other": "# \u05de\u05e1\u05de\u05da \u05ea\u05d5\u05d0\u05dd", "search.result.placeholder": "\u05d9\u05e9 \u05dc\u05d4\u05e7\u05dc\u05d9\u05d3 \u05db\u05d3\u05d9 \u05dc\u05d4\u05ea\u05d7\u05d9\u05dc \u05dc\u05d7\u05e4\u05e9", "search.result.term.missing": "\u05d7\u05e1\u05e8", "select.version": "\u05d1\u05d7\u05d9\u05e8\u05ea \u05d2\u05e8\u05e1\u05d4"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

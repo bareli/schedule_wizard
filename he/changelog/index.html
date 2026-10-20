@@ -1,0 +1,1836 @@
+
+<!doctype html>
+<html lang="he" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Calendar and time-driven scheduler for irrigation valves, switches, lights and covers in Home Assistant.">
+      
+      
+      
+        <link rel="canonical" href="https://bareli.github.io/schedule_wizard/he/changelog/">
+      
+      
+        <link rel="prev" href="../troubleshooting/">
+      
+      
+      
+        
+          <link rel="alternate" href="../../changelog/" hreflang="en">
+        
+          <link rel="alternate" href="./" hreflang="he">
+        
+      
+      
+      <link rel="icon" href="../../assets/icon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>יומן שינויים - Schedule Wizard</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="rtl" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="teal">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#_1" class="md-skip">
+          לדלג לתוכן
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="כותרת עליונה">
+    <a href="../" title="Schedule Wizard" class="md-header__button md-logo" aria-label="Schedule Wizard" data-md-component="logo">
+      
+  <img src="../../assets/icon.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Schedule Wizard
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              יומן שינויים
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="teal"  aria-label="מעבר למצב כהה"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="מעבר למצב כהה" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="teal"  aria-label="מעבר למצב בהיר"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="מעבר למצב בהיר" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="בחירת שפה">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="../../changelog/" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="he" class="md-select__link">
+              עברית
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="חיפוש" placeholder="חיפוש" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="חיפוש">
+        
+        <button type="reset" class="md-search__icon md-icon" title="ניקוי" aria-label="ניקוי" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            אתחול חיפוש
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/bareli/schedule_wizard" title="לעבור אל המאגר" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bareli/schedule_wizard
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="לשוניות" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../" class="md-tabs__link">
+        
+  
+  
+    
+  
+  בית
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../install/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  התקנה
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../usage/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  שימוש
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../features/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  יכולות
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../reference/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  מדריך עזר
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../troubleshooting/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  פתרון בעיות
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  יומן שינויים
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="ניווט" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../" title="Schedule Wizard" class="md-nav__button md-logo" aria-label="Schedule Wizard" data-md-component="logo">
+      
+  <img src="../../assets/icon.png" alt="logo">
+
+    </a>
+    Schedule Wizard
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/bareli/schedule_wizard" title="לעבור אל המאגר" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bareli/schedule_wizard
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    בית
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    התקנה
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    שימוש
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../features/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    יכולות
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    מדריך עזר
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    פתרון בעיות
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    יומן שינויים
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    יומן שינויים
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="תוכן העניינים">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      תוכן העניינים
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#0160-weather-tips-water-more-or-less-change-one-run-overlap-warnings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.16.0: weather tips, water more or less, change one run, overlap warnings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0150-sunrise-sunset-start-security-valves-closed-after-outages-accessibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.15.0: sunrise / sunset start, security, valves closed after outages, accessibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0140-water-every-n-days-0-temperature-adjustment-skips-the-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.14.0: water every N days, 0 % temperature adjustment skips the run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0130-rain-forecast-water-usage-smarter-cycle-soak-resume-after-restart-17-languages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.13.0: rain forecast, water usage, smarter cycle &amp; soak, resume after restart, 17 languages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0120-home-assistant-entities-voice-control-week-view-reminder-buttons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.12.0: Home Assistant entities, voice control, week view, reminder buttons
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0110-simpler-panel-with-a-setup-wizard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.11.0: simpler panel with a setup wizard
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0100-panel-and-card-in-german-and-hebrew-right-to-left-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.10.0: panel and card in German and Hebrew, right-to-left layout
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#090-per-valve-rain-delay-indoor-valves-panel-menu-button" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.9.0: per-valve rain delay, indoor valves, panel menu button
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#080-cycle-soak-per-valve-moisture-schedule-conditions-leak-detection-20-bug-fixes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.8.0: cycle &amp; soak, per-valve moisture, schedule conditions, leak detection + 20 bug fixes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.8.0: cycle &amp; soak, per-valve moisture, schedule conditions, leak detection + 20 bug fixes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#new" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        New
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#074-fix-quick-run-duration-input-resetting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.7.4: fix quick-run duration input resetting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#073-fresh-readme-screenshots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.7.3: fresh README screenshots
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#072-reports-tab-readme-sync-ui-spacing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.7.2: Reports tab + README sync + UI spacing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#071-fix-get_state-crash-on-rain_delay_until" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.7.1: fix get_state crash on rain_delay_until
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#070-rain-delay-master-valve-fail-detection-cycle-pauseresume-settings-basicadvanced" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.7.0: rain delay, master valve, fail detection, cycle pause/resume, Settings basic/advanced
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#064-fix-cycle-never-starting-blocking-io" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.6.4: fix cycle never starting + blocking I/O
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#063-list_config-completeness-cycle-skip-diagnostics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.6.3: list_config completeness + cycle skip diagnostics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#062-next-opening-time-per-valve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.6.2: next opening time per valve
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#061-clearer-seasonal-ui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.6.1: clearer seasonal UI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#060-seasonal-adjust-moisture-skip-overlap-guard-valve-stats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.6.0: seasonal adjust, moisture skip, overlap guard, valve stats
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#051-event-bus-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.5.1: event bus events
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#050-multi-language-translations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.5.0: multi-language translations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#042-preserve-input-focus-across-auto-refresh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.4.2: preserve input focus across auto-refresh
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#041-fix-run-button-inline-progress" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.4.1: fix Run button + inline progress
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#040-notifications" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.4.0: notifications
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#030-cycles-zone-sequencing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.3.0: cycles (zone sequencing)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#024-edit-schedules-from-the-panel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.4: edit schedules from the panel
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#023-fix-settings-tab-input-wipe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.3: fix Settings tab input wipe
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#022-cache-bust-panel-and-card" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.2: cache-bust panel and card
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#021-panel-rain-fields-webhook-url" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.1: panel rain fields + webhook URL
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#020-rain-skip-webhook-lovelace-card-hebrew" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.0: rain skip, webhook, Lovelace card, Hebrew
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#011-branding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.1.1: branding
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#010-initial-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.1.0: initial release
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="תוכן העניינים">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      תוכן העניינים
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#0160-weather-tips-water-more-or-less-change-one-run-overlap-warnings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.16.0: weather tips, water more or less, change one run, overlap warnings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0150-sunrise-sunset-start-security-valves-closed-after-outages-accessibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.15.0: sunrise / sunset start, security, valves closed after outages, accessibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0140-water-every-n-days-0-temperature-adjustment-skips-the-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.14.0: water every N days, 0 % temperature adjustment skips the run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0130-rain-forecast-water-usage-smarter-cycle-soak-resume-after-restart-17-languages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.13.0: rain forecast, water usage, smarter cycle &amp; soak, resume after restart, 17 languages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0120-home-assistant-entities-voice-control-week-view-reminder-buttons" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.12.0: Home Assistant entities, voice control, week view, reminder buttons
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0110-simpler-panel-with-a-setup-wizard" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.11.0: simpler panel with a setup wizard
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#0100-panel-and-card-in-german-and-hebrew-right-to-left-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.10.0: panel and card in German and Hebrew, right-to-left layout
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#090-per-valve-rain-delay-indoor-valves-panel-menu-button" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.9.0: per-valve rain delay, indoor valves, panel menu button
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#080-cycle-soak-per-valve-moisture-schedule-conditions-leak-detection-20-bug-fixes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.8.0: cycle &amp; soak, per-valve moisture, schedule conditions, leak detection + 20 bug fixes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.8.0: cycle &amp; soak, per-valve moisture, schedule conditions, leak detection + 20 bug fixes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#new" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        New
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fixed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#074-fix-quick-run-duration-input-resetting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.7.4: fix quick-run duration input resetting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#073-fresh-readme-screenshots" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.7.3: fresh README screenshots
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#072-reports-tab-readme-sync-ui-spacing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.7.2: Reports tab + README sync + UI spacing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#071-fix-get_state-crash-on-rain_delay_until" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.7.1: fix get_state crash on rain_delay_until
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#070-rain-delay-master-valve-fail-detection-cycle-pauseresume-settings-basicadvanced" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.7.0: rain delay, master valve, fail detection, cycle pause/resume, Settings basic/advanced
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#064-fix-cycle-never-starting-blocking-io" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.6.4: fix cycle never starting + blocking I/O
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#063-list_config-completeness-cycle-skip-diagnostics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.6.3: list_config completeness + cycle skip diagnostics
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#062-next-opening-time-per-valve" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.6.2: next opening time per valve
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#061-clearer-seasonal-ui" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.6.1: clearer seasonal UI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#060-seasonal-adjust-moisture-skip-overlap-guard-valve-stats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.6.0: seasonal adjust, moisture skip, overlap guard, valve stats
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#051-event-bus-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.5.1: event bus events
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#050-multi-language-translations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.5.0: multi-language translations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#042-preserve-input-focus-across-auto-refresh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.4.2: preserve input focus across auto-refresh
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#041-fix-run-button-inline-progress" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.4.1: fix Run button + inline progress
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#040-notifications" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.4.0: notifications
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#030-cycles-zone-sequencing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.3.0: cycles (zone sequencing)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#024-edit-schedules-from-the-panel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.4: edit schedules from the panel
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#023-fix-settings-tab-input-wipe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.3: fix Settings tab input wipe
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#022-cache-bust-panel-and-card" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.2: cache-bust panel and card
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#021-panel-rain-fields-webhook-url" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.1: panel rain fields + webhook URL
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#020-rain-skip-webhook-lovelace-card-hebrew" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.2.0: rain skip, webhook, Lovelace card, Hebrew
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#011-branding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.1.1: branding
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#010-initial-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0.1.0: initial release
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/bareli/schedule_wizard/edit/main/docs/changelog.he.md" title="עריכת הדף הזה" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="_1">יומן שינויים<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<p>יומן השינויים המלא נכתב באנגלית בלבד. הוא זהה לקובץ <a href="https://github.com/bareli/schedule_wizard/blob/main/CHANGELOG.md">CHANGELOG.md</a> במאגר.</p>
+<h2 id="0160-weather-tips-water-more-or-less-change-one-run-overlap-warnings">0.16.0: weather tips, water more or less, change one run, overlap warnings<a class="headerlink" href="#0160-weather-tips-water-more-or-less-change-one-run-overlap-warnings" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Weather tips</strong>: from your weather entity's daily forecast, Home shows tips for today and tomorrow, each with one button: rain expected → <strong>Skip tomorrow</strong> (outdoor zones only), hot day → <strong>+30 % tomorrow</strong>, frost risk → <strong>Skip runs before 10:00</strong>. One tip per run: rain comes first and includes frost ("8.0 mm rain, frost down to 1 °C"); there is no heat tip on a rainy day, and when you already set extra water for that day the rain tip says so and skipping ends it. Each tip says what it saves (from the minutes that would really water: litres when flow rates are set, else minutes) and where the forecast comes from. <strong>Not now</strong> hides one tip, <strong>Don't suggest</strong> stops a kind (turn it back on in Settings). Tips only suggest; nothing changes until you press a button. No rain tip while the automatic rain-forecast skip is on, and no heat tip while "Water more when it's hot" is on. Settings → More options → <strong>Weather tips</strong>: on / off, weather entity (automatic by default), hot day, frost, rain and rain-chance thresholds (°C or °F as Home Assistant uses), extra water on hot days, and the evening notification time.</li>
+<li><strong>Tips as a notification the evening before</strong>: tick <strong>Weather tips (evening)</strong> under Send notification when. One notification at the set time (default 19:00) with tomorrow's tips and up to two buttons in the Home Assistant app; a button does the same as in the panel. When the forecast changes, the notification is replaced, or removed when no tip is left.</li>
+<li><strong>Water more / less for a few days</strong>: on Home, <strong>Water more / less</strong> (always on the status card, also while a zone waters) sets +20, +30, +50 % or −20, −30 % for 1, 2, 3 or 7 days for every scheduled and calendar run, with a preview of the next runs ("Front lawn 15 → 20 min"); a banner shows it with <strong>Change</strong> and <strong>End now</strong>. <strong>Water now</strong> is never changed. Services <code>set_boost</code> / <code>clear_boost</code>.</li>
+<li><strong>Change one run only</strong>: tap a run in <strong>This week</strong> → <strong>This time only</strong>: a new start time the same day and/or a length from 50 to 200 % (each option shows its minutes). The schedule stays as it is; the week shows "moved from 7:30 PM" or "8 → 12 min this day", and <strong>Undo change</strong> puts the run back. <strong>Skip this run</strong> now works on any future run, and the dialog has <strong>Edit schedule</strong>. Services <code>set_override</code> / <code>clear_override</code> (up to 31 days ahead); <code>skip_next</code> takes an optional <code>date</code>.</li>
+<li><strong>This week shows what will really happen</strong>: minutes after the temperature adjustment and the boost ("35 → 42 min"), litres per day, the day's forecast (high / low, rain), "likely skipped (rain forecast)", "changed for this day", and <strong>+ Add</strong> on a day without watering.</li>
+<li><strong>Overlaps are visible and easy to fix</strong>: runs that water at the same time are marked red ("same time as Morning lawn") in the list, and a new <strong>Timeline</strong> view shows each day as lanes per zone (overlaps also carry ⚠). A run's dialog offers <strong>Move to 6:35 AM, this day only</strong> or <strong>every time</strong>; the watering time editor warns while you type and offers <strong>Move to 6:35 AM</strong>, the first time without overlap; saving is still allowed.</li>
+<li><strong>Zones at once</strong>: Settings → More options → <strong>Watering at the same time</strong> (was "Allow plans at the same time") → <strong>Zones at once</strong> (No limit, 1, 2, 3); the hints in the week view link straight to it. With a limit, a scheduled run that would overlap waits its turn (up to 3 hours, also across a restart) and the status card says who is waiting. Water now never waits.</li>
+<li><strong>Reports</strong>: "Skips saved 120 min and about 1.4 m³ of water in the last 30 days".</li>
+<li><strong>Fix: one clock everywhere</strong>: when the browser was in another time zone than Home Assistant, Home showed runs in the browser's time while Zones and Plans showed Home Assistant's. All panel times now use Home Assistant's time zone, with a note on This week when they differ.</li>
+<li><strong>Fix: zone card while watering</strong>: the Zones tab said "Last: 27 s ago • started • no runs last 7 days" during a run; it now says "Watering now, 7:12 left".</li>
+<li>17 languages for every new text, including the notification.</li>
+</ul>
+<h2 id="0150-sunrise-sunset-start-security-valves-closed-after-outages-accessibility">0.15.0: sunrise / sunset start, security, valves closed after outages, accessibility<a class="headerlink" href="#0150-sunrise-sunset-start-security-valves-closed-after-outages-accessibility" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Webhook only runs your zones</strong> (#34, #37): the webhook used to switch any switch, light, cover, valve or input_boolean in Home Assistant, including ones that are not zones, and recorded runs for entities that do not exist. It now accepts only zones set up in Schedule Wizard (<code>404 unknown zone</code> otherwise, nothing switched or recorded) and refuses to run a disabled zone (<code>409</code>). Automations that call the webhook for a zone keep working; calls for other entities stop working.</li>
+<li><strong>Webhook URL for administrators only, and a New URL button</strong> (#35): non-admin users no longer receive the webhook ID or the notification targets from the panel or the <code>list_config</code> service. Settings → More options → Webhook has <strong>New URL</strong>, which replaces the secret; the old URL stops working at once.</li>
+<li><strong>Webhook errors</strong> (#36): a body that is not a JSON object, a non-text or unknown <code>action</code>, or a bad <code>entity_id</code> now gets <code>400</code> with a short message; unexpected errors return <code>internal error</code> instead of Python exception text.</li>
+<li><strong>Main valve must be a valve</strong> (#40): Settings accepts only an existing switch, valve, light, cover or input_boolean as main valve / pump, checked in the panel and on the server. A main valve of another domain saved earlier (for example a script) is ignored and logged instead of being turned on and off around every run.</li>
+<li><strong>Calendar runs match whole words in the event title</strong> (#38): a calendar event starts a zone only when its title contains the zone name as a whole word (case does not matter); the description and location no longer count, and a 1 or 2 letter zone name must be the whole title. "Front lawns" or "Storefront" no longer start the zone "Front". If your calendar auto-accepts invitations, use a dedicated calendar for watering.</li>
+<li><strong>Input limits</strong> (#39): names and labels are capped at 80 characters, at most 200 zones, 200 watering times and 200 plans; the Skip day button in a notification only accepts a real date; history CSV cells that start with <code>=</code>, <code>+</code>, <code>-</code> or <code>@</code> are escaped so spreadsheets do not run them.</li>
+<li><strong>A valve stays under control across a restart</strong> (#54): if a zone was watering when Home Assistant restarted and its switch was not available yet when Schedule Wizard loaded, the run was dropped and the valve could stay open. The run is now kept and the valve is closed at its planned end, or as soon as it reports in if that time has passed.</li>
+<li><strong>Keyboard focus is kept</strong> (#41): the panel and the card no longer throw keyboard focus back to the top of the page every 5 seconds or after pressing a button; after Water now, focus moves to that zone's Stop.</li>
+<li><strong>Messages are visible</strong> (#51): errors (for example Save with an empty zone name) and confirmations now show on screen, inside the open dialog when there is one, also in Hebrew and on narrow phones.</li>
+<li><strong>Deleted plans keep their name in history</strong> (#57) instead of showing an internal id; older rows show "Deleted plan".</li>
+<li>"1 run" instead of "1 runs" in the zone summary, in all 17 languages (#56).</li>
+<li><strong>Bigger touch targets</strong> (#58): on phones and tablets the week view's Skip day, the panel menu button and text fields are at least 44 px high.</li>
+<li><strong>Readable colours</strong> (#45, #81): the card's "1 running" pill and past runs in the week view now reach 4.5:1 contrast in light and dark themes; past runs are greyed with a muted colour instead of see-through.</li>
+<li><strong>Messages in dialogs</strong> (#83): an error now shows right under the dialog title instead of over it, and pressing Save again replaces the message instead of stacking another one.</li>
+<li><strong>Card</strong> (#84, #85): the card picker describes the card in your language; after Stop, keyboard focus moves to that zone's Water now (and back to Stop after Water now).</li>
+<li><strong>Screen readers</strong> (#82, #86): no more 1 px sideways scroll in Hebrew on narrow screens; Settings' More options and each option group are announced with their names.</li>
+<li><strong>Run history kept on shutdown</strong> (#87): a valve closed late (it was unavailable at the run's end) keeps its "completed" row even if Home Assistant stops at that moment, and the row is never written twice.</li>
+<li><strong>German and other languages</strong> (#88): voice replies say "1 Minute" / "1 Tag" (also English and Hebrew singular), and numbers in notifications use the language's decimal comma, for example "1,5 Std.".</li>
+<li><strong>Totals include replaced runs</strong> (#89): when Water now replaces a running zone, the minutes the first run watered now count in Reports and the zone summary (rows from before 0.15.0 are left out, they hold the planned length).</li>
+<li><strong>Reports say the period</strong> (#90): the per-zone columns read "Last 7 days" and "Last 30 days" instead of "7d" / "30d".</li>
+<li><strong>Rain source check line</strong> (#66): a rain binary sensor now reads "Skips while the sensor is on. Now: off." instead of the weather states; a sensor that reports a number points to the numeric threshold under More options.</li>
+<li><strong>Schedule Wizard's own sensors are no rain source</strong> (#91): they are left out of the rain source list and refused on save (one saved earlier keeps working).</li>
+<li><strong>Last watering</strong> (#67): the line above the zones shows when the most recent real watering finished (completed, or stopped after watering some minutes), not a start that was cancelled; a later skip reads "Skipped (rain), today 6:00 AM".</li>
+<li><strong>Each zone's own start</strong> (#94): in a plan that waters one zone at a time, zone cards and the card show when that zone starts (for example 6:00, 6:10, 6:25 AM), following cycle &amp; soak, instead of the plan's start for every zone.</li>
+<li><strong>No runs from before a plan existed</strong> (#93): a plan created in the evening no longer shows this morning's run as a past run in This week or the watering calendar.</li>
+<li>The every-N-days "First run" line uses the same time format as the rest of the page ("6:00 AM", #92); the card counts down in whole units like the panel ("in 3d" for 3 days 12 hours, #95); the zone card's button reads "Delete zone" (#96).</li>
+<li><strong>Hebrew "one minute" by voice</strong>: "השקה את הגינה למשך דקה" and "...דקה אחת" now water for 1 minute instead of the zone's default.</li>
+<li><strong>Card in German on a narrow phone</strong>: long words such as "Regenverzögerung" wrap inside the zone's text column; at 320 px the minutes field and button move to their own line under the name.</li>
+<li><strong>Times in plan lists</strong> and in the wizard's Check step use the same clock format as the rest of the page ("6:00 AM" or "6:00") instead of the stored "06:00".</li>
+<li><strong>Stopped runs from before 0.15.0</strong> (#101): a run stopped in 0.14.x was saved with its planned length, so the Last watering line, day totals, Reports and the zone summary counted it at full length (for example 130 min when 2 min watered). Its minutes are now left out, like replaced runs from before 0.15.0; it still counts as a run.</li>
+<li><strong>Rain check line stays current</strong> (#102): in Settings the "Now:" under the rain source follows the sensor when you pick it again and when its state changes, without redrawing the form.</li>
+</ul>
+<h2 id="0140-water-every-n-days-0-temperature-adjustment-skips-the-run">0.14.0: water every N days, 0 % temperature adjustment skips the run<a class="headerlink" href="#0140-water-every-n-days-0-temperature-adjustment-skips-the-run" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Every N days</strong> (#27): a watering time can repeat every 2 to 30 days from a start date, as an alternative to days of the week. Same time, zone or plan, skips and conditions as before. Pick it in the editor under <strong>Repeat</strong>; lists show "Every 2 days from ... at ...". Runs follow your HA time zone's calendar days, so they keep their clock time across daylight saving changes. Next-run times, the week view, the watering calendar and the next schedule sensor include these runs. Services <code>add_schedule</code> / <code>update_schedule</code> take <code>every_n_days</code> and <code>start_date</code> (default today). Existing schedules are unchanged.</li>
+<li><strong>0 % means no watering</strong> (#26): with the temperature adjustment at 0 %, scheduled and calendar runs of zones and plans are skipped instead of watering 1 minute. History, the event (<code>message</code>) and the notification all say "skipped: temperature adjustment 0 % (too cool)" (#31), the notification in your HA language (17 languages); skipped rows no longer show the planned minutes (<code>skipped_seasonal_zero</code>, event <code>schedule_wizard_seasonal_skipped</code>, notification <code>skipped_seasonal</code>). Any factor above 0 % keeps the 1-minute minimum; 0.5 % rounds up to 1 % on both server and panel. The Settings preview says when watering would be skipped, and Min % says "0 = no watering".</li>
+<li><strong>Cool-day warning</strong> (#29): while the temperature factor is 0 %, Home shows "Scheduled watering paused: too cool" and the week view tags today's and tomorrow's runs "will be skipped (cool)"; past runs skipped this way are marked skipped.</li>
+<li><strong>Reports</strong> (#32): Skip reasons gained <strong>Temperature</strong> and <strong>Other</strong> tiles, so the skip tiles add up to all skipped runs.</li>
+<li><strong>Every N days editor</strong> (#30, #33): the date field is now <strong>First watering on</strong>, with a live line "First run: Sat, Oct 3 06:00, then every 2 days" that also says when today's time has already passed. Option "Every 2 to 30 days" and label "Days between waterings"; entering 1 points to Days of the week. Save stays visible at the bottom of long forms on small screens. Percent signs read "0 %" consistently (attached in Hebrew, Arabic and Chinese).</li>
+<li>The watering time editor now shows its errors next to the field (no days picked, N outside 2 to 30, missing start date); the server checks the same rules, and <code>add_schedule</code> now rejects an empty <code>days</code> list.</li>
+<li>Fixed (#28): an every-N-days schedule whose start date was more than 31 days away showed no next run (zone card, Home, next schedule sensor, watering calendar state, Skip next). The search now starts at the start date.</li>
+<li>Fixed: the panel could stay blank when Home Assistant handed it its data before it finished loading (seen on HA 2026.9).</li>
+<li>Fixed for <strong>Home Assistant 2026.9</strong>: zone and plan devices used two device-registry calls that HA 2026.9 deprecated (<code>via_device</code>, <code>async_get_device</code>), so their switches, sensors and buttons could fail to load. Zone and plan devices are no longer linked under the hub device (cosmetic); everything else is unchanged and still works down to HA 2024.7.</li>
+</ul>
+<h2 id="0130-rain-forecast-water-usage-smarter-cycle-soak-resume-after-restart-17-languages">0.13.0: rain forecast, water usage, smarter cycle &amp; soak, resume after restart, 17 languages<a class="headerlink" href="#0130-rain-forecast-water-usage-smarter-cycle-soak-resume-after-restart-17-languages" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Rain forecast skip</strong>: skip outdoor zones when your weather forecast expects N mm or more in the next 6 to 48 hours (Settings → More options). New history status <code>skipped_forecast</code>.</li>
+<li><strong>Plans resume after a restart</strong>: a watering plan interrupted by an HA restart or update continues with its next zone if HA is back within 30 minutes; paused plans stay paused. Valves are no longer turned off during HA shutdown, so the running zone finishes its time.</li>
+<li><strong>Repairs warnings</strong> when a zone switch or a sensor used in Settings is missing, cleared automatically once fixed.</li>
+<li><strong>Diagnostics download</strong> for bug reports (webhook ID and notify targets redacted).</li>
+<li><strong>Water usage</strong>: litres per run and per zone, measured by the flow meter (units converted) or estimated from a zone's flow rate. New sensors <code>sensor.&lt;zone&gt;_water_used</code> and <code>sensor.schedule_wizard_water_used</code> for the Energy dashboard; litres in Reports, history and CSV.</li>
+<li><strong>Low-flow warning</strong>: a zone that gets under half its usual flow fires <code>schedule_wizard_low_flow</code> and a <code>low_flow</code> notification.</li>
+<li><strong>Smarter cycle &amp; soak</strong>: in a watering plan, the next zone waters while one soaks, so plans finish much sooner (can be turned off).</li>
+<li><strong>Panel in 17 languages</strong>: added Spanish, French, Italian, Dutch, Portuguese, Russian, Ukrainian, Polish, Arabic (right-to-left), Simplified Chinese, Swedish, Danish, Norwegian and Finnish (machine translations, corrections welcome).</li>
+<li>Fixed: Norwegian setup screens never loaded (translation file was <code>no.json</code>; Home Assistant uses <code>nb</code>).</li>
+</ul>
+<h2 id="0120-home-assistant-entities-voice-control-week-view-reminder-buttons">0.12.0: Home Assistant entities, voice control, week view, reminder buttons<a class="headerlink" href="#0120-home-assistant-entities-voice-control-week-view-reminder-buttons" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Entities</strong>: a device per zone (<code>switch.&lt;zone&gt;_watering</code>, <code>sensor.&lt;zone&gt;_time_left</code>) and per plan (<code>switch.&lt;plan&gt;_enabled</code>, <code>button.&lt;plan&gt;_run_now</code>), plus <code>binary_sensor.schedule_wizard_watering</code>, <code>switch.schedule_wizard_rain_delay</code> and <code>calendar.schedule_wizard_watering_schedule</code>. Added, renamed and removed live as you edit.</li>
+<li><strong>Voice (Assist)</strong> in English, German and Hebrew: water a zone (for N minutes), start a plan, stop watering, skip today, pause for N days, ask what's watering. Can be turned off.</li>
+<li><strong>This week</strong> on Home: upcoming runs for 7 days with skip / undo per run, skip a whole day, water now.</li>
+<li><strong>Reminders</strong>: optional push N minutes before a run with <strong>Skip today</strong> and <strong>Water now</strong> buttons (HA Companion app).</li>
+<li>New services <code>skip_next</code>, <code>skip_day</code>, <code>unskip</code>, <code>run_schedule</code>; new history status <code>skipped_manual</code>.</li>
+</ul>
+<h2 id="0110-simpler-panel-with-a-setup-wizard">0.11.0: simpler panel with a setup wizard<a class="headerlink" href="#0110-simpler-panel-with-a-setup-wizard" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Setup wizard</strong>: pick your switches, name the zones, choose days, time and minutes, and the order. It creates the zones, the watering plan and its schedule in one go.</li>
+<li><strong>New Home tab</strong>: one status card (watering now, paused for rain, or next run), a card per zone with minutes and Water now, Pause for rain for all zones or one zone, Stop watering, recent activity folded away.</li>
+<li><strong>Four tabs instead of six</strong>: Home, Zones, Programs, Settings. Schedules now show inside their zone or plan; Reports opens from Home.</li>
+<li><strong>Plain wording</strong>: zones and watering plans instead of valves and cycles; entity IDs only in small print.</li>
+<li><strong>Settings</strong>: three essentials up front, every other feature in its own "More options" group with a one-line explanation and an On/Off indicator.</li>
+<li>All new text in English, German and Hebrew (right-to-left).</li>
+</ul>
+<h2 id="0100-panel-and-card-in-german-and-hebrew-right-to-left-layout">0.10.0: panel and card in German and Hebrew, right-to-left layout<a class="headerlink" href="#0100-panel-and-card-in-german-and-hebrew-right-to-left-layout" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Panel and Lovelace card translated</strong> into German and Hebrew (#3). The language follows your HA profile; unknown languages fall back to English.</li>
+<li><strong>Right-to-left layout</strong> for Hebrew: the whole panel and card mirror, entity IDs and times stay readable inside Hebrew text.</li>
+<li>Dates, times and weekdays are formatted in your locale and HA time zone (12/24h per your profile), including the next-run labels.</li>
+<li>Settings save message no longer claims the integration reloads (options apply live since 0.8.0).</li>
+<li>Translation completeness test (<code>tests/test_i18n.py</code>).</li>
+</ul>
+<h2 id="090-per-valve-rain-delay-indoor-valves-panel-menu-button">0.9.0: per-valve rain delay, indoor valves, panel menu button<a class="headerlink" href="#090-per-valve-rain-delay-indoor-valves-panel-menu-button" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Per-valve rain delay</strong> (#4): <code>set_rain_delay</code> / <code>clear_rain_delay</code> take an optional <code>entity_id</code> list. The Dashboard rain delay card has an "Apply to" picker and lists delayed valves with their own Clear button.</li>
+<li><strong>Indoor valves</strong> (#4): new valve option <code>rain_exempt</code>. The global rain delay and rain skip don't apply to indoor valves. Cycles mixing indoor and outdoor valves still run during a global delay, skipping only the outdoor steps (<code>skipped_rain_delay</code>).</li>
+<li><strong>Menu button</strong> in the panel header when the HA sidebar is hidden (narrow screens, desktop app), so you can get back to the rest of Home Assistant (#4).</li>
+<li>Per-step rain and moisture skips inside a cycle now only apply to scheduled and calendar cycles; manually started cycles run every step, matching the docs.</li>
+<li><code>schedule_wizard_rain_skipped</code> and the other skip events now carry a <code>reason</code> field; <code>rain_delay_set</code> carries <code>entity_ids</code> for per-valve delays.</li>
+</ul>
+<h2 id="080-cycle-soak-per-valve-moisture-schedule-conditions-leak-detection-20-bug-fixes">0.8.0: cycle &amp; soak, per-valve moisture, schedule conditions, leak detection + 20 bug fixes<a class="headerlink" href="#080-cycle-soak-per-valve-moisture-schedule-conditions-leak-detection-20-bug-fixes" title="Permanent link">&para;</a></h2>
+<h3 id="new">New<a class="headerlink" href="#new" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Cycle &amp; soak</strong> per valve: split long schedule, calendar and cycle runs into chunks (max run) with soak pauses. Dashboard shows the soak countdown; the master valve closes while soaking. New event <code>schedule_wizard_valve_soaking</code>.</li>
+<li><strong>Per-valve moisture sensor</strong>: overrides the global moisture skip for that zone; checked per step inside cycles (wet zone skipped, cycle continues).</li>
+<li><strong>Schedule conditions</strong>: up to 10 entity/attribute conditions per schedule (<code>above</code>, <code>below</code>, <code>equals</code>, <code>not_equals</code>); the run is skipped unless all hold. New event <code>schedule_wizard_condition_skipped</code>, notify event <code>skipped_condition</code>.</li>
+<li><strong>Flow sensor leak detection</strong>: leak alert (flow with no valve running) and high-flow alert (above a max while watering), with a delay and optional stop-all + master close. New event <code>schedule_wizard_leak_detected</code>, notify event <code>leak_detected</code>, Dashboard banner.</li>
+<li><strong>Stop all</strong> service and Dashboard button.</li>
+<li>Notify events <code>skipped_moisture</code> and <code>skipped_condition</code>.</li>
+<li>Automated test suite (pytest-homeassistant-custom-component) running in CI.</li>
+</ul>
+<h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Master valve never opened for cycles (#6).</li>
+<li>HA "Configure" dialog wiped all advanced settings made in the panel (#7).</li>
+<li>Rain threshold of 0 made numeric rain sensors skip every schedule; 0 now means "off" as the UI says (#8).</li>
+<li>Saving settings or setting/clearing a rain delay reloaded the integration and cancelled running and paused cycles; options now apply live (#9).</li>
+<li>Stopping a cycle during fail-detection or master pre-open left the valve open forever (#10).</li>
+<li>Paused cycle held the master valve open; stopping a paused cycle never closed it or logged it (#11).</li>
+<li>Calendar events found ahead of time skipped seasonal adjustment, rain skip, moisture skip, fire-time rain delay and overlap checks (#12). Behaviour change: rain and moisture skip now apply to calendar runs too.</li>
+<li>Pending calendar triggers were never cancelled: deleted/moved events still fired (#13).</li>
+<li>All-day calendar events could run a valve for 24 hours; they are now ignored (#14).</li>
+<li>The same valve could be started twice by two triggers in the same minute (#15).</li>
+<li>Next-run times used the server time zone instead of HA's (#16).</li>
+<li>Calendar events could be missed when the poll interval exceeded the lookahead (#17).</li>
+<li>Sensors now belong to a "Schedule Wizard" device, so new installs get <code>sensor.schedule_wizard_active_runs</code> / <code>sensor.schedule_wizard_next_schedule</code> as documented (#18).</li>
+<li>Panel/card auto-refresh stopped after the element was re-attached (#19).</li>
+<li>A failed refresh on the Settings tab left a permanent error screen (#20).</li>
+<li>Editing a valve's entity deleted the old valve even when adding the new one failed; schedules are now migrated to the new entity (#21).</li>
+<li>Reports 30-day chart bucketed by UTC day (#22).</li>
+<li>Card quick-run minutes reset every 5 seconds (#23).</li>
+<li>Backend minor (#24): webhook <code>stop</code> accepted any domain and unbounded durations; dead GET branch removed; <code>update_options</code> now requires admin; calendar description parsing only takes minutes (<code>15 min</code>, <code>15 דקות</code>, or a bare number) instead of the first number; superseded runs are logged; step numbers after resume are correct; <code>add_schedule</code> rejects unregistered valves; options-flow entity pickers accept empty values.</li>
+<li>Frontend minor (#25): CSV notes double-escaped and no UTF-8 BOM (Hebrew garbled in Excel); clearing a seasonal field silently disabled seasonal; cycle steps pointing at deleted valves; card errors only in the console; in-place row updates matched by label; seasonal preview requested all states on each keystroke.</li>
+<li>A valve that fails to open is now turned off again.</li>
+</ul>
+<h2 id="074-fix-quick-run-duration-input-resetting">0.7.4: fix quick-run duration input resetting<a class="headerlink" href="#074-fix-quick-run-duration-input-resetting" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Fixed the per-valve "minutes" box on the Dashboard resetting to the default duration while typing. The 5-second auto-refresh focus guard used <code>document.activeElement</code>, which returns the shadow host inside Home Assistant's panel, so the guard never matched and every refresh re-rendered the input. It now walks the shadow-root chain to find the real focused element.</li>
+<li>Quick-run durations are now remembered per valve for the session, so a re-render (after running or stopping a valve) no longer discards the typed value.</li>
+</ul>
+<h2 id="073-fresh-readme-screenshots">0.7.3: fresh README screenshots<a class="headerlink" href="#073-fresh-readme-screenshots" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Refreshed all panel screenshots in the README to reflect the new tabs (Cycles, Reports), rain delay button, advanced toggle, and per-valve stats.</li>
+</ul>
+<h2 id="072-reports-tab-readme-sync-ui-spacing">0.7.2: Reports tab + README sync + UI spacing<a class="headerlink" href="#072-reports-tab-readme-sync-ui-spacing" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>New Reports tab</strong> in the panel:</li>
+<li>30-day total-minutes-per-day mini bar chart.</li>
+<li>Per-valve totals: 7d / 30d / lifetime runs and minutes.</li>
+<li>Per-cycle totals (last 30d): completed / cancelled / skipped / total.</li>
+<li>Skip reasons summary: rain / moisture / overlap / failed / cancelled.</li>
+<li><strong>Export CSV</strong> button: full history download.</li>
+<li>History capacity raised from 100 to 500 entries. Older entries still trimmed FIFO.</li>
+<li>README updated with all v0.6 + v0.7 features (cycles, rain delay, master valve, fail detection, pause/resume, services, events).</li>
+<li>Added bottom margin to header rows (<code>+ Add</code> buttons in Valves / Cycles / Schedules) so they don't touch the list below.</li>
+</ul>
+<h2 id="071-fix-get_state-crash-on-rain_delay_until">0.7.1: fix get_state crash on rain_delay_until<a class="headerlink" href="#071-fix-get_state-crash-on-rain_delay_until" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Fixed <code>AttributeError: 'dict' object has no attribute 'options'</code> in the WebSocket <code>get_state</code> handler when reading <code>rain_delay_until</code>. Reads from the cached options dict instead of trying to access a non-existent <code>entry</code> variable.</li>
+</ul>
+<h2 id="070-rain-delay-master-valve-fail-detection-cycle-pauseresume-settings-basicadvanced">0.7.0: rain delay, master valve, fail detection, cycle pause/resume, Settings basic/advanced<a class="headerlink" href="#070-rain-delay-master-valve-fail-detection-cycle-pauseresume-settings-basicadvanced" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Rain delay</strong> button on Dashboard: pause all schedule + calendar runs for 24h / 48h / 7d, with one-tap clear. New services <code>set_rain_delay</code> and <code>clear_rain_delay</code>.</li>
+<li><strong>Master valve / pump</strong> option: a central valve that auto-opens before the first zone runs and auto-closes after the last zone closes. Optional pre-open delay for pump pressurization.</li>
+<li><strong>Fail-to-open detection</strong>: after issuing a turn-on, verify entity reaches an "on" state within N seconds. If not, log error, fire <code>schedule_wizard_valve_failed_to_open</code>, send notification.</li>
+<li><strong>Cycle pause / resume</strong>: pause an in-progress cycle (current valve closes, remaining steps held) and resume from where it left off. New services <code>pause_cycle</code>, <code>resume_cycle</code>. New events <code>cycle_paused</code>, <code>cycle_resumed</code>.</li>
+<li><strong>Settings: Basic / Advanced split</strong>: Settings tab opens with just calendar fields visible. "Show advanced" reveals rain skip, seasonal, moisture, master valve, fail detection, notifications, cycle overlap.</li>
+<li>New notification event types: <code>valve_failed</code>, <code>rain_delay</code>.</li>
+<li>"10m" → "10min" everywhere in the dashboard for clarity.</li>
+<li><strong>Recent activity</strong> groups cycle runs with their valve openings indented under the parent cycle.</li>
+</ul>
+<h2 id="064-fix-cycle-never-starting-blocking-io">0.6.4: fix cycle never starting + blocking I/O<a class="headerlink" href="#064-fix-cycle-never-starting-blocking-io" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Fixed: cycle task started eagerly before being added to the active-cycles map (HA 2024.7+ <code>async_create_task</code> runs eagerly). The task saw "not in active_cycles" and exited immediately, leaving a phantom step-0 entry. Now adds to the map first, then starts the task.</li>
+<li>Fixed: blocking <code>open()</code> on <code>manifest.json</code> from the event loop. Version is now read once via the executor and cached.</li>
+</ul>
+<h2 id="063-list_config-completeness-cycle-skip-diagnostics">0.6.3: list_config completeness + cycle skip diagnostics<a class="headerlink" href="#063-list_config-completeness-cycle-skip-diagnostics" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>schedule_wizard.list_config</code> service now also returns <code>cycles</code>, <code>active_cycles</code>, and <code>options</code> (previously missing).</li>
+<li>Cycle steps that are skipped due to missing <code>entity_id</code> or zero duration now log a warning with the cycle id, step number, and computed values, making "stuck on step 0" much easier to diagnose.</li>
+</ul>
+<h2 id="062-next-opening-time-per-valve">0.6.2: next opening time per valve<a class="headerlink" href="#062-next-opening-time-per-valve" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Dashboard Quick run, Valves tab, and Lovelace card now show the next scheduled opening per valve with time label and countdown (<code>Next: Wed 06:00 (in 18h)</code>).</li>
+<li>Computed from direct valve schedules AND schedules targeting a cycle that contains the valve.</li>
+</ul>
+<h2 id="061-clearer-seasonal-ui">0.6.1: clearer seasonal UI<a class="headerlink" href="#061-clearer-seasonal-ui" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Seasonal section shows temperature unit (°C or °F) taken from HA config on all threshold labels.</li>
+<li>Added inline explanation of how Low/High/Min%/Max% interact.</li>
+<li>Live preview: reads the configured temperature entity/attribute and shows "current temp → factor → example 10-min schedule length": updates as you edit fields.</li>
+</ul>
+<h2 id="060-seasonal-adjust-moisture-skip-overlap-guard-valve-stats">0.6.0: seasonal adjust, moisture skip, overlap guard, valve stats<a class="headerlink" href="#060-seasonal-adjust-moisture-skip-overlap-guard-valve-stats" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Seasonal adjustment</strong> (temperature-scaled): scales schedule and calendar durations between a low and high temp threshold, clamped to min/max percent. Manual runs unaffected.</li>
+<li><strong>Soil moisture skip</strong>: skip cron/calendar when moisture sensor ≥ threshold (soil already wet). Independent of rain.</li>
+<li><strong>Cycle overlap protection</strong>: when off (default), schedule/calendar cycles skip while another cycle is running. Opt-in via <code>allow_concurrent_cycles</code>.</li>
+<li><strong>Per-valve stats</strong> on Valves tab: last run timestamp + status + duration, plus runs / minutes in the last 7 days.</li>
+<li>New events: <code>schedule_wizard_moisture_skipped</code>, <code>schedule_wizard_cycle_skipped_overlap</code>.</li>
+<li>Schedule/calendar runs whose duration was adjusted record <code>|seasonal:N%</code> in the history note.</li>
+</ul>
+<h2 id="051-event-bus-events">0.5.1: event bus events<a class="headerlink" href="#051-event-bus-events" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Fires 5 events on the HA event bus, usable as automation triggers:</li>
+<li><code>schedule_wizard_valve_started</code></li>
+<li><code>schedule_wizard_valve_ended</code></li>
+<li><code>schedule_wizard_cycle_started</code></li>
+<li><code>schedule_wizard_cycle_ended</code></li>
+<li><code>schedule_wizard_rain_skipped</code></li>
+<li>Each event carries <code>source</code> so you can filter schedule / calendar / manual / webhook / cycle triggers in automations.</li>
+<li>README documents event names, data fields, and example automations.</li>
+</ul>
+<h2 id="050-multi-language-translations">0.5.0: multi-language translations<a class="headerlink" href="#050-multi-language-translations" title="Permanent link">&para;</a></h2>
+<ul>
+<li>15 new translation files for HA native strings (config flow + options flow + service names/descriptions): Spanish, German, French, Italian, Dutch, Portuguese, Russian, Arabic, Polish, Simplified Chinese, Ukrainian, Swedish, Danish, Norwegian, Finnish.</li>
+<li>Existing English and Hebrew translations extended with all new services (cycles, update_schedule).</li>
+<li>Panel UI text (sidebar tabs, buttons, modals) still English; JavaScript i18n is deferred.</li>
+</ul>
+<h2 id="042-preserve-input-focus-across-auto-refresh">0.4.2: preserve input focus across auto-refresh<a class="headerlink" href="#042-preserve-input-focus-across-auto-refresh" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Panel Dashboard and Lovelace card no longer destroy DOM on the 5s auto-refresh when an input/select is focused. Progress bars still update smoothly in place.</li>
+<li>Typing in the minutes number box stays put.</li>
+</ul>
+<h2 id="041-fix-run-button-inline-progress">0.4.1: fix Run button + inline progress<a class="headerlink" href="#041-fix-run-button-inline-progress" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Run buttons in the Lovelace card were always disabled due to <code>setAttribute("disabled", "false")</code> being truthy in HTML. Internal <code>el()</code> helper now skips boolean-false attributes and emits bare attributes for boolean-true.</li>
+<li>Dashboard Quick run rows now show an inline progress bar + remaining time when a valve is active.</li>
+<li>Lovelace card: per-valve progress bar + remaining time inline in each row.</li>
+</ul>
+<h2 id="040-notifications">0.4.0: notifications<a class="headerlink" href="#040-notifications" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Pick one or more <code>notify.*</code> services (e.g. HA Companion mobile app) and choose which events push notifications: <code>valve_start</code>, <code>valve_end</code>, <code>cycle_start</code>, <code>cycle_end</code>, <code>skipped_rain</code>.</li>
+<li>Panel Settings tab has a new Notifications section with checkbox list of detected notify services + event toggles.</li>
+<li>Options flow (Devices &amp; Services → Schedule Wizard → Configure) also exposes the same fields.</li>
+<li>Notifications are fire-and-forget; failures log a warning but don't block valve actions.</li>
+</ul>
+<h2 id="030-cycles-zone-sequencing">0.3.0: cycles (zone sequencing)<a class="headerlink" href="#030-cycles-zone-sequencing" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Cycles</strong>: new first-class object. Define an ordered list of (valve, duration) steps and run them sequentially as a single program. Perfect for irrigation zone sequencing.</li>
+<li>Services: <code>add_cycle</code>, <code>update_cycle</code>, <code>remove_cycle</code>, <code>run_cycle</code>, <code>stop_cycle</code>.</li>
+<li>Schedules can now target a cycle instead of a single valve (panel target picker + <code>cycle_id</code> field on <code>add_schedule</code>).</li>
+<li>Calendar events match cycle names too (summary contains the cycle name → whole cycle fires).</li>
+<li>Panel: new <strong>Cycles</strong> tab with step editor (reorder, add, remove). Dashboard shows active cycles with step progress.</li>
+<li>Rain skip applies to cycle schedules (whole cycle skipped on rain).</li>
+</ul>
+<h2 id="024-edit-schedules-from-the-panel">0.2.4: edit schedules from the panel<a class="headerlink" href="#024-edit-schedules-from-the-panel" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Schedules tab now has Edit + Enable/Disable + Delete buttons per row.</li>
+<li>New service <code>schedule_wizard.update_schedule</code> (patch existing schedule by id; any omitted field unchanged).</li>
+<li>Edit modal patches in place via the new service (no delete + recreate); valve selection is locked while editing.</li>
+</ul>
+<h2 id="023-fix-settings-tab-input-wipe">0.2.3: fix Settings tab input wipe<a class="headerlink" href="#023-fix-settings-tab-input-wipe" title="Permanent link">&para;</a></h2>
+<ul>
+<li>5-second panel auto-refresh no longer re-renders the Settings tab, so typing in the rain-entity / threshold / webhook fields is preserved. Settings re-renders only on tab switch or after Save.</li>
+</ul>
+<h2 id="022-cache-bust-panel-and-card">0.2.2: cache-bust panel and card<a class="headerlink" href="#022-cache-bust-panel-and-card" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Panel <code>module_url</code> and Lovelace card resource URL now include <code>?v=&lt;version&gt;</code> so browsers always fetch the matching JS after an update. Stops stale UI without manual hard-refresh.</li>
+</ul>
+<h2 id="021-panel-rain-fields-webhook-url">0.2.1: panel rain fields + webhook URL<a class="headerlink" href="#021-panel-rain-fields-webhook-url" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Settings tab in the sidebar panel now exposes rain-skip configuration (entity, skip states, attribute, threshold).</li>
+<li>Settings tab now shows the webhook URL with one-click copy.</li>
+</ul>
+<h2 id="020-rain-skip-webhook-lovelace-card-hebrew">0.2.0: rain skip, webhook, Lovelace card, Hebrew<a class="headerlink" href="#020-rain-skip-webhook-lovelace-card-hebrew" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Rain skip</strong>: options flow now accepts a rain/weather entity + skip states / threshold / attribute. Schedules skip automatically when rain condition is active; history logs <code>skipped_rain</code>.</li>
+<li><strong>Webhook trigger</strong>: integration registers a per-entry webhook. <code>POST /api/webhook/&lt;id&gt;</code> with <code>entity_id</code> (and optional <code>duration_minutes</code>, <code>action: run|stop</code>) fires a run or stop.</li>
+<li><strong>Lovelace card</strong> (<code>custom:schedule-wizard-card</code>): compact active runs + quick run/stop widget, auto-registered as a Lovelace module resource.</li>
+<li><strong>Hebrew translation</strong> (<code>translations/he.json</code>) for config flow, options flow, and services.</li>
+<li>Options flow extended with rain configuration fields.</li>
+<li>WebSocket <code>update_options</code> command now accepts rain fields.</li>
+</ul>
+<h2 id="011-branding">0.1.1: branding<a class="headerlink" href="#011-branding" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Real brand assets: <code>icon.png</code>, <code>icon@2x.png</code>, <code>logo.png</code>, <code>logo@2x.png</code> (sprinkler + calendar, "Irrigation Schedule").</li>
+<li>Placeholder "SW" text icons replaced.</li>
+</ul>
+<h2 id="010-initial-release">0.1.0: initial release<a class="headerlink" href="#010-initial-release" title="Permanent link">&para;</a></h2>
+<ul>
+<li>HACS custom integration (in-process Python, works on all HA install types).</li>
+<li>Cron-style schedules per valve (HH:MM + days of week + duration).</li>
+<li>Calendar-driven runs (label match in event summary, minutes in description).</li>
+<li>Auto-close after configured duration.</li>
+<li>Active-run persistence across HA restarts (re-arms timers based on entity state and remaining time).</li>
+<li>Services: <code>run_valve</code>, <code>stop_valve</code>, <code>add_valve</code>, <code>remove_valve</code>, <code>add_schedule</code>, <code>remove_schedule</code>, <code>list_config</code>.</li>
+<li>Sensors: <code>active_runs</code> (with per-run details) and <code>next_schedule</code>.</li>
+<li>Sidebar panel with tabs: Dashboard, Valves, Schedules, Settings (all editable).</li>
+<li>Single-instance config flow + options flow for calendar and defaults.</li>
+<li>Supports <code>switch</code>, <code>valve</code>, <code>cover</code>, <code>input_boolean</code>, <code>light</code> domains.</li>
+<li>Persistent storage via HA <code>Store</code> helper at <code>&lt;config&gt;/.storage/schedule_wizard.data</code>.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  חזרה למעלה
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.top", "navigation.sections", "search.highlight", "content.code.copy", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u05d4\u05d5\u05e2\u05ea\u05e7 \u05dc\u05dc\u05d5\u05d7", "clipboard.copy": "\u05d4\u05e2\u05ea\u05e7\u05d4 \u05dc\u05dc\u05d5\u05d7", "search.result.more.one": "\u05e2\u05d5\u05d3 \u05d0\u05d7\u05d3 \u05d1\u05d3\u05e3 \u05d4\u05d6\u05d4", "search.result.more.other": "\u05e2\u05d5\u05d3 # \u05d1\u05d3\u05e3 \u05d4\u05d6\u05d4", "search.result.none": "\u05d0\u05d9\u05df \u05de\u05e1\u05de\u05db\u05d9\u05dd \u05ea\u05d5\u05d0\u05de\u05d9\u05dd", "search.result.one": "\u05de\u05e1\u05de\u05da1 \u05ea\u05d5\u05d0\u05dd", "search.result.other": "# \u05de\u05e1\u05de\u05da \u05ea\u05d5\u05d0\u05dd", "search.result.placeholder": "\u05d9\u05e9 \u05dc\u05d4\u05e7\u05dc\u05d9\u05d3 \u05db\u05d3\u05d9 \u05dc\u05d4\u05ea\u05d7\u05d9\u05dc \u05dc\u05d7\u05e4\u05e9", "search.result.term.missing": "\u05d7\u05e1\u05e8", "select.version": "\u05d1\u05d7\u05d9\u05e8\u05ea \u05d2\u05e8\u05e1\u05d4"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

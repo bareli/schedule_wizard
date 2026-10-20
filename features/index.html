@@ -1,0 +1,1376 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Calendar and time-driven scheduler for irrigation valves, switches, lights and covers in Home Assistant.">
+      
+      
+      
+        <link rel="canonical" href="https://bareli.github.io/schedule_wizard/features/">
+      
+      
+        <link rel="prev" href="../usage/">
+      
+      
+        <link rel="next" href="../reference/">
+      
+      
+        
+          <link rel="alternate" href="./" hreflang="en">
+        
+          <link rel="alternate" href="../he/features/" hreflang="he">
+        
+      
+      
+      <link rel="icon" href="../assets/icon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Features - Schedule Wizard</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="teal">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#features" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Schedule Wizard" class="md-header__button md-logo" aria-label="Schedule Wizard" data-md-component="logo">
+      
+  <img src="../assets/icon.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Schedule Wizard
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Features
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="teal"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="teal"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+      <div class="md-header__option">
+  <div class="md-select">
+    
+    <button class="md-header__button md-icon" aria-label="Select language">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m12.87 15.07-2.54-2.51.03-.03A17.5 17.5 0 0 0 14.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2zm-2.62 7 1.62-4.33L19.12 17z"/></svg>
+    </button>
+    <div class="md-select__inner">
+      <ul class="md-select__list">
+        
+          <li class="md-select__item">
+            <a href="./" hreflang="en" class="md-select__link">
+              English
+            </a>
+          </li>
+        
+          <li class="md-select__item">
+            <a href="../he/features/" hreflang="he" class="md-select__link">
+              עברית
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</div>
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/bareli/schedule_wizard" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bareli/schedule_wizard
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../install/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Install
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../usage/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Usage
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Features
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../reference/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Reference
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../troubleshooting/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Troubleshooting
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../changelog/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Changelog
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Schedule Wizard" class="md-nav__button md-logo" aria-label="Schedule Wizard" data-md-component="logo">
+      
+  <img src="../assets/icon.png" alt="logo">
+
+    </a>
+    Schedule Wizard
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/bareli/schedule_wizard" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    bareli/schedule_wizard
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../usage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Usage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Features
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#calendar-driven-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Calendar-driven runs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#skipping-and-adjusting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Skipping and adjusting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Skipping and adjusting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rain-delay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rain delay
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rain-sensor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rain sensor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rain-forecast" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rain forecast
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#soil-moisture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Soil moisture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#temperature-adjustment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Temperature adjustment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#schedule-conditions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schedule conditions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#weather-tips" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Weather tips
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#watering-plans-and-cycle-soak" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Watering plans and cycle &amp; soak
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Protection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#water-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Water usage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#webhook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Webhook
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#voice-assist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Voice (Assist)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notifications" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notifications
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lovelace-card" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lovelace card
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../troubleshooting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Troubleshooting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#calendar-driven-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Calendar-driven runs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#skipping-and-adjusting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Skipping and adjusting
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Skipping and adjusting">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rain-delay" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rain delay
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rain-sensor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rain sensor
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rain-forecast" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rain forecast
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#soil-moisture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Soil moisture
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#temperature-adjustment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Temperature adjustment
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#schedule-conditions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schedule conditions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#weather-tips" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Weather tips
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#watering-plans-and-cycle-soak" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Watering plans and cycle &amp; soak
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#protection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Protection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#water-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Water usage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#webhook" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Webhook
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#voice-assist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Voice (Assist)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notifications" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notifications
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lovelace-card" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lovelace card
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/bareli/schedule_wizard/edit/main/docs/features.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="features">Features<a class="headerlink" href="#features" title="Permanent link">&para;</a></h1>
+<h2 id="calendar-driven-runs">Calendar-driven runs<a class="headerlink" href="#calendar-driven-runs" title="Permanent link">&para;</a></h2>
+<p>Pick a calendar in Settings. An event starts a zone or plan when its <strong>summary</strong> contains the zone label or plan name as <strong>whole words</strong> (case does not matter). Only the summary is read, never the description, location or attendees.</p>
+<table>
+<thead>
+<tr>
+<th>Summary for label <code>Front lawn</code></th>
+<th>Starts the zone?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Front lawn</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>Front Lawn morning cycle</code></td>
+<td>yes</td>
+</tr>
+<tr>
+<td><code>Front lawns</code></td>
+<td>no (part of a longer word)</td>
+</tr>
+<tr>
+<td><code>Garden zone 1</code></td>
+<td>no</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>A label or name of 1 or 2 characters only matches an event whose whole summary is exactly that label.</li>
+<li><strong>Description</strong>: minutes to run, written as <code>15 min</code>, <code>15 minutes</code> or <code>15 דקות</code>, or just the number <code>15</code>. Other numbers (like "Zone 2") are ignored. If there are no minutes, the event length is used, then the zone's default.</li>
+<li><strong>Calendar keyword</strong> (Settings → More options → Calendar fine-tuning): when set, for example <code>water:</code>, only events whose title starts with it count, and the name is matched in the rest of the title.</li>
+<li><strong>Longest calendar or webhook run</strong> (default 120 minutes): a longer event is shortened to it.</li>
+<li>All-day events are ignored. Deleting or moving an event cancels its pending run.</li>
+<li>Rain delay, rain skip, moisture skip and seasonal adjustment are checked when the event fires.</li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Anyone who can put an event on the selected calendar can start watering. If your calendar accepts invitations automatically (Google, Outlook, CalDAV), use a dedicated calendar for watering.</p>
+</div>
+<h2 id="skipping-and-adjusting">Skipping and adjusting<a class="headerlink" href="#skipping-and-adjusting" title="Permanent link">&para;</a></h2>
+<p>Rain delay, rain skip, moisture skip, conditions and seasonal adjustment apply to scheduled and calendar runs. Manual runs (<strong>Water now</strong>) are not affected.</p>
+<h3 id="rain-delay">Rain delay<a class="headerlink" href="#rain-delay" title="Permanent link">&para;</a></h3>
+<p>On Home, press <strong>24h</strong>, <strong>48h</strong> or <strong>7d</strong> and choose whether it applies to all zones or one zone. Scheduled and calendar runs are skipped until the timer ends; the card shows the time left and a <strong>Clear</strong> button.</p>
+<p>Mark a zone <strong>Indoor</strong> (<code>rain_exempt: true</code> in <code>add_valve</code>) and the global rain delay and rain skip do not apply to it. A plan that mixes indoor and outdoor zones still runs during a global delay: indoor steps water, outdoor steps are skipped.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">schedule_wizard.set_rain_delay</span>
+<span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">hours</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">48</span>
+<span class="w">  </span><span class="nt">entity_id</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">switch.zone_front_lawn</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">switch.zone_back_lawn</span>
+</code></pre></div>
+<h3 id="rain-sensor">Rain sensor<a class="headerlink" href="#rain-sensor" title="Permanent link">&para;</a></h3>
+<p>Pick a weather entity, rain sensor or other sensor in Settings. Three modes are checked in this order:</p>
+<ol>
+<li><strong>Attribute + threshold</strong>: reads the attribute and skips when it is at or above the threshold.</li>
+<li><strong>Threshold only</strong>: reads the state as a number and skips when it is at or above the threshold.</li>
+<li><strong>Skip states</strong>: skips when the state matches one in the list (default <code>rainy,pouring,snowy,lightning-rainy</code>). A <code>binary_sensor</code> also counts as rain while it is <code>on</code>.</li>
+</ol>
+<p>A threshold of 0 or blank turns the numeric modes off. The panel shows what counts as rain, what the source reports now, and whether watering would be skipped right now.</p>
+<h3 id="rain-forecast">Rain forecast<a class="headerlink" href="#rain-forecast" title="Permanent link">&para;</a></h3>
+<p>Settings → More options → <strong>Skip when rain is forecast</strong>. Pick a weather entity that provides forecasts, the amount in mm and how far ahead to look (6, 12, 24 or 48 hours). The forecast is refreshed every 30 minutes; if it cannot be read for 3 hours, nothing is skipped. Indoor zones and manual runs are never skipped.</p>
+<h3 id="soil-moisture">Soil moisture<a class="headerlink" href="#soil-moisture" title="Permanent link">&para;</a></h3>
+<p>Set a global moisture sensor and a threshold in Settings (skip when the value is at or above it). A zone can have its own sensor, which overrides the global one; inside a plan, each step checks its own zone.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">schedule_wizard.add_valve</span>
+<span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">entity_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">switch.zone_flower_bed</span>
+<span class="w">  </span><span class="nt">label</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Flower bed</span>
+<span class="w">  </span><span class="nt">moisture_entity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sensor.flower_bed_moisture</span>
+<span class="w">  </span><span class="nt">moisture_threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">45</span>
+</code></pre></div>
+<h3 id="temperature-adjustment">Temperature adjustment<a class="headerlink" href="#temperature-adjustment" title="Permanent link">&para;</a></h3>
+<p>Scales the length of scheduled and calendar runs between a low and a high temperature, clamped to a minimum and maximum percentage. Use a temperature sensor, or a weather entity with the attribute <code>temperature</code>.</p>
+<p>Example: temperature 18 °C, low 10, high 30, min 50 %, max 120 % gives 50 + (18 - 10) / (30 - 10) x (120 - 50) = 78 %, so a 10-minute run lasts 8 minutes.</p>
+<p>With a factor of <strong>0 %</strong> the run is skipped (<code>skipped_seasonal_zero</code>). Any factor above 0 % still waters at least 1 minute. Home then shows "Scheduled watering paused: too cool".</p>
+<h3 id="schedule-conditions">Schedule conditions<a class="headerlink" href="#schedule-conditions" title="Permanent link">&para;</a></h3>
+<p>A schedule can carry up to 10 conditions; all must be true when it fires, or the run is skipped (<code>skipped_condition</code>). An unavailable entity fails its condition.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>entity_id</code></td>
+<td>Any entity.</td>
+</tr>
+<tr>
+<td><code>attribute</code></td>
+<td>Optional; compare an attribute instead of the state.</td>
+</tr>
+<tr>
+<td><code>operator</code></td>
+<td><code>above</code>, <code>below</code> (numeric), <code>equals</code>, <code>not_equals</code> (numeric or case-insensitive text).</td>
+</tr>
+<tr>
+<td><code>value</code></td>
+<td>Value to compare against.</td>
+</tr>
+</tbody>
+</table>
+<div class="highlight"><pre><span></span><code><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">schedule_wizard.add_schedule</span>
+<span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">valve_entity_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">switch.zone_lawn</span>
+<span class="w">  </span><span class="nt">time</span><span class="p">:</span><span class="w"> </span><span class="s">"05:30"</span>
+<span class="w">  </span><span class="nt">days</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">mon</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">wed</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">fri</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">duration_minutes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">  </span><span class="nt">conditions</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">entity_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sensor.outdoor_temperature</span>
+<span class="w">      </span><span class="nt">operator</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">above</span>
+<span class="w">      </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">12</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">entity_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">input_boolean.vacation_mode</span>
+<span class="w">      </span><span class="nt">operator</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">equals</span>
+<span class="w">      </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">"off"</span>
+</code></pre></div>
+<h3 id="weather-tips">Weather tips<a class="headerlink" href="#weather-tips" title="Permanent link">&para;</a></h3>
+<p>With a weather entity that has a daily forecast, Home shows tips for today and tomorrow, each with one button:</p>
+<ul>
+<li><strong>Rain</strong> (from 5 mm and 60 % chance): skip the day's outdoor runs.</li>
+<li><strong>Hot day</strong> (from 32 °C): water +30 % that day.</li>
+<li><strong>Frost</strong> (1 to 2 °C or below): skip the runs before 10:00.</li>
+</ul>
+<p>There is one tip per day; rain comes first and covers frost. <strong>Not now</strong> hides a tip and <strong>Don't suggest</strong> stops that kind. Tips only suggest; nothing changes until you press a button. Thresholds are under Settings → More options → <strong>Weather tips</strong>. To get the tips the evening before as a notification with buttons, tick <strong>Weather tips (evening)</strong> under <strong>Send notification when</strong>.</p>
+<h2 id="watering-plans-and-cycle-soak">Watering plans and cycle &amp; soak<a class="headerlink" href="#watering-plans-and-cycle-soak" title="Permanent link">&para;</a></h2>
+<p>A plan runs its zones in order. Per zone you can set <strong>Max run (min)</strong> and <strong>Soak pause (min)</strong> so long runs are split into chunks and the water sinks in. A 10-minute run with max run 4 and pause 3 runs 4, pause 3, 3, pause 3, 3. Inside a plan, the next zone waters while one soaks. Turn this off in Settings → More options → <strong>Smarter cycle &amp; soak</strong>.</p>
+<div class="highlight"><pre><span></span><code><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">schedule_wizard.add_valve</span>
+<span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">entity_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">switch.zone_slope</span>
+<span class="w">  </span><span class="nt">label</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Slope</span>
+<span class="w">  </span><span class="nt">default_duration_minutes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">12</span>
+<span class="w">  </span><span class="nt">soak_run_minutes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">  </span><span class="nt">soak_pause_minutes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+</code></pre></div>
+<p>Plans can be started, paused, resumed and stopped from the panel or with services. A plan interrupted by a restart continues with its next zone if Home Assistant is back within 30 minutes of when the current zone would have finished.</p>
+<h2 id="protection">Protection<a class="headerlink" href="#protection" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Master valve / pump</strong>: opens before any zone and closes after the last zone and plan finish; optional pre-open delay in seconds. It must be a switch, valve, light, cover or input_boolean.</li>
+<li><strong>Fail-to-open check</strong>: after turning a valve on, waits up to N seconds for it to report on. If it does not, it logs an error, fires <code>schedule_wizard_valve_failed_to_open</code> and notifies.</li>
+<li><strong>Leak and burst detection</strong>: pick a flow sensor, a leak threshold (flow with nothing watering), a maximum flow while watering and a delay (default 60 s). On an alert it fires <code>schedule_wizard_leak_detected</code>, notifies, and can stop everything and close the master valve.</li>
+<li><strong>Stop all</strong>: closes every valve and ends every plan and soak sequence.</li>
+<li><strong>Restarts</strong>: active runs are re-armed from storage. A valve that is on with time left gets its auto-close re-armed; one past its end is closed at once; one that is off is logged as cancelled.</li>
+</ul>
+<h2 id="water-usage">Water usage<a class="headerlink" href="#water-usage" title="Permanent link">&para;</a></h2>
+<p>With a flow meter, each run's water is measured. Without one, set <strong>Flow rate (L/min)</strong> on a zone and usage is estimated from the run time. <code>sensor.&lt;zone&gt;_water_used</code> and <code>sensor.schedule_wizard_water_used</code> (litres) can be added to the Energy dashboard under Water consumption. After 3 measured runs a zone learns its usual flow, and a run with less than half of it fires <code>schedule_wizard_low_flow</code>.</p>
+<h2 id="webhook">Webhook<a class="headerlink" href="#webhook" title="Permanent link">&para;</a></h2>
+<p>Each install has a unique webhook ID. Find the URL in Settings → More options → Webhook (administrators only). The ID is the secret; <strong>New URL</strong> replaces it.</p>
+<div class="highlight"><pre><span></span><code>curl<span class="w"> </span>-X<span class="w"> </span>POST<span class="w"> </span>https://&lt;your-ha-url&gt;/api/webhook/&lt;WEBHOOK_ID&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-H<span class="w"> </span><span class="s1">'Content-Type: application/json'</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-d<span class="w"> </span><span class="s1">'{"entity_id": "switch.front_lawn_valve", "duration_minutes": 15}'</span>
+</code></pre></div>
+<p>Use <code>"action": "stop"</code> to stop. Only zones set up in Schedule Wizard are accepted (<code>404 unknown zone</code> otherwise, <code>409</code> for a disabled zone, <code>400</code> for a bad body).</p>
+<h2 id="voice-assist">Voice (Assist)<a class="headerlink" href="#voice-assist" title="Permanent link">&para;</a></h2>
+<p>Available in English, German and Hebrew. Zone and plan names are matched loosely.</p>
+<table>
+<thead>
+<tr>
+<th>English</th>
+<th>Deutsch</th>
+<th>עברית</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Water the front lawn for 10 minutes</td>
+<td>Bewässere den Rasen für 10 Minuten</td>
+<td>תשקה את הדשא 10 דקות</td>
+</tr>
+<tr>
+<td>Stop watering</td>
+<td>Stoppe die Bewässerung</td>
+<td>עצור את ההשקיה</td>
+</tr>
+<tr>
+<td>Skip watering today</td>
+<td>Bewässerung heute überspringen</td>
+<td>דלג על ההשקיה היום</td>
+</tr>
+<tr>
+<td>Pause watering for 2 days</td>
+<td>Pausiere die Bewässerung für 2 Tage</td>
+<td>השהה את ההשקיה ל 2 ימים</td>
+</tr>
+</tbody>
+</table>
+<p>Turn voice off in Settings → More options → <strong>Voice commands</strong>.</p>
+<h2 id="notifications">Notifications<a class="headerlink" href="#notifications" title="Permanent link">&para;</a></h2>
+<p>Pick one or more <code>notify.*</code> services in Settings → Notifications, then tick which events should send a message (valve start and end, plan start and end, skips for rain, moisture, conditions or temperature, failed open, rain delay, leaks). Messages use your Home Assistant language.</p>
+<p><strong>Remind me before watering</strong> (10 to 60 minutes) sends "Morning watering starts at 06:00 (35 min)" with <strong>Skip today</strong> and <strong>Water now</strong> buttons. The buttons need the Home Assistant Companion app; other notify services get the text only.</p>
+<h2 id="lovelace-card">Lovelace card<a class="headerlink" href="#lovelace-card" title="Permanent link">&para;</a></h2>
+<p><img alt="Schedule Wizard Lovelace card showing the running zone and quick Water now buttons" src="../assets/screens/card.png" /></p>
+<p>The card is registered automatically. Add it from the card picker, or in YAML:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">custom:schedule-wizard-card</span>
+<span class="nt">title</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Irrigation</span>
+<span class="nt">show_active</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">show_quick_run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="nt">valves</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">switch.front_lawn_valve</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">switch.back_lawn_valve</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>title</code></td>
+<td><code>Schedule Wizard</code></td>
+<td>Card header.</td>
+</tr>
+<tr>
+<td><code>show_active</code></td>
+<td><code>true</code></td>
+<td>Show running zones at the top.</td>
+</tr>
+<tr>
+<td><code>show_quick_run</code></td>
+<td><code>true</code></td>
+<td>Show the zone list with minutes and <strong>Water now</strong>.</td>
+</tr>
+<tr>
+<td><code>valves</code></td>
+<td>all zones</td>
+<td>Optional list of zone entity ids to show.</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.top", "navigation.sections", "search.highlight", "content.code.copy", "content.action.edit"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

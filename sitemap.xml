@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+    <url>
+        <loc>https://bareli.github.io/schedule_wizard/</loc>
+        <lastmod>2026-10-20</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://bareli.github.io/schedule_wizard/"/>
+        <xhtml:link rel="alternate" hreflang="he" href="https://bareli.github.io/schedule_wizard/he/"/>
+    </url>
+    <url>
+        <loc>https://bareli.github.io/schedule_wizard/changelog/</loc>
+        <lastmod>2026-10-20</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://bareli.github.io/schedule_wizard/changelog/"/>
+        <xhtml:link rel="alternate" hreflang="he" href="https://bareli.github.io/schedule_wizard/he/changelog/"/>
+    </url>
+    <url>
+        <loc>https://bareli.github.io/schedule_wizard/features/</loc>
+        <lastmod>2026-10-20</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://bareli.github.io/schedule_wizard/features/"/>
+        <xhtml:link rel="alternate" hreflang="he" href="https://bareli.github.io/schedule_wizard/he/features/"/>
+    </url>
+    <url>
+        <loc>https://bareli.github.io/schedule_wizard/install/</loc>
+        <lastmod>2026-10-20</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://bareli.github.io/schedule_wizard/install/"/>
+        <xhtml:link rel="alternate" hreflang="he" href="https://bareli.github.io/schedule_wizard/he/install/"/>
+    </url>
+    <url>
+        <loc>https://bareli.github.io/schedule_wizard/reference/</loc>
+        <lastmod>2026-10-20</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://bareli.github.io/schedule_wizard/reference/"/>
+        <xhtml:link rel="alternate" hreflang="he" href="https://bareli.github.io/schedule_wizard/he/reference/"/>
+    </url>
+    <url>
+        <loc>https://bareli.github.io/schedule_wizard/troubleshooting/</loc>
+        <lastmod>2026-10-20</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://bareli.github.io/schedule_wizard/troubleshooting/"/>
+        <xhtml:link rel="alternate" hreflang="he" href="https://bareli.github.io/schedule_wizard/he/troubleshooting/"/>
+    </url>
+    <url>
+        <loc>https://bareli.github.io/schedule_wizard/usage/</loc>
+        <lastmod>2026-10-20</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="en" href="https://bareli.github.io/schedule_wizard/usage/"/>
+        <xhtml:link rel="alternate" hreflang="he" href="https://bareli.github.io/schedule_wizard/he/usage/"/>
+    </url>
+    <url>
+        <loc>https://bareli.github.io/schedule_wizard/he/</loc>
+        <lastmod>2026-10-20</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="he" href="https://bareli.github.io/schedule_wizard/he/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://bareli.github.io/schedule_wizard/"/>
+    </url>
+    <url>
+        <loc>https://bareli.github.io/schedule_wizard/he/changelog/</loc>
+        <lastmod>2026-10-20</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="he" href="https://bareli.github.io/schedule_wizard/he/changelog/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://bareli.github.io/schedule_wizard/changelog/"/>
+    </url>
+    <url>
+        <loc>https://bareli.github.io/schedule_wizard/he/features/</loc>
+        <lastmod>2026-10-20</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="he" href="https://bareli.github.io/schedule_wizard/he/features/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://bareli.github.io/schedule_wizard/features/"/>
+    </url>
+    <url>
+        <loc>https://bareli.github.io/schedule_wizard/he/install/</loc>
+        <lastmod>2026-10-20</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="he" href="https://bareli.github.io/schedule_wizard/he/install/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://bareli.github.io/schedule_wizard/install/"/>
+    </url>
+    <url>
+        <loc>https://bareli.github.io/schedule_wizard/he/reference/</loc>
+        <lastmod>2026-10-20</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="he" href="https://bareli.github.io/schedule_wizard/he/reference/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://bareli.github.io/schedule_wizard/reference/"/>
+    </url>
+    <url>
+        <loc>https://bareli.github.io/schedule_wizard/he/troubleshooting/</loc>
+        <lastmod>2026-10-20</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="he" href="https://bareli.github.io/schedule_wizard/he/troubleshooting/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://bareli.github.io/schedule_wizard/troubleshooting/"/>
+    </url>
+    <url>
+        <loc>https://bareli.github.io/schedule_wizard/he/usage/</loc>
+        <lastmod>2026-10-20</lastmod>
+        <changefreq>daily</changefreq>
+        <xhtml:link rel="alternate" hreflang="he" href="https://bareli.github.io/schedule_wizard/he/usage/"/>
+        <xhtml:link rel="alternate" hreflang="en" href="https://bareli.github.io/schedule_wizard/usage/"/>
+    </url>
+</urlset>
