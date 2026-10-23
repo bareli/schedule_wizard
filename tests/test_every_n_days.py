@@ -90,7 +90,9 @@ async def test_next_fire_across_dst(hass: HomeAssistant, tz, start, after, expec
     ("America/New_York", date(2027, 3, 13), 4, {0, 2, 4}),
     ("Asia/Jerusalem", date(2026, 12, 30), 7, {0, 3, 6}),  # crosses the new year
 ])
-async def test_cron_every_n_days_across_dst(hass: HomeAssistant, tz, start, days, runs):
+async def test_cron_every_n_days_across_dst(hass: HomeAssistant, freezer, tz, start, days, runs):
+    # Pin the clock before the first run so the test does not depend on the real date.
+    freezer.move_to(datetime.combine(start - timedelta(days=1), dtime(12, 0), tzinfo=ZoneInfo("UTC")))
     await hass.config.async_set_time_zone(tz)
     entry = await setup_wizard(hass)
     await add_valve(hass, Z1, "Front")
