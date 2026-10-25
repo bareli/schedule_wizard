@@ -137,7 +137,9 @@ def test_clock_schedules_unchanged_without_hass():
     ("berlin", date(2026, 10, 24)),       # across the end of summer time
     ("caesarea", date(2027, 3, 25)),      # across the start of summer time
 ])
-async def test_cron_waters_at_sunrise_offset(hass: HomeAssistant, place, first):
+async def test_cron_waters_at_sunrise_offset(hass: HomeAssistant, freezer, place, first):
+    # Pin the clock before the first run so the test does not depend on the real date.
+    freezer.move_to(datetime.combine(first - timedelta(days=1), dtime(12, 0), tzinfo=ZoneInfo("UTC")))
     await at_place(hass, place)
     entry = await setup_wizard(hass)
     await add_valve(hass, Z1, "Front")
